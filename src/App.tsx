@@ -1,0 +1,1508 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, Edit2, Trash2, Calendar, MapPin, Phone, 
+  User, LogOut, Shield, Settings, Activity,
+  ChevronRight, Search, Clock, CheckCircle2,
+  MessageCircle, ExternalLink, Camera
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { User as UserType, Pharmacy, RosterEntry } from './types';
+import { translations } from './translations';
+import { 
+  APIProvider, Map, Marker as GoogleMarker, InfoWindow, useMap
+} from '@vis.gl/react-google-maps';
+
+// --- API Helpers ---
+const api = {
+  get: (url: string) => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  post: (url: string, body: any) => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body)
+  }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  put: (url: string, body: any) => fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body)
+  }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  delete: (url: string) => fetch(url, { 
+    method: 'DELETE',
+    credentials: 'include'
+  }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+};
+
+// --- Components ---
+
+const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'en', t: any }) => {
+  const [onCall, setOnCall] = useState<Pharmacy[]>([]);
+  const [allPharmacies, setAllPharmacies] = useState<Pharmacy[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [selectedPharma, setSelectedPharma] = useState<Pharmacy | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      api.get('/api/public/on-call'),
+      api.get('/api/public/pharmacies'),
+      api.get('/api/public/roster?page=1&limit=10')
+    ]).then(([onCallData, allPharmaData, rosterData]) => {
+      setOnCall(onCallData);
+      setAllPharmacies(allPharmaData);
+      setRoster(rosterData.data);
+      setHasMore(rosterData.data.length < rosterData.total);
+      setLoading(false);
+    });
+  }, []);
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const rosterData = await api.get(`/api/public/roster?page=${nextPage}&limit=10`);
+      setRoster(prev => [...prev, ...rosterData.data]);
+      setPage(nextPage);
+      setHasMore(roster.length + rosterData.data.length < rosterData.total);
+    } catch (err) {
+      console.error('Failed to load more roster entries', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const filteredOnCall = onCall.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredRoster = roster.filter(entry => 
+    entry.pharmacy_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    entry.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <header className="mb-16 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-emerald-600 uppercase bg-emerald-50 rounded-full"
+        >
+          {t.communityHealth}
+        </motion.div>
+        <h1 className="text-6xl font-extrabold tracking-tight text-slate-900 mb-6">
+          {lang === 'ar' ? (
+            <>صيدليات <span className="text-emerald-500">طيبة الإمام</span></>
+          ) : (
+            <>Taibet El-Imam <span className="text-emerald-500">Pharmacies</span></>
+          )}
+        </h1>
+        <p className="text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">
+          {t.searchPlaceholder}
+        </p>
+        
+        <div className="max-w-xl mx-auto relative group">
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+          <input 
+            type="text" 
+            placeholder={t.searchPlaceholder}
+            className="w-full pr-12 pl-4 py-4 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm transition-all"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </header>
+
+      {/* Map Section */}
+      <div className="mb-16">
+        <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+          <MapPin className="text-emerald-500" />
+          {t.mapView}
+        </h2>
+        <div className="h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0">
+          <Map 
+            defaultCenter={{ lat: 35.25, lng: 36.7 }} 
+            defaultZoom={13} 
+            gestureHandling={'greedy'}
+            disableDefaultUI={true}
+            mapId={'public_map'}
+          >
+            {allPharmacies.map(p => {
+              const isOnCall = onCall.some(oc => oc.id === p.id);
+              return (
+                <GoogleMarker 
+                  key={`pharma-${p.id}`} 
+                  position={{ lat: p.latitude || 35.25, lng: p.longitude || 36.7 }}
+                  onClick={() => setSelectedPharma(p)}
+                />
+              );
+            })}
+            {selectedPharma && (
+              <InfoWindow 
+                position={{ lat: selectedPharma.latitude || 35.25, lng: selectedPharma.longitude || 36.7 }}
+                onCloseClick={() => setSelectedPharma(null)}
+              >
+                <div className="text-right min-w-[200px] p-2">
+                  {selectedPharma.image_url && (
+                    <img 
+                      src={selectedPharma.image_url} 
+                      alt={selectedPharma.name} 
+                      className="w-full h-24 object-cover rounded-xl mb-3" 
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  <h3 className={`font-bold text-lg ${onCall.some(oc => oc.id === selectedPharma.id) ? 'text-emerald-600' : 'text-slate-900'}`}>{selectedPharma.name}</h3>
+                  <div className="space-y-1 mt-2">
+                    <p className="text-xs text-slate-500 flex items-center justify-end gap-2">
+                      {selectedPharma.address} <MapPin size={12} />
+                    </p>
+                    <p className="text-xs text-slate-500 flex items-center justify-end gap-2">
+                      {selectedPharma.phone} <Phone size={12} />
+                    </p>
+                    {selectedPharma.pharmacist_name && (
+                      <p className="text-xs text-emerald-600 font-bold flex items-center justify-end gap-2">
+                        {selectedPharma.pharmacist_name} <User size={12} />
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    {selectedPharma.whatsapp_phone && (
+                      <a 
+                        href={`https://wa.me/${selectedPharma.whatsapp_phone}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold"
+                      >
+                        <MessageCircle size={12} /> {t.whatsappChat}
+                      </a>
+                    )}
+                    <a 
+                      href={`tel:${selectedPharma.phone}`}
+                      className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold"
+                    >
+                      <Phone size={12} /> {t.callPharmacy}
+                    </a>
+                  </div>
+                </div>
+              </InfoWindow>
+            )}
+          </Map>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selectedDoctorId && (
+          <DoctorProfileModal 
+            doctorId={selectedDoctorId} 
+            onClose={() => setSelectedDoctorId(null)} 
+            t={t} 
+            lang={lang} 
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        {/* Left Column: On-Call Today */}
+        <div className="lg:col-span-1">
+          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            {t.onCallToday}
+          </h2>
+          <div className="space-y-6">
+            {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
+              <motion.div 
+                key={p.id}
+                initial={{ opacity: 0, x: lang === 'ar' ? 20 : -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600">
+                    <Activity size={24} />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t.emergencyContact}</span>
+                </div>
+                {p.image_url && (
+                  <img 
+                    src={p.image_url} 
+                    alt={p.name} 
+                    className="w-full h-40 object-cover rounded-2xl mb-6" 
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+                <h3 className="text-2xl font-bold text-slate-900 mb-4">{p.name}</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 text-slate-600">
+                    <MapPin className="mt-1 flex-shrink-0 text-slate-400" size={18} />
+                    <span className="text-sm leading-relaxed">{p.address}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Phone className="flex-shrink-0 text-slate-400" size={18} />
+                    <span className="text-lg font-mono font-medium">{p.phone}</span>
+                  </div>
+                  {p.pharmacist_name && (
+                    <div className="flex items-center gap-3 text-emerald-600">
+                      <User className="flex-shrink-0 text-emerald-400" size={18} />
+                      <span className="text-sm font-bold">{p.pharmacist_name}</span>
+                    </div>
+                  )}
+                  {(p as any).notes && (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-500 text-sm">
+                      { (p as any).notes }
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
+                  <a 
+                    href={`tel:${p.phone}`}
+                    className="flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-100"
+                  >
+                    <Phone size={18} /> {t.callPharmacy}
+                  </a>
+                  {p.whatsapp_phone && (
+                    <a 
+                      href={`https://wa.me/${p.whatsapp_phone}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 bg-emerald-500 text-white py-4 rounded-2xl font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
+                    >
+                      <MessageCircle size={18} /> {t.whatsappChat}
+                    </a>
+                  )}
+                </div>
+              </motion.div>
+            )) : (
+              <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-12 rounded-3xl text-center">
+                <Clock className="mx-auto text-slate-300 mb-4" size={48} />
+                <p className="text-slate-500 font-medium">{t.noOnCall}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Upcoming Roster */}
+        <div className="lg:col-span-2">
+          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+            <Calendar className="text-indigo-500" />
+            {t.upcomingSchedule}
+          </h2>
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.date}</th>
+                    <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
+                    <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
+                    <th className="px-8 py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.addedBy}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredRoster.map((entry, idx) => (
+                    <motion.tr 
+                      key={idx}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="hover:bg-slate-50/50 transition-colors group"
+                    >
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-mono text-xs font-bold">
+                            {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit' })}
+                          </div>
+                          <span className="font-medium text-slate-900">
+                            {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{entry.pharmacy_name}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-2 text-slate-500 text-sm">
+                          <MapPin size={14} />
+                          <span className="truncate max-w-[200px]">{entry.address}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        {entry.creator_name ? (
+                          <div className="flex flex-col">
+                            <button 
+                              onClick={() => entry.creator_id && setSelectedDoctorId(entry.creator_id)}
+                              className="text-sm font-bold text-emerald-600 hover:underline text-right"
+                            >
+                              {entry.creator_name}
+                            </button>
+                            <span className="text-[10px] text-slate-400 font-mono">{entry.creator_phone}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">---</span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+              {hasMore && (
+                <div className="p-8 text-center">
+                  <button 
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-8 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? '...' : t.loadMore}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Login = ({ onLogin, t }: { onLogin: (user: UserType) => void, t: any }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const data = await api.post('/api/auth/login', { email, password });
+      onLogin(data.user);
+    } catch (err: any) {
+      setError(err.error || t.loginFailed);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md"
+      >
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900">{t.loginTitle}</h2>
+          <p className="text-slate-500 mt-2">{t.loginSubtitle}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">{error}</div>}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label>
+            <input 
+              type="email" 
+              required 
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{t.password}</label>
+            <input 
+              type="password" 
+              required 
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+          </div>
+          <button 
+            type="submit"
+            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
+          >
+            {t.signIn}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, body: string, t: any }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center"
+      >
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Trash2 size={32} />
+        </div>
+        <h3 className="text-2xl font-bold text-slate-900 mb-2">{title}</h3>
+        <p className="text-slate-500 mb-8">{body}</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">{t.cancel}</button>
+          <button onClick={() => { onConfirm(); onClose(); }} className="flex-1 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">{t.deleteBtn}</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const LocationPicker = ({ onLocationSelect, initialPosition }: { onLocationSelect: (lat: number, lng: number) => void, initialPosition?: [number, number] }) => {
+  const map = useMap();
+  const [position, setPosition] = useState<{ lat: number, lng: number } | null>(initialPosition ? { lat: initialPosition[0], lng: initialPosition[1] } : null);
+
+  useEffect(() => {
+    if (!map) return;
+    const listener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
+      if (e.latLng) {
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        setPosition({ lat, lng });
+        onLocationSelect(lat, lng);
+      }
+    });
+    return () => google.maps.event.removeListener(listener);
+  }, [map, onLocationSelect]);
+
+  return position ? <GoogleMarker position={position} /> : null;
+};
+
+const RecenterMap = ({ position }: { position: [number, number] }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (map && position[0] !== 0 && position[1] !== 0) {
+      map.setCenter({ lat: position[0], lng: position[1] });
+    }
+  }, [position, map]);
+  return null;
+};
+
+const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
+  const [doctor, setDoctor] = useState<(UserType & { pharmacies: Pharmacy[] }) | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/api/public/doctors/${doctorId}`)
+      .then(data => setDoctor(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, [doctorId]);
+
+  if (!doctorId) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h3 className="text-3xl font-bold text-slate-900 mb-2">{loading ? '...' : doctor?.name}</h3>
+            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold uppercase tracking-wider">
+              {doctor?.role === 'doctor' ? t.doctor : t.pharmacist}
+            </span>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <Plus className="rotate-45 text-slate-400" size={24} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-emerald-500"></div>
+          </div>
+        ) : doctor ? (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 bg-slate-50 rounded-2xl">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
+                  <Phone size={18} />
+                  <span className="text-xs font-bold uppercase tracking-wider">{t.phone}</span>
+                </div>
+                <p className="text-lg font-mono text-slate-900">{doctor.phone || '---'}</p>
+              </div>
+              <div className="p-6 bg-slate-50 rounded-2xl">
+                <div className="flex items-center gap-3 text-slate-400 mb-2">
+                  <Calendar size={18} />
+                  <span className="text-xs font-bold uppercase tracking-wider">{t.email}</span>
+                </div>
+                <p className="text-lg text-slate-900">{doctor.email}</p>
+              </div>
+            </div>
+
+            {doctor.notes && (
+              <div className="p-6 bg-emerald-50/50 rounded-2xl">
+                <h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-3">{t.doctorNotes}</h4>
+                <p className="text-emerald-800 leading-relaxed">{doctor.notes}</p>
+              </div>
+            )}
+
+            <div>
+              <h4 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+                <Activity className="text-emerald-500" size={24} />
+                {t.managedPharmacies}
+              </h4>
+              <div className="grid grid-cols-1 gap-4">
+                {doctor.pharmacies.map(p => (
+                  <div key={p.id} className="p-4 border border-slate-100 rounded-2xl flex justify-between items-center hover:bg-slate-50 transition-colors">
+                    <div>
+                      <h5 className="font-bold text-slate-900">{p.name}</h5>
+                      <p className="text-xs text-slate-500">{p.address}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-mono text-slate-600">{p.phone}</p>
+                    </div>
+                  </div>
+                ))}
+                {doctor.pharmacies.length === 0 && (
+                  <p className="text-center py-8 text-slate-400 italic">No pharmacies assigned yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-center py-12 text-slate-500">Doctor not found.</p>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
+  const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
+  
+  // Profile state
+  const [profileEmail, setProfileEmail] = useState(user.email);
+  const [profileName, setProfileName] = useState(user.name);
+  const [profilePhone, setProfilePhone] = useState(user.phone || '');
+  const [profileNotes, setProfileNotes] = useState(user.notes || '');
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
+  const [profileNewPassword, setProfileNewPassword] = useState('');
+  const [profileMsg, setProfileMsg] = useState('');
+
+  // Form states
+  const [showPharmaModal, setShowPharmaModal] = useState(false);
+  const [editingPharma, setEditingPharma] = useState<Pharmacy | null>(null);
+  const [pharmaForm, setPharmaForm] = useState({ 
+    name: '', 
+    address: '', 
+    phone: '', 
+    doctor_id: 0, 
+    latitude: 35.25, 
+    longitude: 36.7,
+    pharmacist_name: '',
+    whatsapp_phone: '',
+    image_url: ''
+  });
+
+  const [showRosterModal, setShowRosterModal] = useState(false);
+  const [editingRoster, setEditingRoster] = useState<RosterEntry | null>(null);
+  const [rosterForm, setRosterForm] = useState({ pharmacy_id: 0, duty_date: '', notes: '' });
+
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [userForm, setUserForm] = useState({ 
+    email: '', 
+    password: '', 
+    role: 'pharmacist' as any, 
+    name: '', 
+    pharmacy_limit: 10,
+    phone: '',
+    notes: ''
+  });
+
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+
+  const [doctorFilter, setDoctorFilter] = useState<number>(0);
+
+  // Confirmation modal state
+  const [confirmData, setConfirmData] = useState<{ isOpen: boolean, onConfirm: () => void, title: string, body: string }>({
+    isOpen: false,
+    onConfirm: () => {},
+    title: '',
+    body: ''
+  });
+
+  const openConfirm = (title: string, body: string, onConfirm: () => void) => {
+    setConfirmData({ isOpen: true, onConfirm, title, body });
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const loadData = async () => {
+    if (activeTab === 'pharmacies') api.get('/api/pharmacies').then(setPharmacies);
+    if (activeTab === 'roster') api.get('/api/roster').then(setRoster);
+    if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/api/auth/update-profile', { 
+        email: profileEmail, 
+        name: profileName, 
+        currentPassword: profileCurrentPassword,
+        newPassword: profileNewPassword,
+        phone: profilePhone,
+        notes: profileNotes
+      });
+      setProfileMsg(res.verificationRequired ? t.verificationSent : t.profileUpdated);
+      setProfileCurrentPassword('');
+      setProfileNewPassword('');
+    } catch (err: any) {
+      setProfileMsg(err.error || 'فشل تحديث الملف الشخصي.');
+    }
+  };
+
+  const handleSavePharma = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = { ...pharmaForm };
+    if (user.role !== 'admin') delete (payload as any).doctor_id;
+
+    try {
+      if (editingPharma) {
+        await api.put(`/api/pharmacies/${editingPharma.id}`, payload);
+      } else {
+        await api.post('/api/pharmacies', payload);
+      }
+      setShowPharmaModal(false);
+      setEditingPharma(null);
+      setPharmaForm({ 
+        name: '', 
+        address: '', 
+        phone: '', 
+        doctor_id: 0, 
+        latitude: 35.25, 
+        longitude: 36.7,
+        pharmacist_name: '',
+        whatsapp_phone: '',
+        image_url: ''
+      });
+      loadData();
+    } catch (err: any) {
+      alert(err.error || 'فشل حفظ الصيدلية');
+    }
+  };
+
+  const handleSaveRoster = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingRoster) {
+        await api.put(`/api/roster/${editingRoster.id}`, rosterForm);
+      } else {
+        await api.post('/api/roster', rosterForm);
+      }
+      setShowRosterModal(false);
+      setEditingRoster(null);
+      setRosterForm({ pharmacy_id: 0, duty_date: '', notes: '' });
+      loadData();
+    } catch (err: any) {
+      alert(err.error || 'فشل حفظ المناوبة');
+    }
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingUser) {
+        await api.put(`/api/admin/users/${editingUser.id}`, userForm);
+      } else {
+        await api.post('/api/admin/users', userForm);
+      }
+      setShowUserModal(false);
+      setEditingUser(null);
+      setUserForm({ 
+        email: '', 
+        password: '', 
+        role: 'pharmacist', 
+        name: '', 
+        pharmacy_limit: 10,
+        phone: '',
+        notes: ''
+      });
+      loadData();
+    } catch (err: any) {
+      alert(err.error || 'فشل حفظ المستخدم');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
+        <div className="p-6 border-b border-slate-100">
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Activity className="text-emerald-500" /> {t.appName}
+          </h1>
+        </div>
+        <nav className="flex-1 p-4 space-y-1">
+          <button 
+            onClick={() => setActiveTab('pharmacies')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'pharmacies' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}
+          >
+            <MapPin size={18} /> {t.pharmacies}
+          </button>
+          <button 
+            onClick={() => setActiveTab('roster')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'roster' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}
+          >
+            <Calendar size={18} /> {t.dutyRoster}
+          </button>
+          {user.role === 'admin' && (
+            <button 
+              onClick={() => setActiveTab('users')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <User size={18} /> {t.userManagement}
+            </button>
+          )}
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}
+          >
+            <Settings size={18} /> {t.profileSettings}
+          </button>
+        </nav>
+        <div className="p-4 border-t border-slate-100">
+          <div className="flex items-center gap-3 px-4 py-3 mb-2">
+            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold">
+              {user.name[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
+              <p className="text-xs text-slate-500 capitalize">{user.role === 'admin' ? t.admin : user.role === 'doctor' ? t.doctor : t.pharmacist}</p>
+            </div>
+          </div>
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <LogOut size={18} /> {t.logout}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto p-8">
+        <AnimatePresence mode="wait">
+          {activeTab === 'pharmacies' && (
+            <motion.div 
+              key="pharmacies"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900">{t.pharmacies}</h2>
+                  <p className="text-slate-500">{t.managePharmacies}</p>
+                </div>
+                <div className="flex gap-4">
+                  {user.role === 'admin' && (
+                    <select 
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={doctorFilter}
+                      onChange={e => setDoctorFilter(parseInt(e.target.value))}
+                    >
+                      <option value="0">{t.allDoctors}</option>
+                      {users.filter(u => u.role === 'doctor' || u.role === 'pharmacist').map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {(user.role === 'admin' || user.role === 'doctor' || user.role === 'pharmacist') && (
+                    <button 
+                      onClick={() => { setEditingPharma(null); setPharmaForm({ name: '', address: '', phone: '', doctor_id: 0, latitude: 35.25, longitude: 36.7, pharmacist_name: '', whatsapp_phone: '', image_url: '' }); setShowPharmaModal(true); }}
+                      className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                    >
+                      <Plus size={20} /> {t.addPharmacy}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {pharmacies.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(p => {
+                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date === new Date().toISOString().split('T')[0]);
+                  return (
+                    <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-xl font-bold text-slate-900">{p.name}</h3>
+                        {isOnCall && (
+                          <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                            {t.onCall}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-2 text-slate-600 mb-6">
+                        <p className="flex items-center gap-2 text-sm"><MapPin size={14} /> {p.address}</p>
+                        <p className="flex items-center gap-2 text-sm"><Phone size={14} /> {p.phone}</p>
+                        <div className="flex items-center gap-2 text-sm">
+                          <User size={14} />
+                          <button 
+                            onClick={() => p.doctor_id && setSelectedDoctorId(p.doctor_id)}
+                            className="text-emerald-600 hover:underline font-medium"
+                          >
+                            {users.find(u => u.id === p.doctor_id)?.name || t.unassigned}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono">{p.latitude}, {p.longitude}</p>
+                      </div>
+                      {p.whatsapp_phone && (
+                        <a 
+                          href={`https://wa.me/${p.whatsapp_phone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mb-4 w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors"
+                        >
+                          <MessageCircle size={14} /> {t.whatsappChat}
+                        </a>
+                      )}
+                      {(user.role === 'admin' || ((user.role === 'doctor' || user.role === 'pharmacist') && p.doctor_id === user.id)) && (
+                        <div className="flex gap-2 border-t border-slate-100 pt-4">
+                          <button 
+                            onClick={() => { setEditingPharma(p); setPharmaForm({ name: p.name, address: p.address, phone: p.phone, doctor_id: p.doctor_id || 0, latitude: p.latitude || 35.25, longitude: p.longitude || 36.7, pharmacist_name: p.pharmacist_name || '', whatsapp_phone: p.whatsapp_phone || '', image_url: p.image_url || '' }); setShowPharmaModal(true); }}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                          >
+                            <Edit2 size={14} /> {t.edit}
+                          </button>
+                          <button 
+                            onClick={() => openConfirm(t.confirmTitle, t.confirmBody, async () => { await api.delete(`/api/pharmacies/${p.id}`); loadData(); })}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={14} /> {t.delete}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'roster' && (
+            <motion.div 
+              key="roster"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900">{t.dutyRoster}</h2>
+                  <p className="text-slate-500">{t.scheduleDuties}</p>
+                </div>
+                {(user.role === 'admin' || user.role === 'doctor' || user.role === 'pharmacist') && (
+                  <button 
+                    onClick={() => { setEditingRoster(null); setRosterForm({ pharmacy_id: 0, duty_date: '', notes: '' }); setShowRosterModal(true); }}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                  >
+                    <Plus size={20} /> {t.newAssignment}
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                <table className="w-full text-right">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t.date}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t.pharmacy}</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t.notes}</th>
+                      {(user.role === 'admin' || user.role === 'doctor' || user.role === 'pharmacist') && <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{t.actions}</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {roster.map(entry => (
+                      <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="px-6 py-4 font-mono text-sm text-slate-600">{entry.duty_date}</td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{entry.pharmacy_name}</td>
+                        <td className="px-6 py-4 text-slate-500 text-sm italic">{entry.notes || '-'}</td>
+                        {(user.role === 'admin' || user.role === 'doctor' || user.role === 'pharmacist') && (
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => openConfirm(t.confirmEditTitle, t.confirmEditBody, () => { setEditingRoster(entry); setRosterForm({ pharmacy_id: entry.pharmacy_id, duty_date: entry.duty_date, notes: entry.notes || '' }); setShowRosterModal(true); })}
+                                className="text-slate-400 hover:text-emerald-600 transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => openConfirm(t.confirmTitle, t.confirmBody, async () => { await api.delete(`/api/roster/${entry.id}`); loadData(); })}
+                                className="text-slate-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'users' && user.role === 'admin' && (
+            <motion.div 
+              key="users"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900">{t.userManagement}</h2>
+                  <p className="text-slate-500">{t.manageStaff}</p>
+                </div>
+                <button 
+                  onClick={() => setShowUserModal(true)}
+                  className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                >
+                  <Plus size={20} /> {t.createUser}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {users.map(u => (
+                  <div key={u.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl">
+                        {u.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <button 
+                          onClick={() => setSelectedDoctorId(u.id)}
+                          className="font-bold text-slate-900 truncate hover:text-emerald-600 transition-colors text-left w-full"
+                        >
+                          {u.name}
+                        </button>
+                        <p className="text-sm text-slate-500 truncate">{u.email}</p>
+                        <div className="flex gap-2 mt-2">
+                          <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">
+                            {u.role === 'admin' ? t.admin : u.role === 'doctor' ? t.doctor : t.pharmacist}
+                          </span>
+                          <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider">
+                            {t.pharmacyLimit}: {u.pharmacy_limit}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 border-t border-slate-100 pt-4">
+                      <button 
+                        onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit2 size={12} /> {t.editUser}
+                      </button>
+                      <button 
+                        onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Trash2 size={12} /> {t.deleteUser}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'profile' && (
+            <motion.div 
+              key="profile"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="max-w-2xl"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">{t.profileSettings}</h2>
+              <p className="text-slate-500 mb-8">{t.profileSubtitle}</p>
+
+              <form onSubmit={handleUpdateProfile} className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                {profileMsg && <div className={`p-4 rounded-xl text-sm ${profileMsg.includes('verified') || profileMsg.includes('updated') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{profileMsg}</div>}
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label>
+                  <input 
+                    type="text" 
+                    required 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    value={profileName}
+                    onChange={e => setProfileName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label>
+                  <input 
+                    type="email" 
+                    required 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    value={profileEmail}
+                    onChange={e => setProfileEmail(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    value={profilePhone}
+                    onChange={e => setProfilePhone(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label>
+                  <textarea 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    rows={3}
+                    value={profileNotes}
+                    onChange={e => setProfileNotes(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label>
+                  <input 
+                    type="password" 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    value={profileNewPassword}
+                    onChange={e => setProfileNewPassword(e.target.value)}
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label>
+                  <input 
+                    type="password" 
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50"
+                    value={profileCurrentPassword}
+                    onChange={e => setProfileCurrentPassword(e.target.value)}
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                >
+                  {t.saveChanges}
+                </button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {selectedDoctorId && (
+          <DoctorProfileModal 
+            doctorId={selectedDoctorId} 
+            onClose={() => setSelectedDoctorId(null)} 
+            t={t} 
+            lang={lang} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showPharmaModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+            >
+              <h3 className="text-2xl font-bold mb-6">{editingPharma ? t.editPharmacy : t.addPharmacy}</h3>
+              <form onSubmit={handleSavePharma} className="space-y-4">
+                <div className="h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0">
+                  <Map 
+                    defaultCenter={{ lat: pharmaForm.latitude || 35.25, lng: pharmaForm.longitude || 36.7 }} 
+                    defaultZoom={13}
+                    gestureHandling={'greedy'}
+                    disableDefaultUI={true}
+                  >
+                    <LocationPicker 
+                      onLocationSelect={(lat, lng) => setPharmaForm({...pharmaForm, latitude: lat, longitude: lng})} 
+                      initialPosition={pharmaForm.latitude && pharmaForm.longitude ? [pharmaForm.latitude, pharmaForm.longitude] : undefined}
+                    />
+                    {editingPharma && <RecenterMap position={[pharmaForm.latitude || 35.25, pharmaForm.longitude || 36.7]} />}
+                  </Map>
+                </div>
+                <p className="text-[10px] text-slate-400 text-center">{t.clickToSetLocation}</p>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.pharmacy}</label>
+                  <input 
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={pharmaForm.name}
+                    onChange={e => setPharmaForm({...pharmaForm, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.location}</label>
+                  <input 
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={pharmaForm.address}
+                    onChange={e => setPharmaForm({...pharmaForm, address: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.phone}</label>
+                  <input 
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={pharmaForm.phone}
+                    onChange={e => setPharmaForm({...pharmaForm, phone: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.pharmacistName}</label>
+                    <input 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={pharmaForm.pharmacist_name}
+                      onChange={e => setPharmaForm({...pharmaForm, pharmacist_name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.whatsapp}</label>
+                    <input 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={pharmaForm.whatsapp_phone}
+                      onChange={e => setPharmaForm({...pharmaForm, whatsapp_phone: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.pharmacyPhoto}</label>
+                  <input 
+                    type="url"
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    placeholder="https://..."
+                    value={pharmaForm.image_url}
+                    onChange={e => setPharmaForm({...pharmaForm, image_url: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.latitude}</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      required 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={pharmaForm.latitude}
+                      onChange={e => setPharmaForm({...pharmaForm, latitude: parseFloat(e.target.value)})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.longitude}</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      required 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={pharmaForm.longitude}
+                      onChange={e => setPharmaForm({...pharmaForm, longitude: parseFloat(e.target.value)})}
+                    />
+                  </div>
+                </div>
+                {user.role === 'admin' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.assignDoctor}</label>
+                    <select 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={pharmaForm.doctor_id}
+                      onChange={e => setPharmaForm({...pharmaForm, doctor_id: parseInt(e.target.value)})}
+                    >
+                      <option value="0">{t.unassigned}</option>
+                      {users.filter(u => u.role === 'doctor').map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setShowPharmaModal(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100">{t.cancel}</button>
+                  <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800">{t.save}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showRosterModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+            >
+              <h3 className="text-2xl font-bold mb-6">{editingRoster ? t.editAssignment : t.newAssignment}</h3>
+              <form onSubmit={handleSaveRoster} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.selectPharmacy}</label>
+                  <select 
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={rosterForm.pharmacy_id}
+                    onChange={e => setRosterForm({...rosterForm, pharmacy_id: parseInt(e.target.value)})}
+                  >
+                    <option value="">{t.selectPharmacy}...</option>
+                    {pharmacies.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.dutyDate}</label>
+                  <input 
+                    type="date"
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={rosterForm.duty_date}
+                    onChange={e => setRosterForm({...rosterForm, duty_date: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.notes}</label>
+                  <input 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={rosterForm.notes}
+                    onChange={e => setRosterForm({...rosterForm, notes: e.target.value})}
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => { setShowRosterModal(false); setEditingRoster(null); }} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100">{t.cancel}</button>
+                  <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800">{editingRoster ? t.save : t.newAssignment}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+            >
+              <h3 className="text-2xl font-bold mb-6">{editingUser ? t.editUser : t.createUser}</h3>
+              <form onSubmit={handleSaveUser} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.fullName}</label>
+                  <input 
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={userForm.name}
+                    onChange={e => setUserForm({...userForm, name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.email}</label>
+                  <input 
+                    type="email"
+                    required 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={userForm.email}
+                    onChange={e => setUserForm({...userForm, email: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.password} {editingUser && `(${t.newPassword})`}</label>
+                  <input 
+                    type="password"
+                    required={!editingUser}
+                    placeholder={editingUser ? '********' : ''}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={userForm.password}
+                    onChange={e => setUserForm({...userForm, password: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.role}</label>
+                    <select 
+                      required 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={userForm.role}
+                      onChange={e => setUserForm({...userForm, role: e.target.value as any})}
+                    >
+                      <option value="pharmacist">{t.pharmacist}</option>
+                      <option value="doctor">{t.doctor}</option>
+                      <option value="admin">{t.admin}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t.pharmacyLimit}</label>
+                    <input 
+                      type="number"
+                      required 
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                      value={userForm.pharmacy_limit}
+                      onChange={e => setUserForm({...userForm, pharmacy_limit: parseInt(e.target.value)})}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.phone}</label>
+                  <input 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    value={userForm.phone}
+                    onChange={e => setUserForm({...userForm, phone: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t.notes}</label>
+                  <textarea 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    rows={3}
+                    value={userForm.notes}
+                    onChange={e => setUserForm({...userForm, notes: e.target.value})}
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => { setShowUserModal(false); setEditingUser(null); }} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100">{t.cancel}</button>
+                  <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800">{editingUser ? t.save : t.create}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <ConfirmModal 
+        isOpen={confirmData.isOpen}
+        onClose={() => setConfirmData(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmData.onConfirm}
+        title={confirmData.title}
+        body={confirmData.body}
+        t={t}
+      />
+    </div>
+  );
+};
+
+export default function App() {
+  const [user, setUser] = useState<UserType | null>(null);
+  const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
+  const [loading, setLoading] = useState(true);
+  const [lang, setLang] = useState<'ar' | 'en'>('ar');
+
+  const t = translations[lang];
+
+  useEffect(() => {
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  useEffect(() => {
+    api.get('/api/auth/me')
+      .then(data => {
+        setUser(data.user);
+        setView('dashboard');
+      })
+      .catch(() => setView('public'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleLogin = (u: UserType) => {
+    setUser(u);
+    setView('dashboard');
+  };
+
+  const handleLogout = async () => {
+    await api.post('/api/auth/logout', {});
+    setUser(null);
+    setView('public');
+  };
+
+  if (loading) return null;
+
+  return (
+    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
+      <div className="min-h-screen font-sans text-slate-900">
+        {/* Navigation Bar (Public/Login) */}
+        {view !== 'dashboard' && (
+          <nav className="bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/80">
+            <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2">
+              <Activity className="text-emerald-500" /> {t.appName}
+            </button>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+                className="px-4 py-2 rounded-full text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                {lang === 'ar' ? 'English' : 'العربية'}
+              </button>
+              {view === 'public' ? (
+                <button 
+                  onClick={() => setView('login')}
+                  className="bg-slate-900 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-slate-800 transition-colors"
+                >
+                  {t.staffLogin}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setView('public')}
+                  className="text-slate-600 px-6 py-2 rounded-full text-sm font-bold hover:bg-slate-50 transition-colors"
+                >
+                  {t.backToPublic}
+                </button>
+              )}
+            </div>
+          </nav>
+        )}
+
+        <main>
+          {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
+          {view === 'login' && <Login onLogin={handleLogin} t={t} />}
+          {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
+        </main>
+
+        {/* Footer (Public only) */}
+        {view === 'public' && (
+          <footer className="bg-slate-900 text-slate-400 py-12 text-center">
+            <p className="text-sm">{t.copyright}</p>
+            <p className="text-xs mt-2">{t.footerNote}</p>
+          </footer>
+        )}
+      </div>
+    </APIProvider>
+  );
+}
