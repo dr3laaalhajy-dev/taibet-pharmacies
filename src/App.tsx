@@ -155,78 +155,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         </div>
       </header>
 
-      {/* Map Section */}
-      <div className="mb-16">
-        <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-          <MapPin className="text-emerald-500" />
-          {t.mapView}
-        </h2>
-        <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
-          {/* خريطة OpenStreetMap المجانية */}
-          <MapContainer 
-            center={[35.25, 36.7]} 
-            zoom={13} 
-            style={{ height: '100%', width: '100%', zIndex: 0 }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {allPharmacies.map(p => {
-              const isOnCall = onCall.some(oc => oc.id === p.id);
-              return (
-                <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
-                  <Popup className="custom-popup">
-                    <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
-                      {p.image_url && (
-                        <img 
-                          src={p.image_url} 
-                          alt={p.name} 
-                          className="w-full h-24 object-cover rounded-xl mb-3" 
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
-                      <div className="space-y-1 mt-2">
-                        <p className="text-xs text-slate-500 flex items-center gap-2">
-                          <MapPin size={12} /> {p.address}
-                        </p>
-                        <p className="text-xs text-slate-500 flex items-center gap-2">
-                          <Phone size={12} /> {p.phone}
-                        </p>
-                        {p.pharmacist_name && (
-                          <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
-                            <User size={12} /> {p.pharmacist_name}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2 mt-4">
-                        {p.whatsapp_phone && (
-                          <a 
-                            href={`https://wa.me/${p.whatsapp_phone}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                          >
-                            <MessageCircle size={12} /> {t.whatsappChat}
-                          </a>
-                        )}
-                        <a 
-                          href={`tel:${p.phone}`}
-                          className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                        >
-                          <Phone size={12} /> {t.callPharmacy}
-                        </a>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-          </MapContainer>
-        </div>
-      </div>
-
       <AnimatePresence>
         {selectedDoctorId && (
           <DoctorProfileModal 
@@ -238,7 +166,8 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
+      {/* Grid: On-Call Today & Upcoming Roster */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12 mb-16">
         {/* Left Column: On-Call Today */}
         <div className="lg:col-span-1">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
@@ -395,6 +324,77 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Map Section (تم نقله للأسفل) */}
+      <div className="mt-8 md:mt-16">
+        <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+          <MapPin className="text-emerald-500" />
+          {t.mapView}
+        </h2>
+        <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
+          <MapContainer 
+            center={[35.25, 36.7]} 
+            zoom={13} 
+            style={{ height: '100%', width: '100%', zIndex: 0 }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {allPharmacies.map(p => {
+              const isOnCall = onCall.some(oc => oc.id === p.id);
+              return (
+                <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
+                  <Popup className="custom-popup">
+                    <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
+                      {p.image_url && (
+                        <img 
+                          src={p.image_url} 
+                          alt={p.name} 
+                          className="w-full h-24 object-cover rounded-xl mb-3" 
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
+                      <div className="space-y-1 mt-2">
+                        <p className="text-xs text-slate-500 flex items-center gap-2">
+                          <MapPin size={12} /> {p.address}
+                        </p>
+                        <p className="text-xs text-slate-500 flex items-center gap-2">
+                          <Phone size={12} /> {p.phone}
+                        </p>
+                        {p.pharmacist_name && (
+                          <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
+                            <User size={12} /> {p.pharmacist_name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                        {p.whatsapp_phone && (
+                          <a 
+                            href={`https://wa.me/${p.whatsapp_phone}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
+                          >
+                            <MessageCircle size={12} /> {t.whatsappChat}
+                          </a>
+                        )}
+                        <a 
+                          href={`tel:${p.phone}`}
+                          className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
+                        >
+                          <Phone size={12} /> {t.callPharmacy}
+                        </a>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
         </div>
       </div>
     </div>
