@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
@@ -145,18 +144,5 @@ app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
 });
 
 // --- إعدادات البيئة (Vercel vs Local) ---
-
-if (process.env.NODE_ENV !== 'production') {
-  const startLocalServer = async () => {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-    app.listen(PORT, () => console.log(`🚀 Local server: http://localhost:${PORT}`));
-  };
-  startLocalServer();
-}
-
 // تصدير التطبيق لمنصة Vercel
 export default app;
