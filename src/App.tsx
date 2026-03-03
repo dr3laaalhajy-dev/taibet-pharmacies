@@ -2,15 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Calendar, MapPin, Phone, 
   User, LogOut, Shield, Settings, Activity,
-  ChevronRight, Search, Clock, CheckCircle2,
-  MessageCircle, ExternalLink, Camera
+  Search, Clock, MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as UserType, Pharmacy, RosterEntry } from './types';
 import { translations } from './translations';
-import { 
-  APIProvider, Map, Marker as GoogleMarker, InfoWindow, useMap
-} from '@vis.gl/react-google-maps';
+
+// --- استيراد مكتبات الخرائط المجانية (Leaflet) ---
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// إصلاح مشكلة اختفاء أيقونة الدبوس في مكتبة Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 // --- API Helpers ---
 const api = {
@@ -33,6 +42,26 @@ const api = {
   }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
 };
 
+// --- Helper Map Components ---
+const LocationPicker = ({ onLocationSelect, initialPosition }: { onLocationSelect: (lat: number, lng: number) => void, initialPosition?: [number, number] }) => {
+  const [position, setPosition] = useState<[number, number] | null>(initialPosition || null);
+  useMapEvents({
+    click(e) {
+      setPosition([e.latlng.lat, e.latlng.lng]);
+      onLocationSelect(e.latlng.lat, e.latlng.lng);
+    }
+  });
+  return position ? <Marker position={position} /> : null;
+};
+
+const RecenterMap = ({ position }: { position: [number, number] }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(position, map.getZoom());
+  }, [position, map]);
+  return null;
+};
+
 // --- Components ---
 
 const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'en', t: any }) => {
@@ -45,7 +74,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
-  const [selectedPharma, setSelectedPharma] = useState<Pharmacy | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -133,74 +161,69 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
           <MapPin className="text-emerald-500" />
           {t.mapView}
         </h2>
-        <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0">
-          <Map 
-            defaultCenter={{ lat: 35.25, lng: 36.7 }} 
-            defaultZoom={13} 
-            gestureHandling={'greedy'}
-            disableDefaultUI={true}
-            mapId={'public_map'}
+        <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
+          {/* خريطة OpenStreetMap المجانية */}
+          <MapContainer 
+            center={[35.25, 36.7]} 
+            zoom={13} 
+            style={{ height: '100%', width: '100%', zIndex: 0 }}
           >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
             {allPharmacies.map(p => {
               const isOnCall = onCall.some(oc => oc.id === p.id);
               return (
-                <GoogleMarker 
-                  key={`pharma-${p.id}`} 
-                  position={{ lat: p.latitude || 35.25, lng: p.longitude || 36.7 }}
-                  onClick={() => setSelectedPharma(p)}
-                />
+                <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
+                  <Popup className="custom-popup">
+                    <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
+                      {p.image_url && (
+                        <img 
+                          src={p.image_url} 
+                          alt={p.name} 
+                          className="w-full h-24 object-cover rounded-xl mb-3" 
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
+                      <div className="space-y-1 mt-2">
+                        <p className="text-xs text-slate-500 flex items-center gap-2">
+                          <MapPin size={12} /> {p.address}
+                        </p>
+                        <p className="text-xs text-slate-500 flex items-center gap-2">
+                          <Phone size={12} /> {p.phone}
+                        </p>
+                        {p.pharmacist_name && (
+                          <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
+                            <User size={12} /> {p.pharmacist_name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                        {p.whatsapp_phone && (
+                          <a 
+                            href={`https://wa.me/${p.whatsapp_phone}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
+                          >
+                            <MessageCircle size={12} /> {t.whatsappChat}
+                          </a>
+                        )}
+                        <a 
+                          href={`tel:${p.phone}`}
+                          className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
+                        >
+                          <Phone size={12} /> {t.callPharmacy}
+                        </a>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
               );
             })}
-            {selectedPharma && (
-              <InfoWindow 
-                position={{ lat: selectedPharma.latitude || 35.25, lng: selectedPharma.longitude || 36.7 }}
-                onCloseClick={() => setSelectedPharma(null)}
-              >
-                <div className="text-right min-w-[200px] p-2">
-                  {selectedPharma.image_url && (
-                    <img 
-                      src={selectedPharma.image_url} 
-                      alt={selectedPharma.name} 
-                      className="w-full h-24 object-cover rounded-xl mb-3" 
-                      referrerPolicy="no-referrer"
-                    />
-                  )}
-                  <h3 className={`font-bold text-lg ${onCall.some(oc => oc.id === selectedPharma.id) ? 'text-emerald-600' : 'text-slate-900'}`}>{selectedPharma.name}</h3>
-                  <div className="space-y-1 mt-2">
-                    <p className="text-xs text-slate-500 flex items-center justify-end gap-2">
-                      {selectedPharma.address} <MapPin size={12} />
-                    </p>
-                    <p className="text-xs text-slate-500 flex items-center justify-end gap-2">
-                      {selectedPharma.phone} <Phone size={12} />
-                    </p>
-                    {selectedPharma.pharmacist_name && (
-                      <p className="text-xs text-emerald-600 font-bold flex items-center justify-end gap-2">
-                        {selectedPharma.pharmacist_name} <User size={12} />
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2 mt-4">
-                    {selectedPharma.whatsapp_phone && (
-                      <a 
-                        href={`https://wa.me/${selectedPharma.whatsapp_phone}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold"
-                      >
-                        <MessageCircle size={12} /> {t.whatsappChat}
-                      </a>
-                    )}
-                    <a 
-                      href={`tel:${selectedPharma.phone}`}
-                      className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold"
-                    >
-                      <Phone size={12} /> {t.callPharmacy}
-                    </a>
-                  </div>
-                </div>
-              </InfoWindow>
-            )}
-          </Map>
+          </MapContainer>
         </div>
       </div>
 
@@ -465,36 +488,6 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
   );
 };
 
-const LocationPicker = ({ onLocationSelect, initialPosition }: { onLocationSelect: (lat: number, lng: number) => void, initialPosition?: [number, number] }) => {
-  const map = useMap();
-  const [position, setPosition] = useState<{ lat: number, lng: number } | null>(initialPosition ? { lat: initialPosition[0], lng: initialPosition[1] } : null);
-
-  useEffect(() => {
-    if (!map) return;
-    const listener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
-      if (e.latLng) {
-        const lat = e.latLng.lat();
-        const lng = e.latLng.lng();
-        setPosition({ lat, lng });
-        onLocationSelect(lat, lng);
-      }
-    });
-    return () => google.maps.event.removeListener(listener);
-  }, [map, onLocationSelect]);
-
-  return position ? <GoogleMarker position={position} /> : null;
-};
-
-const RecenterMap = ({ position }: { position: [number, number] }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (map && position[0] !== 0 && position[1] !== 0) {
-      map.setCenter({ lat: position[0], lng: position[1] });
-    }
-  }, [position, map]);
-  return null;
-};
-
 const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
   const [doctor, setDoctor] = useState<(UserType & { pharmacies: Pharmacy[] }) | null>(null);
   const [loading, setLoading] = useState(true);
@@ -752,16 +745,14 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   };
 
   return (
-    // ✨ التعديل الجوهري لللوحة لتعمل بسلاسة على الموبايل
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row w-full overflow-hidden">
       
-      {/* Sidebar - أصبح شريط علوي في الموبايل */}
+      {/* Sidebar */}
       <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Activity className="text-emerald-500" /> {t.appName}
           </h1>
-          {/* زر تسجيل خروج سريع يظهر للموبايل فقط */}
           <button 
             onClick={onLogout}
             className="md:hidden flex items-center justify-center p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -770,7 +761,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
           </button>
         </div>
 
-        {/* أزرار التنقل أصبحت تسحب لليمين واليسار في الموبايل */}
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('pharmacies')}
@@ -800,7 +790,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
           </button>
         </nav>
 
-        {/* ملف المستخدم أسفل القائمة في الكمبيوتر فقط */}
         <div className="hidden md:block p-4 border-t border-slate-100 mt-auto">
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
             <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold shrink-0">
@@ -1162,19 +1151,20 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
             >
               <h3 className="text-xl md:text-2xl font-bold mb-6">{editingPharma ? t.editPharmacy : t.addPharmacy}</h3>
               <form onSubmit={handleSavePharma} className="space-y-4">
-                <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0">
-                  <Map 
-                    defaultCenter={{ lat: pharmaForm.latitude || 35.25, lng: pharmaForm.longitude || 36.7 }} 
-                    defaultZoom={13}
-                    gestureHandling={'greedy'}
-                    disableDefaultUI={true}
+                <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0 relative">
+                  {/* خريطة اختيار الموقع المجانية */}
+                  <MapContainer 
+                    center={[pharmaForm.latitude || 35.25, pharmaForm.longitude || 36.7]} 
+                    zoom={13} 
+                    style={{ height: '100%', width: '100%', zIndex: 0 }}
                   >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
                     <LocationPicker 
                       onLocationSelect={(lat, lng) => setPharmaForm({...pharmaForm, latitude: lat, longitude: lng})} 
                       initialPosition={pharmaForm.latitude && pharmaForm.longitude ? [pharmaForm.latitude, pharmaForm.longitude] : undefined}
                     />
                     {editingPharma && <RecenterMap position={[pharmaForm.latitude || 35.25, pharmaForm.longitude || 36.7]} />}
-                  </Map>
+                  </MapContainer>
                 </div>
                 <p className="text-[10px] text-slate-400 text-center">{t.clickToSetLocation}</p>
                 
@@ -1205,7 +1195,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                     onChange={e => setPharmaForm({...pharmaForm, phone: e.target.value})}
                   />
                 </div>
-                {/* تم تعديل الحقول لتصبح تحت بعضها في الموبايل لسهولة القراءة */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">{t.pharmacistName}</label>
@@ -1434,6 +1423,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   );
 };
 
+// --- الغاء مزود جوجل واستخدام إطار عادي ---
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
   const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
@@ -1471,54 +1461,52 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
-      <div className="min-h-screen font-sans text-slate-900">
-        {/* Navigation Bar (Public/Login) */}
-        {view !== 'dashboard' && (
-          <nav className="bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/80">
-            <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2">
-              <Activity className="text-emerald-500" /> {t.appName}
+    <div className="min-h-screen font-sans text-slate-900">
+      {/* Navigation Bar (Public/Login) */}
+      {view !== 'dashboard' && (
+        <nav className="bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/80">
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2">
+            <Activity className="text-emerald-500" /> {t.appName}
+          </button>
+          <div className="flex gap-2 md:gap-4">
+            <button 
+              onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+              className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+            >
+              {lang === 'ar' ? 'English' : 'العربية'}
             </button>
-            <div className="flex gap-2 md:gap-4">
+            {view === 'public' ? (
               <button 
-                onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
-                className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+                onClick={() => setView('login')}
+                className="bg-slate-900 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-800 transition-colors"
               >
-                {lang === 'ar' ? 'English' : 'العربية'}
+                {t.staffLogin}
               </button>
-              {view === 'public' ? (
-                <button 
-                  onClick={() => setView('login')}
-                  className="bg-slate-900 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-800 transition-colors"
-                >
-                  {t.staffLogin}
-                </button>
-              ) : (
-                <button 
-                  onClick={() => setView('public')}
-                  className="text-slate-600 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-50 transition-colors"
-                >
-                  {t.backToPublic}
-                </button>
-              )}
-            </div>
-          </nav>
-        )}
+            ) : (
+              <button 
+                onClick={() => setView('public')}
+                className="text-slate-600 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-50 transition-colors"
+              >
+                {t.backToPublic}
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
 
-        <main>
-          {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
-          {view === 'login' && <Login onLogin={handleLogin} t={t} />}
-          {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
-        </main>
+      <main>
+        {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
+        {view === 'login' && <Login onLogin={handleLogin} t={t} />}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
+      </main>
 
-        {/* Footer (Public only) */}
-        {view === 'public' && (
-          <footer className="bg-slate-900 text-slate-400 py-12 text-center">
-            <p className="text-sm">{t.copyright}</p>
-            <p className="text-xs mt-2">{t.footerNote}</p>
-          </footer>
-        )}
-      </div>
-    </APIProvider>
+      {/* Footer (Public only) */}
+      {view === 'public' && (
+        <footer className="bg-slate-900 text-slate-400 py-12 text-center">
+          <p className="text-sm">{t.copyright}</p>
+          <p className="text-xs mt-2">{t.footerNote}</p>
+        </footer>
+      )}
+    </div>
   );
 }
