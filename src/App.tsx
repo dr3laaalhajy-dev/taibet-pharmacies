@@ -449,7 +449,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center"
+        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center max-h-[90vh] overflow-y-auto"
       >
         <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
           <Trash2 size={32} />
@@ -1143,7 +1143,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-2xl font-bold mb-6">{editingPharma ? t.editPharmacy : t.addPharmacy}</h3>
               <form onSubmit={handleSavePharma} className="space-y-4">
@@ -1272,7 +1272,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-2xl font-bold mb-6">{editingRoster ? t.editAssignment : t.newAssignment}</h3>
               <form onSubmit={handleSaveRoster} className="space-y-4">
@@ -1321,7 +1321,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg"
+              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-2xl font-bold mb-6">{editingUser ? t.editUser : t.createUser}</h3>
               <form onSubmit={handleSaveUser} className="space-y-4">
