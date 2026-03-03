@@ -173,89 +173,110 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         )}
       </AnimatePresence>
 
-      {/* Grid: On-Call Today & Upcoming Roster */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12 mb-16">
-        {/* Left Column: On-Call Today */}
-        <div className="lg:col-span-1">
+      {/* الجداول مكدسة عمودياً لكي تأخذ مساحة مريحة */}
+      <div className="flex flex-col gap-12 md:gap-16 mb-16">
+        
+        {/* القسم الأول: جدول المناوبون اليوم */}
+        <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             {t.onCallToday}
           </h2>
-          <div className="space-y-6">
-            {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
-              <motion.div 
-                key={p.id}
-                initial={{ opacity: 0, x: lang === 'ar' ? 20 : -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600">
-                    <Activity size={24} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t.emergencyContact}</span>
-                </div>
-                {p.image_url && (
-                  <img 
-                    src={p.image_url} 
-                    alt={p.name} 
-                    className="w-full h-40 object-cover rounded-2xl mb-6" 
-                    referrerPolicy="no-referrer"
-                  />
-                )}
-                <h3 className="text-2xl font-bold text-slate-900 mb-4">{p.name}</h3>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3 text-slate-600">
-                    <MapPin className="mt-1 flex-shrink-0 text-slate-400" size={18} />
-                    <span className="text-sm leading-relaxed">{p.address}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-600">
-                    <Phone className="flex-shrink-0 text-slate-400" size={18} />
-                    <span className="text-lg font-mono font-medium">{p.phone}</span>
-                  </div>
-                  {p.pharmacist_name && (
-                    <div className="flex items-center gap-3 text-emerald-600">
-                      <User className="flex-shrink-0 text-emerald-400" size={18} />
-                      <span className="text-sm font-bold">{p.pharmacist_name}</span>
-                    </div>
-                  )}
-                  {(p as any).notes && (
-                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-500 text-sm">
-                      { (p as any).notes }
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
-                  <a 
-                    href={`tel:${p.phone}`}
-                    className="flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-100 w-full"
-                  >
-                    <Phone size={18} /> {t.callPharmacy}
-                  </a>
-                  {p.whatsapp_phone && (
-                    <a 
-                      href={`https://wa.me/${p.whatsapp_phone}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-4 rounded-2xl font-bold hover:bg-emerald-100 transition-colors w-full"
+          
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full max-w-[100vw]">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-right min-w-[800px]">
+                <thead className="bg-slate-50/50">
+                  <tr>
+                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
+                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
+                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.notes || (lang === 'ar' ? 'ملاحظات' : 'Notes')}</th>
+                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.actions || (lang === 'ar' ? 'التواصل' : 'Contact')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
+                    <motion.tr 
+                      key={p.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="hover:bg-slate-50/50 transition-colors group"
                     >
-                      <MessageCircle size={18} /> {t.whatsappChat}
-                    </a>
+                      {/* معلومات الصيدلية (الصورة، الاسم، اسم الصيدلاني) */}
+                      <td className="px-6 py-4 md:px-8 md:py-6">
+                        <div className="flex items-center gap-4 whitespace-nowrap">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-12 h-12 md:w-14 md:h-14 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-emerald-100">
+                              <Activity size={24} />
+                            </div>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="font-bold text-lg text-slate-900 group-hover:text-emerald-600 transition-colors">{p.name}</span>
+                            {p.pharmacist_name && (
+                              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1">
+                                <User size={12} /> {p.pharmacist_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* العنوان */}
+                      <td className="px-6 py-4 md:px-8 md:py-6">
+                        <div className="flex items-center gap-2 text-slate-600 text-sm whitespace-nowrap">
+                          <MapPin size={16} className="text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[150px] md:max-w-[200px]">{p.address}</span>
+                        </div>
+                      </td>
+                      
+                      {/* الملاحظات */}
+                      <td className="px-6 py-4 md:px-8 md:py-6">
+                        <div className="text-sm text-slate-500 italic max-w-[200px] whitespace-normal">
+                          {(p as any).notes || <span className="text-slate-300">---</span>}
+                        </div>
+                      </td>
+                      
+                      {/* أزرار الاتصال والواتس اب */}
+                      <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={`tel:${p.phone}`}
+                            className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
+                          >
+                            <Phone size={14} /> <span className="font-mono">{p.phone}</span>
+                          </a>
+                          {p.whatsapp_phone && (
+                            <a 
+                              href={`https://wa.me/${p.whatsapp_phone}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm"
+                            >
+                              <MessageCircle size={14} /> {t.whatsappChat}
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center">
+                        <Clock className="mx-auto text-slate-300 mb-4" size={48} />
+                        <p className="text-slate-500 font-medium">{t.noOnCall}</p>
+                      </td>
+                    </tr>
                   )}
-                </div>
-              </motion.div>
-            )) : (
-              <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-12 rounded-3xl text-center">
-                <Clock className="mx-auto text-slate-300 mb-4" size={48} />
-                <p className="text-slate-500 font-medium">{t.noOnCall}</p>
-              </div>
-            )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Upcoming Roster */}
-        <div className="lg:col-span-2 mt-8 lg:mt-0">
+        {/* القسم الثاني: الجدول القادم */}
+        <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <Calendar className="text-indigo-500" />
             {t.upcomingSchedule}
@@ -334,7 +355,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         </div>
       </div>
 
-      {/* Map Section (تم نقله للأسفل) */}
+      {/* Map Section */}
       <div className="mt-8 md:mt-16">
         <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
           <MapPin className="text-emerald-500" />
@@ -408,7 +429,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب مع التعديل الجديد للبريد
+// شاشة تسجيل الدخول وإنشاء الحساب
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); // تسجيل الدخول
@@ -486,7 +507,6 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
           ) : (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
-              {/* حقل الإيميل المدمج مع النطاق الثابت */}
               <div className="flex" dir="ltr">
                 <input 
                   type="text" 
