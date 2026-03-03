@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Calendar, MapPin, Phone, 
   User, LogOut, Shield, Settings, Activity,
-  Search, Clock, MessageCircle
+  Search, Clock, MessageCircle, CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as UserType, Pharmacy, RosterEntry } from './types';
+// @ts-ignore
 import { translations } from './translations';
 
 // --- استيراد مكتبات الخرائط المجانية (Leaflet) ---
@@ -35,6 +36,12 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(body)
+  }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  patch: (url: string, body?: any) => fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : undefined
   }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
   delete: (url: string) => fetch(url, { 
     method: 'DELETE',
@@ -401,65 +408,94 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-const Login = ({ onLogin, t }: { onLogin: (user: UserType) => void, t: any }) => {
+// شاشة تسجيل الدخول وإنشاء الحساب
+const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('pharmacist');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(''); setSuccessMsg(''); setLoading(true);
     try {
-      const data = await api.post('/api/auth/login', { email, password });
-      onLogin(data.user);
+      if (isLogin) {
+        const data = await api.post('/api/auth/login', { email, password });
+        onLogin(data.user);
+      } else {
+        await api.post('/api/auth/register', { email, password, name, phone, role });
+        setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
+        setIsLogin(true); 
+        setPassword('');
+      }
     } catch (err: any) {
-      setError(err.error || t.loginFailed);
+      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل. ربما البريد مستخدم مسبقاً.'));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 w-full">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md"
-      >
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield size={32} />
-          </div>
-          <h2 className="text-3xl font-bold text-slate-900">{t.loginTitle}</h2>
-          <p className="text-slate-500 mt-2">{t.loginSubtitle}</p>
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><Shield size={32} /></div>
+          <h2 className="text-3xl font-bold text-slate-900">{isLogin ? t.loginTitle : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account')}</h2>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">{error}</div>}
+          {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-xl text-sm">{successMsg}</div>}
+          
+          {!isLogin && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={name} onChange={e => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label>
+                  <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={role} onChange={e => setRole(e.target.value)}>
+                    <option value="pharmacist">{t.pharmacist}</option>
+                    <option value="doctor">{t.doctor}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label>
+                  <input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={phone} onChange={e => setPhone(e.target.value)} />
+                </div>
+              </div>
+            </>
+          )}
+
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label>
-            <input 
-              type="email" 
-              required 
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
+            <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">{t.password}</label>
-            <input 
-              type="password" 
-              required 
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label>
+            <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
-          <button 
-            type="submit"
-            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
-          >
-            {t.signIn}
+          
+          <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">
+            {loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}
           </button>
         </form>
+
+        <div className="mt-6 text-center border-t border-slate-100 pt-6">
+          <p className="text-sm text-slate-600">
+            {isLogin ? (lang === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?") : (lang === 'ar' ? 'لديك حساب بالفعل؟' : 'Already have an account?')}
+            <button type="button" onClick={() => {setIsLogin(!isLogin); setError(''); setSuccessMsg('');}} className="text-emerald-600 font-bold hover:underline mx-2">
+              {isLogin ? (lang === 'ar' ? 'إنشاء حساب' : 'Sign Up') : (lang === 'ar' ? 'تسجيل الدخول' : 'Login')}
+            </button>
+          </p>
+        </div>
       </motion.div>
     </div>
   );
@@ -585,7 +621,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<any[]>([]); // Using 'any' here since we added 'is_active'
   
   // Profile state
   const [profileEmail, setProfileEmail] = useState(user.email);
@@ -628,7 +664,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   });
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
-
   const [doctorFilter, setDoctorFilter] = useState<number>(0);
 
   // Confirmation modal state
@@ -651,6 +686,14 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     if (activeTab === 'pharmacies') api.get('/api/pharmacies').then(setPharmacies);
     if (activeTab === 'roster') api.get('/api/roster').then(setRoster);
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
+  };
+
+  // دالة تفعيل المستخدم للأدمن
+  const approveUser = async (id: number) => {
+    try {
+      await api.patch(`/api/admin/users/${id}/approve`);
+      setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u));
+    } catch (err) { alert('فشل التفعيل'); }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -686,15 +729,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
       setShowPharmaModal(false);
       setEditingPharma(null);
       setPharmaForm({ 
-        name: '', 
-        address: '', 
-        phone: '', 
-        doctor_id: 0, 
-        latitude: 35.25, 
-        longitude: 36.7,
-        pharmacist_name: '',
-        whatsapp_phone: '',
-        image_url: ''
+        name: '', address: '', phone: '', doctor_id: 0, latitude: 35.25, longitude: 36.7, pharmacist_name: '', whatsapp_phone: '', image_url: ''
       });
       loadData();
     } catch (err: any) {
@@ -730,13 +765,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
       setShowUserModal(false);
       setEditingUser(null);
       setUserForm({ 
-        email: '', 
-        password: '', 
-        role: 'pharmacist', 
-        name: '', 
-        pharmacy_limit: 10,
-        phone: '',
-        notes: ''
+        email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: ''
       });
       loadData();
     } catch (err: any) {
@@ -996,19 +1025,22 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => (
-                  <div key={u.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                  <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 border-yellow-200' : 'bg-white border-slate-200'}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl shrink-0">
                         {u.name[0]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <button 
-                          onClick={() => setSelectedDoctorId(u.id)}
-                          className="font-bold text-slate-900 truncate hover:text-emerald-600 transition-colors text-left w-full text-base md:text-lg"
-                        >
-                          {u.name}
-                        </button>
-                        <p className="text-xs md:text-sm text-slate-500 truncate">{u.email}</p>
+                        <div className="flex justify-between items-start">
+                          <button 
+                            onClick={() => setSelectedDoctorId(u.id)}
+                            className="font-bold text-slate-900 truncate hover:text-emerald-600 transition-colors text-left text-base md:text-lg"
+                          >
+                            {u.name}
+                          </button>
+                          {!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">{lang === 'ar' ? 'بانتظار التفعيل' : 'Pending'}</span>}
+                        </div>
+                        <p className="text-xs md:text-sm text-slate-500 truncate mt-1">{u.email}</p>
                         <div className="flex gap-2 mt-2 flex-wrap">
                           <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">
                             {u.role === 'admin' ? t.admin : u.role === 'doctor' ? t.doctor : t.pharmacist}
@@ -1020,17 +1052,27 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                       </div>
                     </div>
                     <div className="flex gap-2 border-t border-slate-100 pt-4 mt-auto">
-                      <button 
-                        onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
-                        className="flex-1 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Edit2 size={12} /> {t.editUser}
-                      </button>
+                      {!u.is_active && (
+                        <button 
+                          onClick={() => approveUser(u.id)} 
+                          className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 transition-colors text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+                        >
+                          <CheckCircle size={14} /> {lang === 'ar' ? 'تفعيل الحساب' : 'Approve'}
+                        </button>
+                      )}
+                      {u.is_active && (
+                        <button 
+                          onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
+                          className="flex-1 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Edit2 size={12} /> {t.editUser}
+                        </button>
+                      )}
                       <button 
                         onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
-                        className="flex-1 py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                        className={`${u.is_active ? 'flex-1' : 'px-4'} py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2`}
                       >
-                        <Trash2 size={12} /> {t.deleteUser}
+                        <Trash2 size={12} /> {u.is_active && t.deleteUser}
                       </button>
                     </div>
                   </div>
@@ -1496,7 +1538,7 @@ export default function App() {
 
       <main>
         {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
-        {view === 'login' && <Login onLogin={handleLogin} t={t} />}
+        {view === 'login' && <LoginAndRegister onLogin={handleLogin} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
       </main>
 
