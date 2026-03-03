@@ -95,7 +95,37 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 // --- API Routes ---
+// إضافة مستخدم جديد (للمدير فقط)
+app.post('/api/admin/users', authenticateToken, async (req: any, res: any) => {
+  // التأكد من أن الشخص الذي يضيف هو المدير
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'غير مصرح لك بإضافة مستخدمين' });
+  }
 
+  const { email, password, role, name, phone, notes, pharmacy_limit } = req.body;
+  
+  try {
+    // تشفير كلمة المرور قبل حفظها
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    
+    // إدخال البيانات في قاعدة بيانات Neon
+    const result = await pool.query(
+      `INSERT INTO users (email, password, role, name, phone, notes, pharmacy_limit) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, role, name`,
+      [email, hashedPassword, role, name, phone, notes, pharmacy_limit || 10]
+    );
+    
+    res.json(result.rows[0]); // إرسال رسالة نجاح للموقع
+  } catch (err: any) {
+    console.error('Error saving user:', err);
+    // إذا كان الإيميل مكرر
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'البريد الإلكتروني موجود مسبقاً!' });
+    } else {
+      res.status(500).json({ error: 'فشل في حفظ البيانات في قاعدة البيانات' });
+    }
+  }
+});
 app.get('/api/public/on-call', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const result = await pool.query(`
