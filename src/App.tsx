@@ -408,10 +408,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب
+// شاشة تسجيل الدخول وإنشاء الحساب مع التعديل الجديد للبريد
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(''); // تسجيل الدخول
+  const [emailPrefix, setEmailPrefix] = useState(''); // لإنشاء حساب (الاسم فقط)
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -428,10 +429,13 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         const data = await api.post('/api/auth/login', { email, password });
         onLogin(data.user);
       } else {
-        await api.post('/api/auth/register', { email, password, name, phone, role });
+        // دمج المعرف مع النطاق الثابت عند الإنشاء
+        const fullEmail = `${emailPrefix}@taiba.pharma.sy`;
+        await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
         setIsLogin(true); 
         setPassword('');
+        setEmailPrefix('');
       }
     } catch (err: any) {
       setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل. ربما البريد مستخدم مسبقاً.'));
@@ -456,31 +460,52 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
             <>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={name} onChange={e => setName(e.target.value)} />
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label>
-                  <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={role} onChange={e => setRole(e.target.value)}>
+                  <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={role} onChange={e => setRole(e.target.value)}>
                     <option value="pharmacist">{t.pharmacist}</option>
                     <option value="doctor">{t.doctor}</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label>
-                  <input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={phone} onChange={e => setPhone(e.target.value)} />
+                  <input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={phone} onChange={e => setPhone(e.target.value)} />
                 </div>
               </div>
             </>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
-            <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
+          {isLogin ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
+              <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
+              {/* حقل الإيميل المدمج مع النطاق الثابت */}
+              <div className="flex" dir="ltr">
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="username"
+                  className="flex-1 px-4 py-3 rounded-l-xl border border-r-0 border-slate-200 outline-none text-left focus:ring-2 focus:ring-emerald-500" 
+                  value={emailPrefix} 
+                  onChange={e => setEmailPrefix(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, ''))} 
+                />
+                <div className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-r-xl text-slate-500 font-mono text-sm flex items-center select-none">
+                  @taiba.pharma.sy
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label>
-            <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={password} onChange={e => setPassword(e.target.value)} />
+            <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
           
           <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">
@@ -1111,7 +1136,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   <input 
                     type="email" 
                     required 
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-left"
+                    dir="ltr"
                     value={profileEmail}
                     onChange={e => setProfileEmail(e.target.value)}
                   />
@@ -1141,7 +1167,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   <label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label>
                   <input 
                     type="password" 
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none text-left"
+                    dir="ltr"
                     value={profileNewPassword}
                     onChange={e => setProfileNewPassword(e.target.value)}
                   />
@@ -1152,7 +1179,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   <input 
                     type="password" 
                     required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-left"
+                    dir="ltr"
                     value={profileCurrentPassword}
                     onChange={e => setProfileCurrentPassword(e.target.value)}
                   />
@@ -1386,7 +1414,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   <input 
                     type="email"
                     required 
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 text-left"
+                    dir="ltr"
                     value={userForm.email}
                     onChange={e => setUserForm({...userForm, email: e.target.value})}
                   />
@@ -1397,7 +1426,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                     type="password"
                     required={!editingUser}
                     placeholder={editingUser ? '********' : ''}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 text-left"
+                    dir="ltr"
                     value={userForm.password}
                     onChange={e => setUserForm({...userForm, password: e.target.value})}
                   />
@@ -1465,7 +1495,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   );
 };
 
-// --- الغاء مزود جوجل واستخدام إطار عادي ---
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
   const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
