@@ -61,14 +61,19 @@ async function initDB() {
       );
     `);
 
-    // التأكد من وجود حساب المدير (Admin)
+   // التأكد من وجود حساب المدير وطباعة الحالة
     const adminCheck = await pool.query('SELECT * FROM users WHERE role = $1', ['admin']);
     if (adminCheck.rows.length === 0) {
-      console.log('Seeding admin user...');
+      console.log('⚠️ لم يتم العثور على مدير، جاري إنشاء الحساب الآن...');
       const hashedPassword = bcrypt.hashSync('admin123', 10);
       await pool.query(
         'INSERT INTO users (email, password, role, name) VALUES ($1, $2, $3, $4)',
         ['admin@pharmaduty.com', hashedPassword, 'admin', 'مدير النظام']
+      );
+      console.log('✅ تم إنشاء حساب المدير بنجاح: admin@pharmaduty.com / admin123');
+    } else {
+      console.log('✅ حساب المدير موجود مسبقاً في قاعدة البيانات.');
+    }
       );
     }
     console.log('Database initialized successfully!');
@@ -246,3 +251,4 @@ async function startServer() {
 }
 
 startServer();
+export default app;
