@@ -84,6 +84,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [publicTab, setPublicTab] = useState<'pharmacies' | 'clinics'>('pharmacies'); // حالة التبديل بين الصيدليات والعيادات
 
   useEffect(() => {
     setLoading(true);
@@ -144,9 +145,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         </motion.div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
           {lang === 'ar' ? (
-            <>صيدليات <span className="text-emerald-500">طيبة الإمام</span></>
+            <>صيدليات ومراكز <span className="text-emerald-500">طيبة الإمام</span></>
           ) : (
-            <>Taibet El-Imam <span className="text-emerald-500">Pharmacies</span></>
+            <>Taibet El-Imam <span className="text-emerald-500">Health</span></>
           )}
         </h1>
         <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">
@@ -163,271 +164,308 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {/* --- أزرار التبديل بين الصيدليات والعيادات --- */}
+        <div className="flex justify-center gap-4 mt-10 flex-wrap">
+          <button 
+            onClick={() => setPublicTab('pharmacies')}
+            className={`px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${publicTab === 'pharmacies' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            <MapPin size={18} /> {lang === 'ar' ? 'الصيدليات المناوبة' : 'On-Call Pharmacies'}
+          </button>
+          <button 
+            onClick={() => setPublicTab('clinics')}
+            className={`px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${publicTab === 'clinics' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
+          >
+            <Activity size={18} /> {lang === 'ar' ? 'العيادات المناوبة' : 'On-Call Clinics'}
+          </button>
+        </div>
       </header>
 
-      <AnimatePresence>
-        {selectedDoctorId && (
-          <DoctorProfileModal 
-            doctorId={selectedDoctorId} 
-            onClose={() => setSelectedDoctorId(null)} 
-            t={t} 
-            lang={lang} 
-          />
-        )}
-      </AnimatePresence>
+      {publicTab === 'pharmacies' ? (
+        <>
+          <AnimatePresence>
+            {selectedDoctorId && (
+              <DoctorProfileModal 
+                doctorId={selectedDoctorId} 
+                onClose={() => setSelectedDoctorId(null)} 
+                t={t} 
+                lang={lang} 
+              />
+            )}
+          </AnimatePresence>
 
-      <div className="flex flex-col gap-12 md:gap-16 mb-16">
-        
-        {/* القسم الأول: جدول المناوبون اليوم */}
-        <div className="w-full">
-          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            {t.onCallToday}
-          </h2>
-          
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full max-w-[100vw]">
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-right min-w-[800px]">
-                <thead className="bg-slate-50/50">
-                  <tr>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.notes || (lang === 'ar' ? 'ملاحظات' : 'Notes')}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.actions || (lang === 'ar' ? 'التواصل' : 'Contact')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
-                    <motion.tr 
-                      key={p.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="hover:bg-slate-50/50 transition-colors group"
-                    >
-                      <td className="px-6 py-4 md:px-8 md:py-6">
-                        <div className="flex items-center gap-4 whitespace-nowrap">
-                          {p.image_url ? (
-                            <img src={p.image_url} alt={p.name} className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-12 h-12 md:w-14 md:h-14 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-emerald-100">
-                              <Activity size={24} />
+          <div className="flex flex-col gap-12 md:gap-16 mb-16">
+            
+            {/* القسم الأول: جدول المناوبون اليوم */}
+            <div className="w-full">
+              <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {t.onCallToday}
+              </h2>
+              
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full max-w-[100vw]">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-right min-w-[800px]">
+                    <thead className="bg-slate-50/50">
+                      <tr>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.notes || (lang === 'ar' ? 'ملاحظات' : 'Notes')}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.actions || (lang === 'ar' ? 'التواصل' : 'Contact')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
+                        <motion.tr 
+                          key={p.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="hover:bg-slate-50/50 transition-colors group"
+                        >
+                          <td className="px-6 py-4 md:px-8 md:py-6">
+                            <div className="flex items-center gap-4 whitespace-nowrap">
+                              {p.image_url ? (
+                                <img src={p.image_url} alt={p.name} className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-12 h-12 md:w-14 md:h-14 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-emerald-100">
+                                  <Activity size={24} />
+                                </div>
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-bold text-lg text-slate-900 group-hover:text-emerald-600 transition-colors">{p.name}</span>
+                                {p.pharmacist_name && (
+                                  <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1">
+                                    <User size={12} /> {p.pharmacist_name}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          )}
-                          <div className="flex flex-col">
-                            <span className="font-bold text-lg text-slate-900 group-hover:text-emerald-600 transition-colors">{p.name}</span>
-                            {p.pharmacist_name && (
-                              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1">
-                                <User size={12} /> {p.pharmacist_name}
+                          </td>
+                          
+                          <td className="px-6 py-4 md:px-8 md:py-6">
+                            <div className="flex items-center gap-2 text-slate-600 text-sm whitespace-nowrap">
+                              <MapPin size={16} className="text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[150px] md:max-w-[200px]">{p.address}</span>
+                            </div>
+                          </td>
+                          
+                          <td className="px-6 py-4 md:px-8 md:py-6">
+                            <div className="text-sm text-slate-500 italic max-w-[200px] whitespace-normal">
+                              {(p as any).notes || <span className="text-slate-300">---</span>}
+                            </div>
+                          </td>
+                          
+                          <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <a 
+                                href={`tel:${p.phone}`}
+                                className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
+                              >
+                                <Phone size={14} /> <span className="font-mono">{p.phone}</span>
+                              </a>
+                              {p.whatsapp_phone && (
+                                <a 
+                                  href={`https://wa.me/${p.whatsapp_phone}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm"
+                                >
+                                  <MessageCircle size={14} /> {t.whatsappChat}
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </motion.tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={4} className="p-12 text-center">
+                            <Clock className="mx-auto text-slate-300 mb-4" size={48} />
+                            <p className="text-slate-500 font-medium">{t.noOnCall}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* القسم الثاني: الجدول القادم */}
+            <div className="w-full">
+              <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+                <Calendar className="text-indigo-500" />
+                {t.upcomingSchedule}
+              </h2>
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full max-w-[100vw]">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-right min-w-[600px]">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.date}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
+                        <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.addedBy}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRoster.map((entry, idx) => (
+                        <motion.tr 
+                          key={idx}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="hover:bg-slate-50/50 transition-colors group"
+                        >
+                          <td className="px-6 py-4 md:px-8 md:py-6">
+                            <div className="flex items-center gap-3 whitespace-nowrap">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-mono text-xs font-bold shrink-0">
+                                {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit' })}
+                              </div>
+                              <span className="font-medium text-slate-900">
+                                {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                               </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
+                            <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{entry.pharmacy_name}</span>
+                          </td>
+                          <td className="px-6 py-4 md:px-8 md:py-6">
+                            <div className="flex items-center gap-2 text-slate-500 text-sm whitespace-nowrap">
+                              <MapPin size={14} className="shrink-0"/>
+                              <span className="truncate max-w-[150px] md:max-w-[200px]">{entry.address}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
+                            {entry.creator_name ? (
+                              <div className="flex flex-col">
+                                <button 
+                                  onClick={() => entry.creator_id && setSelectedDoctorId(entry.creator_id)}
+                                  className="text-sm font-bold text-emerald-600 hover:underline text-right"
+                                >
+                                  {entry.creator_name}
+                                </button>
+                                <span className="text-[10px] text-slate-400 font-mono">{entry.creator_phone}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">---</span>
+                            )}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {hasMore && (
+                  <div className="p-6 md:p-8 text-center border-t border-slate-100">
+                    <button 
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="px-8 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors disabled:opacity-50"
+                    >
+                      {loadingMore ? '...' : t.loadMore}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Map Section */}
+          <div className="mt-8 md:mt-16">
+            <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
+              <MapPin className="text-emerald-500" />
+              {t.mapView}
+            </h2>
+            <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
+              <MapContainer 
+                center={[35.25, 36.7]} 
+                zoom={13} 
+                style={{ height: '100%', width: '100%', zIndex: 0 }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {allPharmacies.map(p => {
+                  const isOnCall = onCall.some(oc => oc.id === p.id);
+                  return (
+                    <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
+                      <Popup className="custom-popup">
+                        <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
+                          {p.image_url && (
+                            <img 
+                              src={p.image_url} 
+                              alt={p.name} 
+                              className="w-full h-24 object-cover rounded-xl mb-3" 
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
+                          <div className="space-y-1 mt-2">
+                            <p className="text-xs text-slate-500 flex items-center gap-2">
+                              <MapPin size={12} /> {p.address}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center gap-2">
+                              <Phone size={12} /> {p.phone}
+                            </p>
+                            {p.pharmacist_name && (
+                              <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
+                                <User size={12} /> {p.pharmacist_name}
+                              </p>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 md:px-8 md:py-6">
-                        <div className="flex items-center gap-2 text-slate-600 text-sm whitespace-nowrap">
-                          <MapPin size={16} className="text-slate-400 shrink-0" />
-                          <span className="truncate max-w-[150px] md:max-w-[200px]">{p.address}</span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 md:px-8 md:py-6">
-                        <div className="text-sm text-slate-500 italic max-w-[200px] whitespace-normal">
-                          {(p as any).notes || <span className="text-slate-300">---</span>}
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <a 
-                            href={`tel:${p.phone}`}
-                            className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
-                          >
-                            <Phone size={14} /> <span className="font-mono">{p.phone}</span>
-                          </a>
-                          {p.whatsapp_phone && (
+                          <div className="flex gap-2 mt-4">
+                            {p.whatsapp_phone && (
+                              <a 
+                                href={`https://wa.me/${p.whatsapp_phone}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
+                              >
+                                <MessageCircle size={12} /> {t.whatsappChat}
+                              </a>
+                            )}
                             <a 
-                              href={`https://wa.me/${p.whatsapp_phone}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-sm"
+                              href={`tel:${p.phone}`}
+                              className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
                             >
-                              <MessageCircle size={14} /> {t.whatsappChat}
+                              <Phone size={12} /> {t.callPharmacy}
                             </a>
-                          )}
+                          </div>
                         </div>
-                      </td>
-                    </motion.tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={4} className="p-12 text-center">
-                        <Clock className="mx-auto text-slate-300 mb-4" size={48} />
-                        <p className="text-slate-500 font-medium">{t.noOnCall}</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+              </MapContainer>
             </div>
           </div>
-        </div>
-
-        {/* القسم الثاني: الجدول القادم */}
-        <div className="w-full">
-          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-            <Calendar className="text-indigo-500" />
-            {t.upcomingSchedule}
+        </>
+      ) : (
+        /* --- واجهة العيادات (قريباً) --- */
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-slate-200 shadow-sm mt-8 mx-4 md:mx-0"
+        >
+          <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6">
+            <Activity size={48} />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-800 mb-4">
+            {lang === 'ar' ? 'العيادات المناوبة' : 'On-Call Clinics'}
           </h2>
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full max-w-[100vw]">
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-right min-w-[600px]">
-                <thead>
-                  <tr className="bg-slate-50/50">
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.date}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.pharmacy}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.location}</th>
-                    <th className="px-6 py-4 md:px-8 md:py-6 text-xs font-bold text-slate-400 uppercase tracking-widest">{t.addedBy}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredRoster.map((entry, idx) => (
-                    <motion.tr 
-                      key={idx}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="hover:bg-slate-50/50 transition-colors group"
-                    >
-                      <td className="px-6 py-4 md:px-8 md:py-6">
-                        <div className="flex items-center gap-3 whitespace-nowrap">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-mono text-xs font-bold shrink-0">
-                            {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { day: '2-digit' })}
-                          </div>
-                          <span className="font-medium text-slate-900">
-                            {new Date(entry.duty_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{entry.pharmacy_name}</span>
-                      </td>
-                      <td className="px-6 py-4 md:px-8 md:py-6">
-                        <div className="flex items-center gap-2 text-slate-500 text-sm whitespace-nowrap">
-                          <MapPin size={14} className="shrink-0"/>
-                          <span className="truncate max-w-[150px] md:max-w-[200px]">{entry.address}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
-                        {entry.creator_name ? (
-                          <div className="flex flex-col">
-                            <button 
-                              onClick={() => entry.creator_id && setSelectedDoctorId(entry.creator_id)}
-                              className="text-sm font-bold text-emerald-600 hover:underline text-right"
-                            >
-                              {entry.creator_name}
-                            </button>
-                            <span className="text-[10px] text-slate-400 font-mono">{entry.creator_phone}</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">---</span>
-                        )}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {hasMore && (
-              <div className="p-6 md:p-8 text-center border-t border-slate-100">
-                <button 
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="px-8 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors disabled:opacity-50"
-                >
-                  {loadingMore ? '...' : t.loadMore}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Map Section */}
-      <div className="mt-8 md:mt-16">
-        <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-          <MapPin className="text-emerald-500" />
-          {t.mapView}
-        </h2>
-        <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
-          <MapContainer 
-            center={[35.25, 36.7]} 
-            zoom={13} 
-            style={{ height: '100%', width: '100%', zIndex: 0 }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {allPharmacies.map(p => {
-              const isOnCall = onCall.some(oc => oc.id === p.id);
-              return (
-                <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
-                  <Popup className="custom-popup">
-                    <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
-                      {p.image_url && (
-                        <img 
-                          src={p.image_url} 
-                          alt={p.name} 
-                          className="w-full h-24 object-cover rounded-xl mb-3" 
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
-                      <div className="space-y-1 mt-2">
-                        <p className="text-xs text-slate-500 flex items-center gap-2">
-                          <MapPin size={12} /> {p.address}
-                        </p>
-                        <p className="text-xs text-slate-500 flex items-center gap-2">
-                          <Phone size={12} /> {p.phone}
-                        </p>
-                        {p.pharmacist_name && (
-                          <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
-                            <User size={12} /> {p.pharmacist_name}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2 mt-4">
-                        {p.whatsapp_phone && (
-                          <a 
-                            href={`https://wa.me/${p.whatsapp_phone}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                          >
-                            <MessageCircle size={12} /> {t.whatsappChat}
-                          </a>
-                        )}
-                        <a 
-                          href={`tel:${p.phone}`}
-                          className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                        >
-                          <Phone size={12} /> {t.callPharmacy}
-                        </a>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-          </MapContainer>
-        </div>
-      </div>
+          <p className="text-slate-500 text-lg text-center max-w-md">
+            {lang === 'ar' ? 'قريباً.. سيتم إطلاق هذا القسم وإضافة مواعيد العيادات الطبية.' : 'Coming soon.. Clinics schedule will be added here.'}
+          </p>
+        </motion.div>
+      )}
     </div>
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب
+// شاشة تسجيل الدخول وإنشاء الحساب مع التعديل الجديد للبريد
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); 
