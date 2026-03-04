@@ -173,7 +173,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
         )}
       </AnimatePresence>
 
-      {/* الجداول مكدسة عمودياً لكي تأخذ مساحة مريحة */}
       <div className="flex flex-col gap-12 md:gap-16 mb-16">
         
         {/* القسم الأول: جدول المناوبون اليوم */}
@@ -203,7 +202,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                       transition={{ delay: idx * 0.05 }}
                       className="hover:bg-slate-50/50 transition-colors group"
                     >
-                      {/* معلومات الصيدلية (الصورة، الاسم، اسم الصيدلاني) */}
                       <td className="px-6 py-4 md:px-8 md:py-6">
                         <div className="flex items-center gap-4 whitespace-nowrap">
                           {p.image_url ? (
@@ -224,7 +222,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                         </div>
                       </td>
                       
-                      {/* العنوان */}
                       <td className="px-6 py-4 md:px-8 md:py-6">
                         <div className="flex items-center gap-2 text-slate-600 text-sm whitespace-nowrap">
                           <MapPin size={16} className="text-slate-400 shrink-0" />
@@ -232,14 +229,12 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                         </div>
                       </td>
                       
-                      {/* الملاحظات */}
                       <td className="px-6 py-4 md:px-8 md:py-6">
                         <div className="text-sm text-slate-500 italic max-w-[200px] whitespace-normal">
                           {(p as any).notes || <span className="text-slate-300">---</span>}
                         </div>
                       </td>
                       
-                      {/* أزرار الاتصال والواتس اب */}
                       <td className="px-6 py-4 md:px-8 md:py-6 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <a 
@@ -429,11 +424,10 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState(''); // تسجيل الدخول
-  const [emailPrefix, setEmailPrefix] = useState(''); // لإنشاء حساب (الاسم فقط)
+  const [email, setEmail] = useState(''); 
+  const [emailPrefix, setEmailPrefix] = useState(''); 
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -450,7 +444,6 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         const data = await api.post('/api/auth/login', { email, password });
         onLogin(data.user);
       } else {
-        // دمج المعرف مع النطاق الثابت عند الإنشاء
         const fullEmail = `${emailPrefix}@taiba.pharma.sy`;
         await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
@@ -666,7 +659,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [users, setUsers] = useState<any[]>([]); // Using 'any' here since we added 'is_active'
+  const [users, setUsers] = useState<any[]>([]);
   
   // Profile state
   const [profileEmail, setProfileEmail] = useState(user.email);
@@ -733,7 +726,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
   };
 
-  // دالة تفعيل المستخدم للأدمن
   const approveUser = async (id: number) => {
     try {
       await api.patch(`/api/admin/users/${id}/approve`);
@@ -1085,7 +1077,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           </button>
                           {!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">{lang === 'ar' ? 'بانتظار التفعيل' : 'Pending'}</span>}
                         </div>
-                        <p className="text-xs md:text-sm text-slate-500 truncate mt-1">{u.email}</p>
+                        <p className="text-xs md:text-sm text-slate-500 truncate mt-1" dir="ltr">{u.email}</p>
                         <div className="flex gap-2 mt-2 flex-wrap">
                           <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">
                             {u.role === 'admin' ? t.admin : u.role === 'doctor' ? t.doctor : t.pharmacist}
@@ -1105,6 +1097,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           <CheckCircle size={14} /> {lang === 'ar' ? 'تفعيل الحساب' : 'Approve'}
                         </button>
                       )}
+                      
+                      {/* إخفاء زر التعديل إذا كان الحساب هو المدير الأساسي */}
                       {u.is_active && (
                         <button 
                           onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
@@ -1113,12 +1107,16 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           <Edit2 size={12} /> {t.editUser}
                         </button>
                       )}
-                      <button 
-                        onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
-                        className={`${u.is_active ? 'flex-1' : 'px-4'} py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2`}
-                      >
-                        <Trash2 size={12} /> {u.is_active && t.deleteUser}
-                      </button>
+
+                      {/* إخفاء زر الحذف تماماً إذا كان الحساب هو المدير الأساسي */}
+                      {u.email !== 'admin@pharmaduty.com' && (
+                        <button 
+                          onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
+                          className={`${u.is_active ? 'flex-1' : 'px-4'} py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2`}
+                        >
+                          <Trash2 size={12} /> {u.is_active && t.deleteUser}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

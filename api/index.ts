@@ -94,12 +94,10 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// مسار التسجيل الجديد (إنشاء حساب)
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, phone, role } = req.body;
   try {
     const hashedPassword = bcrypt.hashSync(password, 10);
-    // إدخال الحساب كـ غير مفعل (is_active = false)
     await pool.query(
       `INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) 
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -221,7 +219,6 @@ app.get('/api/admin/users', authenticateToken, async (req: any, res) => {
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
-// مسار للأدمن لتفعيل الحساب
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   try {
@@ -237,7 +234,7 @@ app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
   try {
     const result = await pool.query(
       'INSERT INTO users (email, password, role, name, pharmacy_limit, phone, notes, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-      [email, hashedPassword, role, name, pharmacy_limit || 10, phone || null, notes || null, true] // حسابات الأدمن مفعلة تلقائياً
+      [email, hashedPassword, role, name, pharmacy_limit || 10, phone || null, notes || null, true]
     );
     res.json({ id: result.rows[0].id });
   } catch (err: any) { res.status(400).json({ error: 'البريد الإلكتروني موجود بالفعل' }); }
@@ -247,6 +244,12 @@ app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { email, password, role, name, pharmacy_limit, phone, notes } = req.body;
   try {
+    // درع الحماية: يمنع التعديل على إيميل أو صلاحيات المدير الأساسي
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
+    if (userResult.rows[0]?.email === 'admin@pharmaduty.com' && (role !== 'admin' || email !== 'admin@pharmaduty.com')) {
+      return res.status(403).json({ error: 'لا يمكن تغيير إيميل أو صلاحيات المدير الأساسي!' });
+    }
+
     if (password) {
       const hashedPassword = bcrypt.hashSync(password, 10);
       await pool.query(
@@ -267,6 +270,12 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'لا يمكنك حذف نفسك' });
   try {
+    // درع الحماية: يمنع حذف المدير الأساسي نهائياً
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
+    if (userResult.rows.length > 0 && userResult.rows[0].email === 'admin@pharmaduty.com') {
+      return res.status(403).json({ error: 'لا يمكن حذف حساب المدير الأساسي للنظام!' });
+    }
+
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المستخدم' });
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
