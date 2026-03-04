@@ -370,7 +370,14 @@ const fullEmail = `${emailPrefix}${domain}`;
             </>
           )}
           {isLogin ? (
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} /></div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
+              <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} />
+              <div className="flex gap-2 mt-2 justify-end" dir="ltr">
+                <button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.pharma.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.pharma.sy</button>
+                <button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.Health.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.Health.sy</button>
+              </div>
+            </div>
           ) : (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
