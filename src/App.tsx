@@ -798,7 +798,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
       <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center">
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Activity className="text-emerald-500" /> {t.appName}
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" /> {t.appName}
           </h1>
           <button 
             onClick={onLogout}
@@ -1563,7 +1563,7 @@ export default function App() {
       {view !== 'dashboard' && (
         <nav className="bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/80">
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2">
-            <Activity className="text-emerald-500" /> {t.appName}
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" /> {t.appName}
           </button>
           <div className="flex gap-2 md:gap-4">
             <button 
