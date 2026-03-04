@@ -59,7 +59,7 @@ const uploadImageToImgBB = async (file: File) => {
     reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e);
   });
   const f = new FormData(); f.append('image', base64.split(',')[1]);
-  // ضع مفتاحك الخاص بـ ImgBB هنا
+  // تم استخدام طريقة Base64 للرفع المضمون بدون رسائل خطأ من المتصفح
   const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f });
   const d = await r.json();
   if (d.success) return d.data.url;
@@ -486,61 +486,7 @@ const ServicesManager = ({ user, facilities, lang }: { user: UserType, facilitie
     </div>
   );
 };
-// --- Services Manager Component (Doctors/Dentists) ---
-const ServicesManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
-  const [selectedFacility, setSelectedFacility] = useState<number | null>(facilities[0]?.id || null);
-  const [servicesText, setServicesText] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
 
-  useEffect(() => {
-    if (selectedFacility) {
-      const f = facilities.find(fac => fac.id === selectedFacility);
-      setServicesText(f?.services || '');
-      setMsg('');
-    }
-  }, [selectedFacility, facilities]);
-
-  const handleSaveServices = async () => {
-    if (!selectedFacility) return;
-    setSaving(true); setMsg('');
-    const f = facilities.find(fac => fac.id === selectedFacility);
-    if (!f) return;
-    try {
-      await api.put(`/api/pharmacies/${f.id}`, { ...f, services: servicesText });
-      setMsg(lang === 'ar' ? 'تم حفظ الخدمات بنجاح!' : 'Services saved successfully!');
-    } catch(err) {
-      setMsg(lang === 'ar' ? 'حدث خطأ أثناء الحفظ.' : 'Error saving services.');
-    } finally { setSaving(false); }
-  };
-
-  if (facilities.length === 0) return <div className="text-center py-20 text-slate-500">{lang === 'ar' ? 'يرجى إضافة عيادة أولاً.' : 'Please add a clinic first.'}</div>;
-
-  return (
-    <div className="max-w-2xl bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-slate-900"><Smile className="text-emerald-500"/> {lang === 'ar' ? 'الخدمات التي أقدمها' : 'Services I Provide'}</h2>
-      <p className="text-slate-500 mb-6 text-sm">{lang === 'ar' ? 'اختر العيادة واكتب قائمة الخدمات الطبية التي تقدمها ليتمكن المرضى من رؤيتها.' : 'Select a clinic and write down the services you offer.'}</p>
-      
-      {msg && <div className={`p-4 rounded-xl text-sm font-bold mb-4 ${msg.includes('نجاح') || msg.includes('successfully') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>}
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'اختر العيادة:' : 'Select Clinic:'}</label>
-          <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={selectedFacility || ''} onChange={e => setSelectedFacility(parseInt(e.target.value))}>
-            {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'قائمة الخدمات (مثال: تبييض أسنان، زراعة، حشوات):' : 'List of Services:'}</label>
-          <textarea rows={6} placeholder={lang === 'ar' ? 'اكتب خدماتك هنا...' : 'Write your services here...'} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={servicesText} onChange={e => setServicesText(e.target.value)}></textarea>
-        </div>
-        <button onClick={handleSaveServices} disabled={saving} className="w-full py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors">
-          {saving ? '...' : (lang === 'ar' ? 'حفظ الخدمات' : 'Save Services')}
-        </button>
-      </div>
-    </div>
-  );
-};
 // --- Main Dashboard Component ---
 const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
   const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings'>('facilities');
@@ -741,7 +687,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
             </motion.div>
           </div>
         )}
-        {showUserModal && (<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"><h3 className="text-xl md:text-2xl font-bold mb-6">{editingUser ? t.editUser : t.createUser}</h3><form onSubmit={handleSaveUser} className="space-y-4"><div><label className="block text-sm font-medium mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">{t.password} {editingUser && `(اتركها فارغة لعدم التغيير)`}</label><input type="password" required={!editingUser} placeholder={editingUser ? '********' : ''} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm font-medium mb-1">{t.role}</label><select required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})}><option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option><option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option>{(isSuperAdmin || userForm.role === 'admin') && <option value="admin">{t.admin}</option>}</select></div><div><label className="block text-sm font-medium mb-1">الحد الأقصى للمنشآت</label><input type="number" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.pharmacy_limit} onChange={e => setUserForm({...userForm, pharmacy_limit: parseInt(e.target.value)})} /></div></div><div><label className="block text-sm font-medium mb-1">{t.phone}</label><input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">الملاحظات</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" rows={3} value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})} /></div><div className="flex gap-3 pt-4"><button type="button" onClick={() => { setShowUserModal(false); setEditingUser(null); }} className="flex-1 py-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{t.cancel}</button><button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors">{editingUser ? t.save : t.create}</button></div></form></motion.div></div>)}
+        {showUserModal && (<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"><h3 className="text-xl md:text-2xl font-bold mb-6">{editingUser ? t.editUser : t.createUser}</h3><form onSubmit={handleSaveUser} className="space-y-4"><div><label className="block text-sm font-medium mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">{t.password} {editingUser && `(اتركها فارغة لعدم التغيير)`}</label><input type="password" required={!editingUser} placeholder={editingUser ? '********' : ''} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm font-medium mb-1">{t.role}</label><select required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})}><option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option><option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option>{(isSuperAdmin || userForm.role === 'admin') && <option value="admin">{t.admin}</option>}</select></div><div><label className="block text-sm font-medium mb-1">الحد الأقصى للمنشآت</label><input type="number" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.pharmacy_limit} onChange={e => setUserForm({...userForm, pharmacy_limit: parseInt(e.target.value)})} /></div></div><div><label className="block text-sm font-medium mb-1">{t.phone}</label><input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} /></div><div><label className="block text-sm font-medium mb-1">الملاحظات والاختصاص</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" rows={3} value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})} /></div><div className="flex gap-3 pt-4"><button type="button" onClick={() => { setShowUserModal(false); setEditingUser(null); }} className="flex-1 py-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{t.cancel}</button><button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors">{editingUser ? t.save : t.create}</button></div></form></motion.div></div>)}
       </AnimatePresence>
       <ConfirmModal isOpen={confirmData.isOpen} onClose={() => setConfirmData(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmData.onConfirm} title={confirmData.title} body={confirmData.body} t={t} />
     </div>
