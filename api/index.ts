@@ -57,7 +57,6 @@ app.get('/api/public/settings', async (req, res) => {
 });
 
 // --- API Routes (E-Commerce Public) ---
-// جلب المنتجات المتاحة للتسوق
 app.get('/api/public/products', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -68,6 +67,23 @@ app.get('/api/public/products', async (req, res) => {
       ORDER BY p.id DESC
     `);
     res.json(result.rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// إرسال طلب جديد من الزبون
+app.post('/api/public/orders', async (req, res) => {
+  const { pharmacy_id, customer_name, customer_phone, items, total_price } = req.body;
+  try {
+    // 1. خصم الكميات من المخزن
+    for (const item of items) {
+      await pool.query('UPDATE products SET quantity = quantity - $1 WHERE id = $2 AND quantity >= $1', [item.qty, item.product_id]);
+    }
+    // 2. تسجيل الطلب
+    await pool.query(
+      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price) VALUES ($1, $2, $3, $4, $5)',
+      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price]
+    );
+    res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -145,10 +161,8 @@ app.patch('/api/pharmacies/:id/status', authenticateToken, async (req: any, res)
 app.patch('/api/pharmacies/:id/ecommerce', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
   const { is_ecommerce_enabled } = req.body;
-  try {
-    await pool.query('UPDATE pharmacies SET is_ecommerce_enabled = $1 WHERE id = $2', [is_ecommerce_enabled, req.params.id]);
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  try { await pool.query('UPDATE pharmacies SET is_ecommerce_enabled = $1 WHERE id = $2', [is_ecommerce_enabled, req.params.id]); res.json({ success: true }); } 
+  catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
@@ -160,8 +174,7 @@ app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
     const currentCountQuery = await pool.query('SELECT count(*) FROM pharmacies WHERE doctor_id = $1', [assignedDoctorId]);
     if (userLimitQuery.rows.length > 0 && currentCountQuery.rows.length > 0) {
       const limit = parseInt(userLimitQuery.rows[0].pharmacy_limit || 10);
-      const currentCount = parseInt(currentCountQuery.rows[0].count);
-      if (currentCount >= limit) return res.status(403).json({ error: `عذراً، لقد تجاوزت الحد الأقصى المسموح لك (${limit} منشآت).` });
+      if (parseInt(currentCountQuery.rows[0].count) >= limit) return res.status(403).json({ error: `عذراً، لقد تجاوزت الحد الأقصى المسموح لك.` });
     }
     const result = await pool.query(
       `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status, specialty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto', $13) RETURNING id`,
@@ -186,38 +199,34 @@ app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
   try { await pool.query('DELETE FROM products WHERE pharmacy_id = $1', [req.params.id]); await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]); res.json({ message: 'تم الحذف' }); } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- API Routes (Products Management) ---
+// --- API Routes (Products) ---
 app.get('/api/products', authenticateToken, async (req: any, res) => {
   try {
-    if (req.user.role === 'admin') {
-      res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id ORDER BY p.id DESC')).rows);
-    } else {
-      res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY p.id DESC', [req.user.id])).rows);
-    }
+    if (req.user.role === 'admin') res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id ORDER BY p.id DESC')).rows);
+    else res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY p.id DESC', [req.user.id])).rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/products', authenticateToken, async (req: any, res) => {
-  const { pharmacy_id, name, price, quantity, image_url } = req.body;
+  const { pharmacy_id, name, price, quantity, image_url, max_per_user } = req.body;
   try {
-    // التحقق من ملكية الصيدلية
     if (req.user.role !== 'admin') {
       const check = await pool.query('SELECT id FROM pharmacies WHERE id = $1 AND doctor_id = $2', [pharmacy_id, req.user.id]);
-      if (check.rows.length === 0) return res.status(403).json({ error: 'لا تملك صلاحية الإضافة لهذه الصيدلية' });
+      if (check.rows.length === 0) return res.status(403).json({ error: 'لا تملك صلاحية' });
     }
-    await pool.query('INSERT INTO products (pharmacy_id, name, price, quantity, image_url) VALUES ($1, $2, $3, $4, $5)', [pharmacy_id, name, price, quantity, image_url || null]);
+    await pool.query('INSERT INTO products (pharmacy_id, name, price, quantity, image_url, max_per_user) VALUES ($1, $2, $3, $4, $5, $6)', [pharmacy_id, name, price, quantity, image_url || null, max_per_user || null]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/products/:id', authenticateToken, async (req: any, res) => {
-  const { name, price, quantity, image_url } = req.body;
+  const { name, price, quantity, image_url, max_per_user } = req.body;
   try {
     if (req.user.role !== 'admin') {
       const check = await pool.query('SELECT p.id FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE p.id = $1 AND ph.doctor_id = $2', [req.params.id, req.user.id]);
       if (check.rows.length === 0) return res.status(403).json({ error: 'ممنوع' });
     }
-    await pool.query('UPDATE products SET name = $1, price = $2, quantity = $3, image_url = $4 WHERE id = $5', [name, price, quantity, image_url || null, req.params.id]);
+    await pool.query('UPDATE products SET name = $1, price = $2, quantity = $3, image_url = $4, max_per_user = $5 WHERE id = $6', [name, price, quantity, image_url || null, max_per_user || null, req.params.id]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -229,6 +238,30 @@ app.delete('/api/products/:id', authenticateToken, async (req: any, res) => {
       if (check.rows.length === 0) return res.status(403).json({ error: 'ممنوع' });
     }
     await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// --- API Routes (Orders Dashboard) ---
+app.get('/api/orders', authenticateToken, async (req: any, res) => {
+  try {
+    if (req.user.role === 'admin') res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC')).rows);
+    else res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY o.id DESC', [req.user.id])).rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res) => {
+  const { status } = req.body;
+  try {
+    const orderCheck = await pool.query('SELECT o.items, o.status FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE o.id = $1 ' + (req.user.role !== 'admin' ? 'AND ph.doctor_id = $2' : ''), req.user.role === 'admin' ? [req.params.id] : [req.params.id, req.user.id]);
+    if (orderCheck.rows.length === 0) return res.status(403).json({ error: 'ممنوع' });
+    
+    // استعادة الكمية إذا تم الرفض/الإلغاء
+    if (status === 'cancelled' && orderCheck.rows[0].status === 'pending') {
+      const items = orderCheck.rows[0].items;
+      for(const item of items) { await pool.query('UPDATE products SET quantity = quantity + $1 WHERE id = $2', [item.qty, item.product_id]); }
+    }
+    await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, req.params.id]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
