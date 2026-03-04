@@ -14,13 +14,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  // قمنا بإزالة الكلمة التي تسبب التحذير لأننا نستخدم إعدادات SSL الخاصة بنا
+  connectionString: process.env.DATABASE_URL?.replace('?sslmode=require', ''),
   ssl: { rejectUnauthorized: false }
 });
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 
 const authenticateToken = (req: any, res: any, next: any) => {
   const token = req.cookies.token;
