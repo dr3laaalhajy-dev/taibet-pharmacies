@@ -89,9 +89,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
     setLoading(true);
     Promise.all([
       api.get('/api/public/on-call'),
+      api.get('/api/public/pharmacies'), // أعدنا طلب بيانات كل الصيدليات للخريطة
       api.get('/api/public/roster?page=1&limit=10')
-    ]).then(([onCallData, rosterData]) => {
+    ]).then(([onCallData, allPharmaData, rosterData]) => {
       setOnCall(onCallData);
+      setAllPharmacies(allPharmaData); // أعدنا تعبئة الخريطة بالبيانات
       setRoster(rosterData.data);
       setHasMore(rosterData.data.length < rosterData.total);
       setLoading(false);
