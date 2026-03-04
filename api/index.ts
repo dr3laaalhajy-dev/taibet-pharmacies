@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL?.replace('?sslmode=require', ''),
   ssl: { rejectUnauthorized: false }
 });
 
@@ -32,10 +32,9 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 // --- API Routes (Public) ---
-// جلب جميع المنشآت (صيدليات وعيادات) مع أوقات دوامها للواجهة العامة
 app.get('/api/public/facilities', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours FROM pharmacies ORDER BY id DESC');
+    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours, doctor_id FROM pharmacies ORDER BY id DESC');
     res.json(result.rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -129,6 +128,19 @@ app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
   const facilityType = req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'));
   
   try {
+    // --- التحقق من الحد الأقصى للمنشآت قبل الإضافة ---
+    const userLimitQuery = await pool.query('SELECT pharmacy_limit FROM users WHERE id = $1', [assignedDoctorId]);
+    const currentCountQuery = await pool.query('SELECT count(*) FROM pharmacies WHERE doctor_id = $1', [assignedDoctorId]);
+    
+    if (userLimitQuery.rows.length > 0 && currentCountQuery.rows.length > 0) {
+      const limit = parseInt(userLimitQuery.rows[0].pharmacy_limit || 10);
+      const currentCount = parseInt(currentCountQuery.rows[0].count);
+      if (currentCount >= limit) {
+        return res.status(403).json({ error: `عذراً، لقد تجاوزت الحد الأقصى المسموح لك (${limit} منشآت). يرجى التواصل مع الإدارة.` });
+      }
+    }
+    // ------------------------------------------------
+
     const result = await pool.query(
       `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
@@ -159,7 +171,7 @@ app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
 
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
   try {
-    await pool.query('DELETE FROM roster WHERE pharmacy_id = $1', [req.params.id]); // تنظيف الجداول القديمة إن وجدت
+    await pool.query('DELETE FROM roster WHERE pharmacy_id = $1', [req.params.id]); 
     await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم الحذف' });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
