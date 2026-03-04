@@ -770,6 +770,24 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     if (activeTab === 'roster') api.get('/api/roster').then(setRoster);
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
   };
+  // --- دالة إضافة وإزالة صيدلية من مناوبات اليوم السريعة ---
+  const toggleTodayDuty = async (pharmacyId: number, isCurrentlyOnCall: boolean) => {
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      if (isCurrentlyOnCall) {
+        // إذا كانت مفتوحة، نبحث عن رقم المناوبة ونحذفها
+        const entry = roster.find(r => r.pharmacy_id === pharmacyId && r.duty_date === today);
+        if (entry) await api.delete(`/api/roster/${entry.id}`);
+      } else {
+        // إذا كانت مغلقة، نضيفها لمناوبات اليوم
+        await api.post('/api/roster', { pharmacy_id: pharmacyId, duty_date: today, notes: '' });
+      }
+      loadData(); // تحديث البيانات فوراً
+    } catch (err) {
+      alert('حدث خطأ أثناء تحديث حالة الصيدلية');
+    }
+  };
+  // --------------------------------------------------------
 
   const approveUser = async (id: number) => {
     try {
@@ -961,15 +979,37 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {pharmacies.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(p => {
-                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date === new Date().toISOString().split('T')[0]);
+                  const today = new Date().toISOString().split('T')[0];
+                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date === today);
                   return (
                     <div key={p.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-4">
+                      
+                      <div className="flex justify-between items-start mb-4 gap-2">
                         <h3 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{p.name}</h3>
-                        {isOnCall && (
-                          <span className="shrink-0 px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse ml-2">
-                            {t.onCall}
-                          </span>
+                        
+                        {/* أزرار مفتوح ومغلق تظهر للأدمن وصاحب الصيدلية فقط */}
+                        {(user.role === 'admin' || user.id === p.doctor_id) ? (
+                          <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
+                            <button
+                              onClick={() => !isOnCall && toggleTodayDuty(p.id, false)}
+                              className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${isOnCall ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                              مفتوح
+                            </button>
+                            <button
+                              onClick={() => isOnCall && toggleTodayDuty(p.id, true)}
+                              className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${!isOnCall ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                              مغلق
+                            </button>
+                          </div>
+                        ) : (
+                          /* بقية المستخدمين يرون الشارة العادية فقط */
+                          isOnCall && (
+                            <span className="shrink-0 px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse ml-2">
+                              {t.onCall}
+                            </span>
+                          )
                         )}
                       </div>
                       <div className="space-y-2 text-slate-600 mb-6">
