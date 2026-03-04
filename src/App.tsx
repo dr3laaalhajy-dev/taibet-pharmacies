@@ -57,7 +57,17 @@ const api = {
 
 const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { const [p, setP] = useState<any>(initialPosition || null); useMapEvents({ click(e) { setP([e.latlng.lat, e.latlng.lng]); onLocationSelect(e.latlng.lat, e.latlng.lng); } }); return p ? <Marker position={p} /> : null; };
 const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
-const uploadImageToImgBB = async (file: File) => { const f = new FormData(); f.append('image', file); const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); const d = await r.json(); if (d.success) return d.data.url; throw new Error('Upload failed'); };
+const uploadImageToImgBB = async (file: File) => {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader(); reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e);
+  });
+  const f = new FormData(); f.append('image', base64.split(',')[1]);
+  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f });
+  const d = await r.json();
+  if (d.success) return d.data.url;
+  throw new Error(d.error?.message || 'فشل الرفع');
+};
 
 // --- Public Shopping View with Cart ---
 const PublicShopView = ({ onBack, facilities }: { onBack: () => void, facilities: Facility[] }) => {
@@ -514,7 +524,7 @@ const ProductsManager = ({ user, facilities }: { user: UserType, facilities: Fac
   const [products, setProducts] = useState<Product[]>([]); const [form, setForm] = useState<Partial<Product>>({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: facilities[0]?.id || 0 }); const [editingId, setEditingId] = useState<number | null>(null); const [uploadingImage, setUploadingImage] = useState(false); const [loading, setLoading] = useState(true);
   const loadProducts = () => { api.get('/api/products').then(setProducts).finally(() => setLoading(false)); };
   useEffect(() => { loadProducts(); if(facilities.length > 0 && !form.pharmacy_id) setForm(prev => ({...prev, pharmacy_id: facilities[0].id})); }, [facilities]);
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); } catch (err) { alert('فشل رفع الصورة'); } finally { setUploadingImage(false); } };
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); } catch (err: any) { alert('سبب المشكلة: ' + err.message); } finally { setUploadingImage(false); } };
   const handleSave = async (e: React.FormEvent) => { e.preventDefault(); if (!form.pharmacy_id) return alert('اختر صيدلية أولاً'); try { if (editingId) await api.put(`/api/products/${editingId}`, form); else await api.post('/api/products', form); setForm({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: form.pharmacy_id, image_url: '' }); setEditingId(null); loadProducts(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
   if (loading) return <div>جاري التحميل...</div>;
   if (facilities.length === 0 && user.role !== 'admin') return <div className="text-center py-20 text-slate-500">لا تملك صيدلية مفعلة لإضافة منتجات.</div>;
@@ -544,7 +554,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const loadData = async () => { if (activeTab === 'facilities') api.get('/api/pharmacies').then(setFacilities); if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); };
   useEffect(() => { loadData(); }, [activeTab]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); } catch (err) { alert('فشل الرفع'); } finally { setUploadingImage(false); } };
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); } catch (err: any) { alert('سبب المشكلة: ' + err.message); } finally { setUploadingImage(false); } };
   const handleSaveFacility = async (e: React.FormEvent) => { e.preventDefault(); const payload = { ...form }; if (user.role !== 'admin') delete payload.doctor_id; try { if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload); else await api.post('/api/pharmacies', payload); setShowModal(false); loadData(); } catch (err: any) { alert(err.error || 'خطأ في الحفظ!'); } };
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); } catch(err: any) { alert('حدث خطأ'); } };
   const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); } catch(err: any) { alert('ممنوع'); } };
