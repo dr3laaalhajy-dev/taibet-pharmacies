@@ -34,16 +34,18 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // --- API Routes (Public) ---
 app.get('/api/public/on-call', async (req, res) => {
+  const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   try {
-    // جلب صيدليات اليوم فقط بدون تكرار (DISTINCT ON)
     const onCall = await pool.query(`
-      SELECT DISTINCT ON (p.id) p.*, r.duty_date, r.notes 
+      SELECT p.*, r.duty_date, r.notes 
       FROM pharmacies p 
       JOIN roster r ON p.id = r.pharmacy_id 
-      WHERE r.duty_date = CURRENT_DATE
-      ORDER BY p.id
-    `);
-    res.json(onCall.rows);
+      WHERE r.duty_date LIKE $1 || '%'
+    `, [today]);
+    
+    // تصفية التكرارات برمجياً لضمان عدم حدوث أخطاء
+    const uniquePharmacies = onCall.rows.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+    res.json(uniquePharmacies);
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -144,18 +146,18 @@ app.post('/api/auth/update-profile', authenticateToken, async (req: any, res) =>
 
 // --- API Routes (Pharmacies & Roster) ---
 app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
+  const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   try {
-    // جلب الصيدليات مع حالة (هل هي مناوبة اليوم أم لا) من قاعدة البيانات مباشرة
     let query = `
       SELECT p.*, 
-      EXISTS(SELECT 1 FROM roster r WHERE r.pharmacy_id = p.id AND r.duty_date = CURRENT_DATE) as is_on_call_today
+      EXISTS(SELECT 1 FROM roster r WHERE r.pharmacy_id = p.id AND r.duty_date LIKE $1 || '%') as is_on_call_today
       FROM pharmacies p
     `;
     if (req.user.role === 'admin') {
-      const pharmacies = await pool.query(query + ' ORDER BY p.id DESC');
+      const pharmacies = await pool.query(query + ' ORDER BY p.id DESC', [today]);
       res.json(pharmacies.rows);
     } else {
-      const pharmacies = await pool.query(query + ' WHERE p.doctor_id = $1 ORDER BY p.id DESC', [req.user.id]);
+      const pharmacies = await pool.query(query + ' WHERE p.doctor_id = $2 ORDER BY p.id DESC', [today, req.user.id]);
       res.json(pharmacies.rows);
     }
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
@@ -163,17 +165,18 @@ app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
 
 // مسار جديد لتفعيل وإيقاف مناوبة الصيدلية لليوم
 app.post('/api/pharmacies/:id/toggle-duty', authenticateToken, async (req: any, res) => {
+  const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   try {
     const pharmacyId = req.params.id;
     // التحقق هل الصيدلية مناوبة اليوم؟
-    const check = await pool.query('SELECT id FROM roster WHERE pharmacy_id = $1 AND duty_date = CURRENT_DATE', [pharmacyId]);
+    const check = await pool.query('SELECT id FROM roster WHERE pharmacy_id = $1 AND duty_date LIKE $2 || \'%\'', [pharmacyId, today]);
     if (check.rows.length > 0) {
       // إزالة المناوبة
-      await pool.query('DELETE FROM roster WHERE pharmacy_id = $1 AND duty_date = CURRENT_DATE', [pharmacyId]);
+      await pool.query('DELETE FROM roster WHERE pharmacy_id = $1 AND duty_date LIKE $2 || \'%\'', [pharmacyId, today]);
       res.json({ status: 'closed' });
     } else {
       // إضافة مناوبة
-      await pool.query("INSERT INTO roster (pharmacy_id, duty_date, notes) VALUES ($1, CURRENT_DATE, '')", [pharmacyId]);
+      await pool.query("INSERT INTO roster (pharmacy_id, duty_date, notes) VALUES ($1, $2, '')", [pharmacyId, today]);
       res.json({ status: 'open' });
     }
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
