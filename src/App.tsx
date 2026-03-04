@@ -151,7 +151,7 @@ const PublicShopView = ({ onBack, facilities, lang }: { onBack: () => void, faci
                     {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{item.price} L.S</p>
+                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{item.price} ل.س</p>
                       <div className="flex items-center gap-3 mt-2">
                         <button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button>
                         <span className="font-bold text-sm">{item.qty}</span>
@@ -163,7 +163,7 @@ const PublicShopView = ({ onBack, facilities, lang }: { onBack: () => void, faci
                 ))}
               </div>
               <div className="p-6 border-t bg-slate-50">
-                <div className="flex justify-between items-center mb-4 text-lg font-bold"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr">{cartTotal} L.S</span></div>
+                <div className="flex justify-between items-center mb-4 text-lg font-bold"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr">{cartTotal} ل.س</span></div>
                 <form onSubmit={submitOrder} className="space-y-3">
                   <input required placeholder={lang === 'ar' ? "اسمك الكامل" : "Full Name"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerName} onChange={e=>setCustomerName(e.target.value)} />
                   <input required placeholder={lang === 'ar' ? "رقم هاتفك للتواصل" : "Phone Number"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} />
@@ -233,7 +233,7 @@ const PublicShopView = ({ onBack, facilities, lang }: { onBack: () => void, faci
                       <h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
                       {p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
                       <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="font-extrabold text-lg text-slate-900" dir="ltr">{p.price} L.S</span>
+                        <span className="font-extrabold text-lg text-slate-900" dir="ltr">{p.price} ل.س</span>
                       </div>
                       {!isOutOfStock && (
                         <button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>
@@ -333,7 +333,7 @@ const ProductsManager = ({ user, facilities, lang }: { user: UserType, facilitie
                 {user.role === 'admin' && <span className="text-[10px] text-emerald-600 block">{p.pharmacy_name}</span>}
                 <h4 className="font-bold text-sm truncate">{p.name}</h4>
                 <div className="flex justify-between items-center mt-2 text-xs">
-                  <span className="font-bold" dir="ltr">{p.price} L.S</span>
+                  <span className="font-bold" dir="ltr">{p.price} ل.س</span>
                   <span className={`px-2 py-1 rounded-md font-bold ${p.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{p.quantity > 0 ? (lang === 'ar' ? `كمية: ${p.quantity}` : `Qty: ${p.quantity}`) : (lang === 'ar' ? 'نفذت' : 'Out of Stock')}</span>
                 </div>
               </div>
@@ -409,11 +409,11 @@ const OrdersManager = ({ user, facilities, lang }: { user: UserType, facilities:
               {o.items.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                   <span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span>
-                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty} L.S</span>
+                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty} ل.س</span>
                 </div>
               ))}
               <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg">
-                <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price} L.S</span>
+                <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price} ل.س</span>
               </div>
             </div>
             {o.status === 'pending' && (
