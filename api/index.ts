@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL?.replace('?sslmode=require', ''),
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
