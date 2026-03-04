@@ -336,7 +336,8 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         const data = await api.post('/api/auth/login', { email, password });
         onLogin(data.user);
       } else {
-        const fullEmail = `${emailPrefix}@taiba.pharma.sy`;
+        const domain = role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy';
+const fullEmail = `${emailPrefix}${domain}`;
         await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
         setIsLogin(true); setPassword(''); setEmailPrefix('');
@@ -375,7 +376,9 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
               <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
               <div className="flex" dir="ltr">
                 <input type="text" required placeholder="username" className="flex-1 px-4 py-3 rounded-l-xl border border-r-0 border-slate-200 outline-none text-left focus:ring-2 focus:ring-emerald-500" value={emailPrefix} onChange={e => setEmailPrefix(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, ''))} />
-                <div className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-r-xl text-slate-500 font-mono text-sm flex items-center select-none">@taiba.pharma.sy</div>
+              <div className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-r-xl text-slate-500 font-mono text-sm flex items-center select-none">
+  {role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy'}
+</div>
               </div>
             </div>
           )}
