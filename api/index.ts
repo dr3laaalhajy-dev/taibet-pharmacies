@@ -76,14 +76,26 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name, phone, role } = req.body;
+  const { email, password, name, phone, role, activationKey } = req.body;
   try {
+    let isActive = false;
+    
+    // التحقق من المفتاح إذا تم إدخاله
+    if (activationKey) {
+      const keyCheck = await pool.query('SELECT * FROM activation_keys WHERE key = $1 AND is_used = false', [activationKey]);
+      if (keyCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'مفتاح التفعيل غير صحيح أو تم استخدامه مسبقاً.' });
+      }
+      isActive = true; // تفعيل فوري
+      await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); // حرق المفتاح
+    }
+
     const hashedPassword = bcrypt.hashSync(password, 10);
     await pool.query(
       `INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [email, hashedPassword, role, name, phone || null, 10, false]
+      [email, hashedPassword, role, name, phone || null, 10, isActive]
     );
-    res.json({ success: true });
+    res.json({ success: true, isActive });
   } catch (err: any) {
     if (err.code === '23505') res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل!' });
     else res.status(500).json({ error: err.message });
@@ -262,5 +274,13 @@ app.put('/api/admin/settings', authenticateToken, async (req: any, res) => {
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
-
+// --- API Routes (Activation Keys) ---
+app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => {
+  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
+  const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); // توليد مفتاح عشوائي
+  try {
+    await pool.query('INSERT INTO activation_keys (key) VALUES ($1)', [newKey]);
+    res.json({ key: newKey });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 export default app;

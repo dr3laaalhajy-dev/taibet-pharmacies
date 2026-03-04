@@ -325,7 +325,8 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); const [emailPrefix, setEmailPrefix] = useState(''); 
   const [password, setPassword] = useState(''); const [name, setName] = useState('');
-  const [phone, setPhone] = useState(''); const [role, setRole] = useState('pharmacist');
+  const [phone, setPhone] = useState(''); const [activationKey, setActivationKey] = useState('');
+  const [isActivatedByKey, setIsActivatedByKey] = useState(false); const [role, setRole] = useState('pharmacist');
   const [error, setError] = useState(''); const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -338,7 +339,15 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
       } else {
         const domain = role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy';
 const fullEmail = `${emailPrefix}${domain}`;
-        await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
+        const res = await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role, activationKey });
+        if (res.isActive) {
+          setSuccessMsg('تم إنشاء الحساب وتفعيله بنجاح بواسطة المفتاح! يمكنك تسجيل الدخول الآن.');
+          setIsActivatedByKey(true);
+        } else {
+          setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى تواصل مع المدير لتفعيل حسابك.');
+          setIsActivatedByKey(false);
+        }
+        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey('');
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
         setIsLogin(true); setPassword(''); setEmailPrefix('');
       }
@@ -354,12 +363,27 @@ const fullEmail = `${emailPrefix}${domain}`;
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">{error}</div>}
-          {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-xl text-sm">{successMsg}</div>}
+         {successMsg && (
+            <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-sm flex flex-col gap-3 text-center border border-emerald-100">
+              <span className="font-bold">{successMsg}</span>
+              {!isActivatedByKey && successMsg.includes('التواصل') && (
+                <a href="https://wa.me/963000000000" target="_blank" className="bg-emerald-500 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-2 hover:bg-emerald-600 transition-colors">
+                  <MessageCircle size={16} /> تواصل عبر واتساب للتفعيل
+                </a>
+              )}
+            </div>
+          )}
           {!isLogin && (
             <>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <div className="pt-2 border-t border-slate-100">
+                <p className="text-xs text-slate-500 mb-2 font-medium leading-relaxed">
+                  يمكنك تفعيل الحساب فوراً دون الحاجة للتواصل مع الإدارة عن طريق إدخال مفتاح تفعيل (اختياري):
+                </p>
+                <input placeholder="مفتاح التفعيل (إن وجد)" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-center tracking-widest uppercase" value={activationKey} onChange={e => setActivationKey(e.target.value.toUpperCase())} />
+              </div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label>
                   <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={role} onChange={e => setRole(e.target.value)}>
                     <option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option>
@@ -512,7 +536,12 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => {
     try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); } catch(err: any) { alert('حدث خطأ'); }
   };
-
+const generateActivationKey = async () => {
+    try {
+      const res = await api.post('/api/admin/generate-key', {});
+      alert(`تم توليد مفتاح تفعيل جديد (يستخدم مرة واحدة فقط):\n\n${res.key}\n\nقم بنسخه وإرساله للمستخدم.`);
+    } catch (err: any) { alert('حدث خطأ أثناء التوليد'); }
+  };
   const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); } catch (err) { alert('فشل التفعيل'); } };
   const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); setProfileMsg(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { setProfileMsg(err.error || 'فشل التحديث'); } };
@@ -589,6 +618,11 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              {isSuperAdmin && (
+                    <button onClick={generateActivationKey} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">
+                      توليد مفتاح تفعيل
+                    </button>
+                  )}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2><p className="text-sm md:text-base text-slate-500">{t.manageStaff}</p></div><button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"><Plus size={20} /> {t.createUser}</button></div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => {
