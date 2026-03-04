@@ -12,6 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
+// تم إزالة replace ليعمل الرابط بشكل سليم 100%
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -34,7 +35,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // --- API Routes (Public) ---
 app.get('/api/public/facilities', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours, doctor_id FROM pharmacies ORDER BY id DESC');
+    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours, doctor_id, manual_status FROM pharmacies ORDER BY id DESC');
     res.json(result.rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -122,13 +123,24 @@ app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+app.patch('/api/pharmacies/:id/status', authenticateToken, async (req: any, res) => {
+  const { manual_status } = req.body;
+  try {
+    if (req.user.role === 'admin') {
+      await pool.query('UPDATE pharmacies SET manual_status = $1 WHERE id = $2', [manual_status, req.params.id]);
+    } else {
+      await pool.query('UPDATE pharmacies SET manual_status = $1 WHERE id = $2 AND doctor_id = $3', [manual_status, req.params.id, req.user.id]);
+    }
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
   const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours } = req.body;
   const assignedDoctorId = req.user.role === 'admin' ? (doctor_id || req.user.id) : req.user.id;
   const facilityType = req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'));
   
   try {
-    // --- التحقق من الحد الأقصى للمنشآت قبل الإضافة ---
     const userLimitQuery = await pool.query('SELECT pharmacy_limit FROM users WHERE id = $1', [assignedDoctorId]);
     const currentCountQuery = await pool.query('SELECT count(*) FROM pharmacies WHERE doctor_id = $1', [assignedDoctorId]);
     
@@ -139,11 +151,10 @@ app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
         return res.status(403).json({ error: `عذراً، لقد تجاوزت الحد الأقصى المسموح لك (${limit} منشآت). يرجى التواصل مع الإدارة.` });
       }
     }
-    // ------------------------------------------------
 
     const result = await pool.query(
-      `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto') RETURNING id`,
       [name, address, phone, latitude, longitude, req.user.id, assignedDoctorId, pharmacist_name || null, whatsapp_phone || null, image_url || null, facilityType, working_hours || {}]
     );
     res.json({ id: result.rows[0].id });

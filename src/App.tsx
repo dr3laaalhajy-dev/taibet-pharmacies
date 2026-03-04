@@ -22,23 +22,31 @@ L.Icon.Default.mergeOptions({
 // --- Types ---
 interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; }
 interface WorkingHours { isOpen: boolean; start: string; end: string; }
-interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; working_hours: Record<string, WorkingHours>; }
+interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; working_hours: Record<string, WorkingHours>; manual_status?: 'open' | 'closed' | 'auto'; }
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 const DAYS_OF_WEEK = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
-const checkIsOpenNow = (workingHours: Record<string, WorkingHours> | undefined) => {
-  if (!workingHours) return false;
+const checkIsOpenNow = (f: Facility) => {
+  if (f.manual_status === 'open') return true;
+  if (f.manual_status === 'closed') return false;
+
+  if (!f.working_hours) return false;
   const now = new Date();
   const dayIndex = now.getDay().toString();
-  const todaySchedule = workingHours[dayIndex];
+  const todaySchedule = f.working_hours[dayIndex];
+  
   if (!todaySchedule || !todaySchedule.isOpen) return false;
+  
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const [startH, startM] = todaySchedule.start.split(':').map(Number);
   const [endH, endM] = todaySchedule.end.split(':').map(Number);
   const startMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
-  if (endMinutes < startMinutes) return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+
+  if (endMinutes < startMinutes) {
+    return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+  }
   return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
 };
 
@@ -59,7 +67,7 @@ const api = {
   get: (url: string) => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
   post: (url: string, body: any) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
   put: (url: string, body: any) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-  patch: (url: string) => fetch(url, { method: 'PATCH', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  patch: (url: string, body?: any) => fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: body ? JSON.stringify(body) : undefined }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
   delete: (url: string) => fetch(url, { method: 'DELETE', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
 };
 
@@ -83,6 +91,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
   
   // إعدادات الصفحات للجدول الأسبوعي
   const [currentPage, setCurrentPage] = useState(1);
+  const [openNowPage, setOpenNowPage] = useState(1);
   const itemsPerPage = 5;
 
   useEffect(() => {
@@ -96,16 +105,16 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
     }
   }, []);
 
-  // العودة للصفحة الأولى عند البحث أو تغيير التبويب
   useEffect(() => {
     setCurrentPage(1);
+    setOpenNowPage(1);
   }, [activeTab, searchQuery]);
 
   const processedFacilities = facilities
     .filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery)))
     .map(f => ({
       ...f,
-      isOpenNow: checkIsOpenNow(f.working_hours),
+      isOpenNow: checkIsOpenNow(f),
       distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null
     }))
     .sort((a, b) => {
@@ -117,7 +126,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow);
   
-  // تقسيم بيانات الجدول الأسبوعي حسب الصفحة
+  // تقسيم بيانات "المفتوح الآن" حسب الصفحة
+  const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage);
+  const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage);
+
+  // تقسيم بيانات "الجدول الأسبوعي" حسب الصفحة
   const totalPages = Math.ceil(processedFacilities.length / itemsPerPage);
   const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -130,7 +143,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
           {t.communityHealth}
         </motion.div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">
-          {lang === 'ar' ? <>صيدليات ومراكز <span className="text-emerald-500">طيبة الإمام</span></> : <>Taibet El-Imam <span className="text-emerald-500">Health</span></>}
+          {lang === 'ar' ? <>صيدليات ومراكز <span className="text-emerald-500">طيبة الإمام</span> الصحية</> : <><span className="text-emerald-500">Taibet El-Imam</span> Pharmacies and Health Centers</>}
         </h1>
         <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
         
@@ -155,15 +168,15 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
       <div className="flex flex-col gap-12 md:gap-16 mb-16">
         
-        {/* القسم الأول: المفتوح الآن (شبكة عادية) */}
+        {/* القسم الأول: المناوبات الآن (بشكل صفحات) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-            {activeTab === 'pharmacy' ? 'صيدلية مناوبة الآن' : 'عيادة مناوبة الآن'}
+            {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدلية مناوبة الآن' : 'Pharmacy On Call Now') : (lang === 'ar' ? 'عيادة مناوبة الآن' : 'Clinic Open Now')}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentlyOpen.length > 0 ? currentlyOpen.map(f => (
+            {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
               <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
                 <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
                 <div className="flex items-center gap-4 mb-4">
@@ -177,7 +190,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>
                     {f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}
-                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">يبعد عنك: {f.distance} كم 📍</span>}
+                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">{lang === 'ar' ? `يبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}
                   </div>
                 </div>
                 <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
@@ -189,10 +202,19 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
             )) : (
               <div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500">
                 <Clock className="mx-auto text-slate-300 mb-4" size={48} />
-                <p className="text-slate-500 font-medium">لا يوجد {activeTab === 'pharmacy' ? 'صيدليات' : 'عيادات'} مناوبة في هذا الوقت.</p>
+                <p className="text-slate-500 font-medium">{lang === 'ar' ? `لا يوجد ${activeTab === 'pharmacy' ? 'صيدليات' : 'عيادات'} مناوبة في هذا الوقت.` : 'No facilities open at this time.'}</p>
               </div>
             )}
           </div>
+          
+          {/* أزرار التقليب لصفحة المفتوح الآن */}
+          {totalOpenPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mt-8">
+              <button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">السابق</button>
+              <span className="font-bold text-slate-500 text-sm">صفحة {openNowPage} من {totalOpenPages}</span>
+              <button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">التالي</button>
+            </div>
+          )}
         </div>
 
         {/* القسم الثاني: الجدول الأسبوعي (مقسم لصفحات) */}
@@ -263,7 +285,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
               </table>
             </div>
             
-            {/* أزرار التقليب للصفحات */}
+            {/* أزرار التقليب للجدول الأسبوعي */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 bg-slate-50">
                 <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">السابق</button>
@@ -476,6 +498,10 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     } catch (err: any) { alert(err.error || 'خطأ في الحفظ، قد تكون وصلت للحد الأقصى!'); }
   };
 
+  const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => {
+    try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); } catch(err: any) { alert('حدث خطأ'); }
+  };
+
   const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); } catch (err) { alert('فشل التفعيل'); } };
   const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); setProfileMsg(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { setProfileMsg(err.error || 'فشل التحديث'); } };
@@ -483,7 +509,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row w-full overflow-hidden">
       <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
-        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center"><h1 className="text-xl font-bold text-slate-900 flex items-center gap-2"><img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" /> {t.appName}</h1><button onClick={onLogout} className="md:hidden flex items-center justify-center p-2 rounded-lg bg-red-50 text-red-600"><LogOut size={18} /></button></div>
+        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center"><h1 className="text-xl font-bold text-slate-900 flex items-center gap-2"><img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" /> {lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet Health'}</h1><button onClick={onLogout} className="md:hidden flex items-center justify-center p-2 rounded-lg bg-red-50 text-red-600"><LogOut size={18} /></button></div>
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide">
           <button onClick={() => setActiveTab('facilities')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'facilities' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><MapPin size={18} /> {dashboardTitle}</button>
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><User size={18} /> {t.userManagement}</button>}
@@ -497,7 +523,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
           {activeTab === 'facilities' && (
             <motion.div key="facilities" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
-                <div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{dashboardTitle}</h2><p className="text-sm md:text-base text-slate-500">إدارة الجداول الأسبوعية وبيانات المنشأة</p></div>
+                <div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{dashboardTitle}</h2><p className="text-sm md:text-base text-slate-500">إدارة الجداول الأسبوعية وتغيير حالة الدوام يدوياً</p></div>
                 <div className="flex flex-wrap gap-2 md:gap-4 w-full sm:w-auto">
                   {user.role === 'admin' && <select className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={doctorFilter} onChange={e => setDoctorFilter(parseInt(e.target.value))}><option value="0">{t.allDoctors}</option>{users.filter(u => u.role === 'doctor' || u.role === 'pharmacist').map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>}
                   <button onClick={() => { setEditingData(null); setForm({ name: '', address: '', phone: '', type: user.role === 'doctor' ? 'clinic' : 'pharmacy', latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', image_url: '', doctor_id: 0, working_hours: defaultWorkingHours }); setShowModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-900 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"><Plus size={20} /> {addButtonText}</button>
@@ -505,12 +531,20 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
                 {facilities.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(f => {
-                  const isOpenNow = checkIsOpenNow(f.working_hours);
+                  const isOpenNow = checkIsOpenNow(f);
                   return (
                     <div key={f.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-4 gap-2"><div><span className={`text-[10px] px-2 py-1 rounded-full font-bold inline-block mb-2 ${f.type === 'clinic' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>{f.type === 'clinic' ? 'عيادة طبية' : 'صيدلية'}</span><h3 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3></div>{isOpenNow ? <span className="bg-emerald-500 text-white text-xs px-3 py-1 rounded-lg font-bold animate-pulse">مفتوح الآن</span> : <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-lg font-bold">مغلق حالياً</span>}</div>
-                      <div className="space-y-2 text-slate-600 mb-6"><p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p><p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p>{user.role === 'admin' && <div className="flex items-center gap-2 text-sm"><User size={14} className="shrink-0"/><span className="text-emerald-600 font-medium truncate">{users.find(u => u.id === f.doctor_id)?.name || t.unassigned}</span></div>}</div>
-                      <div className="bg-slate-50 p-4 rounded-xl mt-4 grid grid-cols-7 gap-1 text-center overflow-x-auto">{DAYS_OF_WEEK.map((d, i) => { const h = f.working_hours?.[i.toString()]; const isToday = new Date().getDay() === i; return <div key={i} className={`flex flex-col border border-slate-200 rounded-lg p-1 min-w-[40px] ${isToday ? 'bg-white shadow-sm ring-1 ring-indigo-400' : ''}`}><span className={`text-[10px] font-bold mb-1 ${isToday ? 'text-indigo-600' : 'text-slate-500'}`}>{d.slice(0,3)}</span>{h?.isOpen ? <div className="text-[9px] font-mono leading-tight">{formatTime12h(h.start)}<br/>{formatTime12h(h.end)}</div> : <span className="text-[9px] text-red-500 mt-1">عطلة</span>}</div>; })}</div>
+                      <div className="space-y-2 text-slate-600 mb-6"><p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p><p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p></div>
+                      
+                      {/* قسم التدخل اليدوي السريع للدوام */}
+                      <div className="bg-slate-50 p-3 rounded-xl mt-4 flex flex-wrap items-center gap-2 border border-slate-100">
+                        <span className="text-xs font-bold text-slate-500 my-auto ml-2 w-full sm:w-auto">تجاوز الجدول يدوياً:</span>
+                        <button onClick={() => setManualStatus(f.id, 'open')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='open' ? 'bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مفتوح دائماً</button>
+                        <button onClick={() => setManualStatus(f.id, 'closed')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='closed' ? 'bg-red-500 text-white shadow-sm ring-2 ring-red-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مغلق دائماً</button>
+                        <button onClick={() => setManualStatus(f.id, 'auto')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!f.manual_status || f.manual_status==='auto' ? 'bg-indigo-500 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>حسب الجدول التلقائي</button>
+                      </div>
+
                       <div className="flex gap-2 border-t border-slate-100 pt-4 mt-6"><button onClick={() => { setEditingData(f); setForm({...f, working_hours: f.working_hours || defaultWorkingHours}); setShowModal(true); }} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"><Edit2 size={14} /> تعديل البيانات</button><button onClick={() => openConfirm(t.confirmTitle, t.confirmBody, async () => { await api.delete(`/api/pharmacies/${f.id}`); loadData(); })} className="px-4 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"><Trash2 size={14} /></button></div>
                     </div>
                   );
@@ -683,12 +717,12 @@ export default function App() {
     <div className="min-h-screen font-sans text-slate-900 bg-slate-50">
       {view !== 'dashboard' && (
         <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> Taibet El-Imam Health</button>
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> {lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet Health'}</button>
           <div className="flex gap-2 md:gap-4">
             <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">
               {lang === 'ar' ? 'English' : 'العربية'}
             </button>
-            <button onClick={() => setView(view === 'public' ? 'login' : 'public')} className="bg-slate-900 text-white px-6 py-2 rounded-full font-bold hover:bg-slate-800 transition-colors">
+            <button onClick={() => setView(view === 'public' ? 'login' : 'public')} className="bg-slate-900 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-800 transition-colors">
               {view === 'public' ? t.staffLogin : t.backToPublic}
             </button>
           </div>
