@@ -34,13 +34,15 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // --- API Routes (Public) ---
 app.get('/api/public/on-call', async (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
   try {
+    // جلب صيدليات اليوم فقط بدون تكرار (DISTINCT ON)
     const onCall = await pool.query(`
-      SELECT p.*, r.duty_date, r.notes 
-      FROM pharmacies p JOIN roster r ON p.id = r.pharmacy_id 
-      WHERE r.duty_date = $1
-    `, [today]);
+      SELECT DISTINCT ON (p.id) p.*, r.duty_date, r.notes 
+      FROM pharmacies p 
+      JOIN roster r ON p.id = r.pharmacy_id 
+      WHERE r.duty_date = CURRENT_DATE
+      ORDER BY p.id
+    `);
     res.json(onCall.rows);
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
@@ -143,10 +145,37 @@ app.post('/api/auth/update-profile', authenticateToken, async (req: any, res) =>
 // --- API Routes (Pharmacies & Roster) ---
 app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
   try {
-    let pharmacies = req.user.role === 'admin' 
-      ? await pool.query('SELECT * FROM pharmacies') 
-      : await pool.query('SELECT * FROM pharmacies WHERE doctor_id = $1', [req.user.id]);
-    res.json(pharmacies.rows);
+    // جلب الصيدليات مع حالة (هل هي مناوبة اليوم أم لا) من قاعدة البيانات مباشرة
+    let query = `
+      SELECT p.*, 
+      EXISTS(SELECT 1 FROM roster r WHERE r.pharmacy_id = p.id AND r.duty_date = CURRENT_DATE) as is_on_call_today
+      FROM pharmacies p
+    `;
+    if (req.user.role === 'admin') {
+      const pharmacies = await pool.query(query + ' ORDER BY p.id DESC');
+      res.json(pharmacies.rows);
+    } else {
+      const pharmacies = await pool.query(query + ' WHERE p.doctor_id = $1 ORDER BY p.id DESC', [req.user.id]);
+      res.json(pharmacies.rows);
+    }
+  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+});
+
+// مسار جديد لتفعيل وإيقاف مناوبة الصيدلية لليوم
+app.post('/api/pharmacies/:id/toggle-duty', authenticateToken, async (req: any, res) => {
+  try {
+    const pharmacyId = req.params.id;
+    // التحقق هل الصيدلية مناوبة اليوم؟
+    const check = await pool.query('SELECT id FROM roster WHERE pharmacy_id = $1 AND duty_date = CURRENT_DATE', [pharmacyId]);
+    if (check.rows.length > 0) {
+      // إزالة المناوبة
+      await pool.query('DELETE FROM roster WHERE pharmacy_id = $1 AND duty_date = CURRENT_DATE', [pharmacyId]);
+      res.json({ status: 'closed' });
+    } else {
+      // إضافة مناوبة
+      await pool.query("INSERT INTO roster (pharmacy_id, duty_date, notes) VALUES ($1, CURRENT_DATE, '')", [pharmacyId]);
+      res.json({ status: 'open' });
+    }
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
 });
 
@@ -176,6 +205,9 @@ app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
 
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
   try {
+    // مسح المناوبات المرتبطة بالصيدلية أولاً لتجنب خطأ التبعية
+    await pool.query('DELETE FROM roster WHERE pharmacy_id = $1', [req.params.id]);
+    // ثم مسح الصيدلية
     await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم الحذف' });
   } catch (err) { res.status(500).json({ error: 'Database error' }); }
@@ -234,7 +266,6 @@ app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { email, password, role, name, pharmacy_limit, phone, notes } = req.body;
   
-  // حماية: يمنع المدير الفرعي من إنشاء مدير جديد
   if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
     return res.status(403).json({ error: 'فقط المدير الرئيسي يمكنه تعيين مدراء جدد!' });
   }
@@ -259,12 +290,10 @@ app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
 
     if (!targetUser) return res.status(404).json({ error: 'المستخدم غير موجود' });
 
-    // حماية 1: المدير الرئيسي فقط من يعدل بياناته، ولا يمكن لمدير آخر تعديل بيانات مدير رئيسي آخر
     if (SUPER_ADMINS.includes(targetUser.email) && req.user.email !== targetUser.email) {
       return res.status(403).json({ error: 'لا تمتلك صلاحية لتعديل بيانات هذا المدير الرئيسي!' });
     }
 
-    // حماية 2: المدير الفرعي لا يمكنه ترقية شخص عادي ليصبح مدير
     if (role === 'admin' && targetUser.role !== 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
       return res.status(403).json({ error: 'فقط المدير الرئيسي يمكنه ترقية الحسابات إلى إدارة!' });
     }
@@ -290,7 +319,6 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'لا يمكنك حذف نفسك' });
   
   try {
-    // حماية: يمنع حذف أي مدير رئيسي
     const targetUserResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
     if (targetUserResult.rows.length > 0 && SUPER_ADMINS.includes(targetUserResult.rows[0].email)) {
       return res.status(403).json({ error: 'مستحيل! لا يمكن حذف حساب المدير الرئيسي للنظام.' });

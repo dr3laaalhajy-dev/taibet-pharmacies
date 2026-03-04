@@ -76,7 +76,6 @@ const RecenterMap = ({ position }: { position: [number, number] }) => {
 
 const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'en', t: any }) => {
   const [onCall, setOnCall] = useState<Pharmacy[]>([]);
-  const [allPharmacies, setAllPharmacies] = useState<Pharmacy[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,17 +83,15 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
-  const [publicTab, setPublicTab] = useState<'pharmacies' | 'clinics'>('pharmacies'); // حالة التبديل بين الصيدليات والعيادات
+  const [publicTab, setPublicTab] = useState<'pharmacies' | 'clinics'>('pharmacies');
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
       api.get('/api/public/on-call'),
-      api.get('/api/public/pharmacies'),
       api.get('/api/public/roster?page=1&limit=10')
-    ]).then(([onCallData, allPharmaData, rosterData]) => {
+    ]).then(([onCallData, rosterData]) => {
       setOnCall(onCallData);
-      setAllPharmacies(allPharmaData);
       setRoster(rosterData.data);
       setHasMore(rosterData.data.length < rosterData.total);
       setLoading(false);
@@ -121,6 +118,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // تصفية التكرارات من القائمة إذا وجدت
+  const uniqueOnCall = filteredOnCall.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
 
   const filteredRoster = roster.filter(entry => 
     entry.pharmacy_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -165,7 +165,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
           />
         </div>
 
-        {/* --- أزرار التبديل بين الصيدليات والعيادات --- */}
+        {/* أزرار التبديل بين الصيدليات والعيادات */}
         <div className="flex justify-center gap-4 mt-10 flex-wrap">
           <button 
             onClick={() => setPublicTab('pharmacies')}
@@ -216,9 +216,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
+                      {uniqueOnCall.length > 0 ? uniqueOnCall.map((p, idx) => (
                         <motion.tr 
-                          key={p.id}
+                          key={`oncall-${p.id}`}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: idx * 0.05 }}
@@ -312,7 +312,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                     <tbody className="divide-y divide-slate-100">
                       {filteredRoster.map((entry, idx) => (
                         <motion.tr 
-                          key={idx}
+                          key={`roster-${idx}`}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: idx * 0.05 }}
@@ -371,77 +371,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
               </div>
             </div>
           </div>
-
-          {/* Map Section */}
-          <div className="mt-8 md:mt-16">
-            <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-              <MapPin className="text-emerald-500" />
-              {t.mapView}
-            </h2>
-            <div className="h-[300px] md:h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
-              <MapContainer 
-                center={[35.25, 36.7]} 
-                zoom={13} 
-                style={{ height: '100%', width: '100%', zIndex: 0 }}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                {allPharmacies.map(p => {
-                  const isOnCall = onCall.some(oc => oc.id === p.id);
-                  return (
-                    <Marker key={`pharma-${p.id}`} position={[p.latitude || 35.25, p.longitude || 36.7]}>
-                      <Popup className="custom-popup">
-                        <div className="text-right min-w-[200px]" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
-                          {p.image_url && (
-                            <img 
-                              src={p.image_url} 
-                              alt={p.name} 
-                              className="w-full h-24 object-cover rounded-xl mb-3" 
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          <h3 className={`font-bold text-lg ${isOnCall ? 'text-emerald-600' : 'text-slate-900'}`}>{p.name}</h3>
-                          <div className="space-y-1 mt-2">
-                            <p className="text-xs text-slate-500 flex items-center gap-2">
-                              <MapPin size={12} /> {p.address}
-                            </p>
-                            <p className="text-xs text-slate-500 flex items-center gap-2">
-                              <Phone size={12} /> {p.phone}
-                            </p>
-                            {p.pharmacist_name && (
-                              <p className="text-xs text-emerald-600 font-bold flex items-center gap-2">
-                                <User size={12} /> {p.pharmacist_name}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2 mt-4">
-                            {p.whatsapp_phone && (
-                              <a 
-                                href={`https://wa.me/${p.whatsapp_phone}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex-1 bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                              >
-                                <MessageCircle size={12} /> {t.whatsappChat}
-                              </a>
-                            )}
-                            <a 
-                              href={`tel:${p.phone}`}
-                              className="flex-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold no-underline"
-                            >
-                              <Phone size={12} /> {t.callPharmacy}
-                            </a>
-                          </div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
-              </MapContainer>
-            </div>
-          </div>
         </>
       ) : (
         /* --- واجهة العيادات (قريباً) --- */
@@ -465,7 +394,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب مع التعديل الجديد للبريد
+// شاشة تسجيل الدخول وإنشاء الحساب
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); 
@@ -486,7 +415,6 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         const data = await api.post('/api/auth/login', { email, password });
         onLogin(data.user);
       } else {
-        // دمج المعرف مع النطاق الثابت عند الإنشاء
         const fullEmail = `${emailPrefix}@taiba.pharma.sy`;
         await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
@@ -700,7 +628,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
 
 const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
   const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
+  const [pharmacies, setPharmacies] = useState<any[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [users, setUsers] = useState<any[]>([]); // Using 'any' here since we added 'is_active'
   
@@ -718,7 +646,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
   // Form states
   const [showPharmaModal, setShowPharmaModal] = useState(false);
-  const [editingPharma, setEditingPharma] = useState<Pharmacy | null>(null);
+  const [editingPharma, setEditingPharma] = useState<any | null>(null);
   const [pharmaForm, setPharmaForm] = useState({ 
     name: '', 
     address: '', 
@@ -772,22 +700,15 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
   };
 
-  // --- دالة إضافة وإزالة صيدلية من مناوبات اليوم السريعة ---
-  const toggleTodayDuty = async (pharmacyId: number, isCurrentlyOnCall: boolean) => {
-    const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  // دالة طلب إضافة وإزالة صيدلية من مناوبات اليوم السريعة
+  const toggleTodayDuty = async (pharmacyId: number) => {
     try {
-      if (isCurrentlyOnCall) {
-        const entry = roster.find(r => r.pharmacy_id === pharmacyId && r.duty_date.split('T')[0] === today);
-        if (entry) await api.delete(`/api/roster/${entry.id}`);
-      } else {
-        await api.post('/api/roster', { pharmacy_id: pharmacyId, duty_date: today, notes: '' });
-      }
+      await api.post(`/api/pharmacies/${pharmacyId}/toggle-duty`, {});
       loadData(); 
     } catch (err: any) {
       alert('حدث خطأ: ' + (err.error || 'تأكد من اتصالك بالإنترنت'));
     }
   };
-  // --------------------------------------------------------
 
   const approveUser = async (id: number) => {
     try {
@@ -980,8 +901,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {pharmacies.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(p => {
-                  const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
-                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date.split('T')[0] === today);
+                  const isOnCall = p.is_on_call_today; // يتم جلبها مباشرة من السيرفر لمنع أخطاء الوقت
+                  
                   return (
                     <div key={p.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                       
@@ -992,13 +913,13 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                         {(user.role === 'admin' || user.id === p.doctor_id) ? (
                           <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
                             <button
-                              onClick={() => !isOnCall && toggleTodayDuty(p.id, false)}
+                              onClick={() => !isOnCall && toggleTodayDuty(p.id)}
                               className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${isOnCall ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                               مفتوح
                             </button>
                             <button
-                              onClick={() => isOnCall && toggleTodayDuty(p.id, true)}
+                              onClick={() => isOnCall && toggleTodayDuty(p.id)}
                               className={`px-3 py-1 text-[10px] sm:text-xs font-bold rounded-md transition-all ${!isOnCall ? 'bg-red-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                               مغلق
@@ -1096,7 +1017,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {roster.map(entry => (
-                        <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={`roster-${entry.id}`} className="hover:bg-slate-50 transition-colors group">
                           <td className="px-6 py-4 font-mono text-sm text-slate-600 whitespace-nowrap">{entry.duty_date}</td>
                           <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{entry.pharmacy_name}</td>
                           <td className="px-6 py-4 text-slate-500 text-sm italic whitespace-nowrap">{entry.notes || '-'}</td>
