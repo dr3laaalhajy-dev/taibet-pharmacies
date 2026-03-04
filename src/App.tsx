@@ -118,9 +118,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  
-  // تصفية التكرارات من القائمة إذا وجدت
-  const uniqueOnCall = filteredOnCall.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
 
   const filteredRoster = roster.filter(entry => 
     entry.pharmacy_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -216,7 +213,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {uniqueOnCall.length > 0 ? uniqueOnCall.map((p, idx) => (
+                      {filteredOnCall.length > 0 ? filteredOnCall.map((p, idx) => (
                         <motion.tr 
                           key={`oncall-${p.id}`}
                           initial={{ opacity: 0 }}
@@ -394,7 +391,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
-// شاشة تسجيل الدخول وإنشاء الحساب
+// شاشة تسجيل الدخول وإنشاء الحساب مع التعديل الجديد للبريد
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); 
@@ -630,7 +627,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
   const [pharmacies, setPharmacies] = useState<any[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [users, setUsers] = useState<any[]>([]); // Using 'any' here since we added 'is_active'
+  const [users, setUsers] = useState<any[]>([]);
   
   // هل المستخدم الحالي هو أحد المدراء الرئيسيين؟
   const isSuperAdmin = SUPER_ADMINS.includes(user.email);
@@ -811,7 +808,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
           </button>
         </div>
 
-        {/* إصلاح الأزرار الجانبية للموبايل */}
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide">
           <button 
             onClick={() => setActiveTab('pharmacies')}
@@ -901,7 +897,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {pharmacies.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(p => {
-                  const isOnCall = p.is_on_call_today; // يتم جلبها مباشرة من السيرفر لمنع أخطاء الوقت
+                  const isOnCall = p.is_on_call_today; 
                   
                   return (
                     <div key={p.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
@@ -909,7 +905,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                       <div className="flex justify-between items-start mb-4 gap-2">
                         <h3 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{p.name}</h3>
                         
-                        {/* أزرار مفتوح ومغلق تظهر للأدمن وصاحب الصيدلية فقط */}
                         {(user.role === 'admin' || user.id === p.doctor_id) ? (
                           <div className="flex bg-slate-100 rounded-lg p-1 shrink-0">
                             <button
@@ -926,7 +921,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                             </button>
                           </div>
                         ) : (
-                          /* بقية المستخدمين يرون الشارة العادية فقط */
                           isOnCall && (
                             <span className="shrink-0 px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse ml-2">
                               {t.onCall}
@@ -1071,8 +1065,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => {
                   const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email);
-                  const canEditTarget = !isTargetSuperAdmin || u.email === user.email; // يمكنه تعديل الكل ما عدا المدراء الرئيسيين (إلا لو كان هو نفسه)
-                  const canDeleteTarget = !isTargetSuperAdmin; // لا أحد يستطيع حذف المدراء الرئيسيين
+                  const canEditTarget = !isTargetSuperAdmin || u.email === user.email; 
+                  const canDeleteTarget = !isTargetSuperAdmin; 
                   
                   return (
                     <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 border-yellow-200' : 'bg-white border-slate-200'}`}>
@@ -1111,7 +1105,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           </button>
                         )}
                         
-                        {/* إخفاء زر التعديل إذا كان الحساب هو المدير الأساسي */}
                         {u.is_active && canEditTarget && (
                           <button 
                             onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
@@ -1121,7 +1114,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           </button>
                         )}
 
-                        {/* إخفاء زر الحذف تماماً إذا كان الحساب هو المدير الأساسي */}
                         {canDeleteTarget && (
                           <button 
                             onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
