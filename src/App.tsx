@@ -90,7 +90,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
   
   const [currentPage, setCurrentPage] = useState(1);
   const [openNowPage, setOpenNowPage] = useState(1);
-  const itemsPerPage = 6; // 6 صيدليات في كل صفحة
+  const itemsPerPage = 6;
 
   useEffect(() => {
     setLoading(true);
@@ -164,7 +164,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
       <div className="flex flex-col gap-12 md:gap-16 mb-16">
         
-        {/* القسم الأول: المناوبات الآن (بشكل صفحات 6 عناصر) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
@@ -212,7 +211,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
           )}
         </div>
 
-        {/* القسم الثاني: الجدول الأسبوعي (مقسم لصفحات) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <Calendar className="text-indigo-500" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}
@@ -290,7 +288,6 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
           </div>
         </div>
 
-        {/* الخريطة */}
         <div className="mt-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <MapPin className="text-emerald-500" /> {lang === 'ar' ? `مواقع ${activeTab === 'pharmacy' ? 'الصيدليات' : 'العيادات'}` : 'Locations Map'}
@@ -336,10 +333,7 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    setError(''); 
-    setSuccessMsg(''); 
-    setLoading(true);
+    e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true);
     try {
       if (isLogin) {
         const data = await api.post('/api/auth/login', { email, password });
@@ -358,25 +352,16 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
           setIsActivatedByKey(false);
         }
         
-        setIsLogin(true); 
-        setPassword(''); 
-        setEmailPrefix(''); 
-        setActivationKey('');
+        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey('');
       }
-    } catch (err: any) { 
-      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 w-full">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Shield size={32} />
-          </div>
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><Shield size={32} /></div>
           <h2 className="text-3xl font-bold text-slate-900">{isLogin ? t.loginTitle : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account')}</h2>
         </div>
         
@@ -396,22 +381,15 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
 
           {!isLogin && (
             <>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label>
-                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} />
-              </div>
+              <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label>
                   <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={role} onChange={e => setRole(e.target.value)}>
-                    <option value="pharmacist">{t.pharmacist}</option>
-                    <option value="doctor">{t.doctor}</option>
+                    <option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label>
-                  <input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={phone} onChange={e => setPhone(e.target.value)} />
-                </div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label><input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={phone} onChange={e => setPhone(e.target.value)} /></div>
               </div>
               
               <div className="pt-2 border-t border-slate-100 mt-2">
@@ -444,14 +422,8 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label>
-            <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
-
-          <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">
-            {loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}
-          </button>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">{loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}</button>
         </form>
 
         <div className="mt-6 text-center border-t border-slate-100 pt-6">
@@ -557,6 +529,9 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [confirmData, setConfirmData] = useState<{ isOpen: boolean, onConfirm: () => void, title: string, body: string }>({ isOpen: false, onConfirm: () => {}, title: '', body: '' });
   const openConfirm = (title: string, body: string, onConfirm: () => void) => setConfirmData({ isOpen: true, onConfirm, title, body });
 
+  // لحفظ المفتاح المولد
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+
   const loadData = async () => { 
     if (activeTab === 'facilities') api.get('/api/pharmacies').then(setFacilities); 
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); 
@@ -576,12 +551,14 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => {
     try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); } catch(err: any) { alert('حدث خطأ'); }
   };
-const generateActivationKey = async () => {
+
+  const generateActivationKey = async () => {
     try {
       const res = await api.post('/api/admin/generate-key', {});
-      alert(`تم توليد مفتاح تفعيل جديد (يستخدم مرة واحدة فقط):\n\n${res.key}\n\nقم بنسخه وإرساله للمستخدم.`);
+      setGeneratedKey(res.key);
     } catch (err: any) { alert('حدث خطأ أثناء التوليد'); }
   };
+
   const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); } catch (err) { alert('فشل التفعيل'); } };
   const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); setProfileMsg(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { setProfileMsg(err.error || 'فشل التحديث'); } };
@@ -620,7 +597,6 @@ const generateActivationKey = async () => {
                       <div className="flex justify-between items-start mb-4 gap-2"><div><span className={`text-[10px] px-2 py-1 rounded-full font-bold inline-block mb-2 ${f.type === 'clinic' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>{f.type === 'clinic' ? 'عيادة طبية' : 'صيدلية'}</span><h3 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3></div>{isOpenNow ? <span className="bg-emerald-500 text-white text-xs px-3 py-1 rounded-lg font-bold animate-pulse">مفتوح الآن</span> : <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-lg font-bold">مغلق حالياً</span>}</div>
                       <div className="space-y-2 text-slate-600 mb-6"><p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p><p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p></div>
                       
-                      {/* قسم التدخل اليدوي السريع للدوام */}
                       <div className="bg-slate-50 p-3 rounded-xl mt-4 flex flex-col sm:flex-row items-center gap-2 border border-slate-100">
                         <span className="text-xs font-bold text-slate-500 mb-2 sm:mb-0 sm:ml-2 w-full sm:w-auto text-center sm:text-right">تجاوز الجدول يدوياً:</span>
                         <div className="flex gap-2 w-full sm:w-auto">
@@ -658,12 +634,42 @@ const generateActivationKey = async () => {
 
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              {isSuperAdmin && (
-                    <button onClick={generateActivationKey} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2>
+                  <p className="text-sm md:text-base text-slate-500">{t.manageStaff}</p>
+                </div>
+                <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+                  {isSuperAdmin && (
+                    <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">
                       توليد مفتاح تفعيل
                     </button>
                   )}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2><p className="text-sm md:text-base text-slate-500">{t.manageStaff}</p></div><button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="w-full sm:w-auto flex justify-center items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"><Plus size={20} /> {t.createUser}</button></div>
+                  <button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors">
+                    <Plus size={20} /> {t.createUser}
+                  </button>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {generatedKey && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="mb-6 p-6 bg-indigo-50 border border-indigo-100 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                    <div className="text-center md:text-right">
+                      <h4 className="font-bold text-indigo-900 mb-1 text-lg">تم توليد مفتاح تفعيل بنجاح!</h4>
+                      <p className="text-sm text-indigo-700">المفتاح صالح للاستخدام مرة واحدة فقط. قم بنسخه وإرساله للمستخدم.</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-indigo-200 shadow-sm w-full md:w-auto justify-between">
+                      <span className="font-mono text-xl font-bold tracking-widest text-slate-800" dir="ltr">{generatedKey}</span>
+                      <div className="flex items-center gap-2 border-r border-slate-100 pr-4 mr-2">
+                        <button onClick={() => { navigator.clipboard.writeText(generatedKey); alert('تم نسخ المفتاح للحافظة!'); }} className="px-4 py-2 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl hover:bg-indigo-200 transition-colors">نسخ</button>
+                        <button onClick={() => setGeneratedKey(null)} className="px-4 py-2 bg-slate-100 text-slate-500 hover:text-red-600 font-bold text-xs rounded-xl transition-colors">إغلاق</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => {
                   const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email); const canEditTarget = !isTargetSuperAdmin || u.email === user.email; const canDeleteTarget = !isTargetSuperAdmin; 

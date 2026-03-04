@@ -12,7 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
-// تم إزالة replace نهائياً ليعمل الرابط بشكل سليم 100%
+// تم تنظيف رابط قاعدة البيانات من الـ replace المزعج ليعمل 100%
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -274,6 +274,7 @@ app.put('/api/admin/settings', authenticateToken, async (req: any, res) => {
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
+
 // --- API Routes (Activation Keys) ---
 app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
@@ -283,4 +284,5 @@ app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => 
     res.json({ key: newKey });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
+
 export default app;
