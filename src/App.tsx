@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Calendar, MapPin, Phone, 
   User, LogOut, Shield, Settings, Activity,
-  Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical
+  Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, Layout
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
@@ -23,6 +23,7 @@ L.Icon.Default.mergeOptions({
 interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; }
 interface WorkingHours { isOpen: boolean; start: string; end: string; }
 interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; working_hours: Record<string, WorkingHours>; manual_status?: 'open' | 'closed' | 'auto'; }
+interface FooterSettings { copyright: string; description: string; facebook: string; instagram: string; contact_phone: string; complaints_phone: string; }
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 const DAYS_OF_WEEK = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -44,9 +45,7 @@ const checkIsOpenNow = (f: Facility) => {
   const startMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
 
-  if (endMinutes < startMinutes) {
-    return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-  }
+  if (endMinutes < startMinutes) return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
   return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
 };
 
@@ -89,10 +88,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   
-  // إعدادات الصفحات للجدول الأسبوعي
   const [currentPage, setCurrentPage] = useState(1);
   const [openNowPage, setOpenNowPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 6; // 6 صيدليات في كل صفحة
 
   useEffect(() => {
     setLoading(true);
@@ -126,18 +124,16 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow);
   
-  // تقسيم بيانات "المفتوح الآن" حسب الصفحة
   const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage);
   const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage);
 
-  // تقسيم بيانات "الجدول الأسبوعي" حسب الصفحة
   const totalPages = Math.ceil(processedFacilities.length / itemsPerPage);
   const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden min-h-[80vh]">
       <header className="mb-16 text-center">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-emerald-600 uppercase bg-emerald-50 rounded-full">
           {t.communityHealth}
@@ -168,18 +164,18 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
       <div className="flex flex-col gap-12 md:gap-16 mb-16">
         
-        {/* القسم الأول: المناوبات الآن (بشكل صفحات) */}
+        {/* القسم الأول: المناوبات الآن (بشكل صفحات 6 عناصر) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-            {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدلية مناوبة الآن' : 'Pharmacy On Call Now') : (lang === 'ar' ? 'عيادة مناوبة الآن' : 'Clinic Open Now')}
+            {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now')}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
               <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
                 <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
-                <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-4 mb-4 mt-2">
                   {f.image_url ? (
                     <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" />
                   ) : (
@@ -190,13 +186,13 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>
                     {f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}
-                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">{lang === 'ar' ? `يبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}
+                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}
                   </div>
                 </div>
                 <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
                 <div className="flex gap-2">
-                  <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> اتصال</a>
-                  {f.whatsapp_phone && <a href={`https://wa.me/${f.whatsapp_phone}`} target="_blank" className="flex-1 bg-emerald-500 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-1"><MessageCircle size={14} /> واتساب</a>}
+                  <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
+                  {f.whatsapp_phone && <a href={`https://wa.me/${f.whatsapp_phone}`} target="_blank" className="flex-1 bg-emerald-500 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-1"><MessageCircle size={14} /> {lang === 'ar' ? 'واتساب' : 'WhatsApp'}</a>}
                 </div>
               </div>
             )) : (
@@ -207,12 +203,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
             )}
           </div>
           
-          {/* أزرار التقليب لصفحة المفتوح الآن */}
           {totalOpenPages > 1 && (
             <div className="flex justify-center items-center gap-4 mt-8">
-              <button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">السابق</button>
-              <span className="font-bold text-slate-500 text-sm">صفحة {openNowPage} من {totalOpenPages}</span>
-              <button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">التالي</button>
+              <button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button>
+              <span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span>
+              <button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button>
             </div>
           )}
         </div>
@@ -220,7 +215,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
         {/* القسم الثاني: الجدول الأسبوعي (مقسم لصفحات) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-            <Calendar className="text-indigo-500" /> الجدول الأسبوعي للدوام
+            <Calendar className="text-indigo-500" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}
           </h2>
           
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full">
@@ -228,11 +223,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
               <table className="w-full text-right min-w-[800px]">
                 <thead className="bg-slate-50/50">
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">{activeTab === 'pharmacy' ? 'الصيدلية' : 'العيادة'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar'?'الصيدلية':'Pharmacy') : (lang === 'ar'?'العيادة':'Clinic')}</th>
                     {DAYS_OF_WEEK.map((day, idx) => (
                       <th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-400'}`}>{day}</th>
                     ))}
-                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">التفاصيل</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -244,9 +239,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 text-base">{f.name}</span>
                             <span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span>
-                            {f.distance !== null && <span className="text-[10px] font-bold text-indigo-500 mt-1 block">يبعد: {f.distance} كم 📍</span>}
+                            {f.distance !== null && <span className="text-[10px] font-bold text-indigo-500 mt-1 block">{lang === 'ar' ? 'يبعد' : 'Dist'}: {f.distance} {lang === 'ar' ? 'كم' : 'km'} 📍</span>}
                             <div className="mt-2">
-                              {isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">مفتوح الآن</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">مغلق</span>}
+                              {isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}
                             </div>
                           </div>
                         </td>
@@ -259,11 +254,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                               {daySchedule?.isOpen ? (
                                 <div className="flex flex-col items-center justify-center">
                                   <span className={`text-[10px] font-mono font-bold ${isToday ? 'text-indigo-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.start)}</span>
-                                  <span className="text-[8px] text-slate-400 my-0.5">إلى</span>
+                                  <span className="text-[8px] text-slate-400 my-0.5">{lang === 'ar' ? 'إلى' : 'to'}</span>
                                   <span className={`text-[10px] font-mono font-bold ${isToday ? 'text-indigo-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.end)}</span>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-red-400 font-bold">عطلة</span>
+                                <span className="text-[10px] text-red-400 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>
                               )}
                             </td>
                           );
@@ -272,7 +267,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                         <td className="px-6 py-4 text-center">
                           {f.doctor_id ? (
                             <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-1 mx-auto">
-                              <User size={12} /> كادر طبي
+                              <User size={12} /> {lang === 'ar' ? 'كادر طبي' : 'Staff'}
                             </button>
                           ) : (
                             <span className="text-slate-300 text-xs">---</span>
@@ -285,12 +280,11 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
               </table>
             </div>
             
-            {/* أزرار التقليب للجدول الأسبوعي */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 bg-slate-50">
-                <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">السابق</button>
-                <span className="font-bold text-slate-500 text-sm">صفحة {currentPage} من {totalPages}</span>
-                <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">التالي</button>
+                <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button>
+                <span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span>
+                <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button>
               </div>
             )}
           </div>
@@ -299,7 +293,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
         {/* الخريطة */}
         <div className="mt-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
-            <MapPin className="text-emerald-500" /> مواقع {activeTab === 'pharmacy' ? 'الصيدليات' : 'العيادات'}
+            <MapPin className="text-emerald-500" /> {lang === 'ar' ? `مواقع ${activeTab === 'pharmacy' ? 'الصيدليات' : 'العيادات'}` : 'Locations Map'}
           </h2>
           <div className="h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
             <MapContainer center={[35.25, 36.7]} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
@@ -347,7 +341,7 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
         setIsLogin(true); setPassword(''); setEmailPrefix('');
       }
-    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل. ربما البريد مستخدم مسبقاً.')); } finally { setLoading(false); }
+    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); }
   };
 
   return (
@@ -444,7 +438,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
             </div>
             {doctor.notes && (<div className="p-6 bg-emerald-50/50 rounded-2xl"><h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-3">{t.doctorNotes || 'الاختصاص والملاحظات'}</h4><p className="text-emerald-800 leading-relaxed text-sm md:text-base">{doctor.notes}</p></div>)}
             <div>
-              <h4 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3"><Activity className="text-emerald-500" size={24} /> المنشآت التابعة للكادر الطبي</h4>
+              <h4 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-3"><Activity className="text-emerald-500" size={24} /> {lang==='ar'?'المنشآت التابعة للكادر الطبي':'Associated Facilities'}</h4>
               <div className="grid grid-cols-1 gap-4">
                 {doctor.facilities && doctor.facilities.map(p => (
                   <div key={p.id} className="p-4 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 hover:bg-slate-50 transition-colors">
@@ -455,7 +449,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
                     <div className="sm:text-right"><p className="text-sm font-mono text-slate-600">{p.phone}</p></div>
                   </div>
                 ))}
-                {(!doctor.facilities || doctor.facilities.length === 0) && <p className="text-center py-8 text-slate-400 italic">لا توجد منشآت مرتبطة بهذا الحساب حالياً.</p>}
+                {(!doctor.facilities || doctor.facilities.length === 0) && <p className="text-center py-8 text-slate-400 italic">{lang==='ar'?'لا توجد منشآت مرتبطة بهذا الحساب حالياً.':'No associated facilities yet.'}</p>}
               </div>
             </div>
           </div>
@@ -466,7 +460,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
 };
 
 const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
-  const [activeTab, setActiveTab] = useState<'facilities' | 'users' | 'profile'>('facilities');
+  const [activeTab, setActiveTab] = useState<'facilities' | 'users' | 'profile' | 'settings'>('facilities');
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   
@@ -475,6 +469,9 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const addButtonText = user.role === 'doctor' ? 'إضافة عيادة' : (user.role === 'pharmacist' ? 'إضافة صيدلية' : 'إضافة منشأة');
 
   const [profileEmail, setProfileEmail] = useState(user.email); const [profileName, setProfileName] = useState(user.name); const [profilePhone, setProfilePhone] = useState(user.phone || ''); const [profileNotes, setProfileNotes] = useState(user.notes || ''); const [profileCurrentPassword, setProfileCurrentPassword] = useState(''); const [profileNewPassword, setProfileNewPassword] = useState(''); const [profileMsg, setProfileMsg] = useState('');
+
+  const [footerForm, setFooterForm] = useState<FooterSettings>({ copyright: '', description: '', facebook: '', instagram: '', contact_phone: '', complaints_phone: '' });
+  const [footerMsg, setFooterMsg] = useState('');
 
   const defaultWorkingHours: Record<string, WorkingHours> = {};
   for(let i=0; i<7; i++) defaultWorkingHours[i.toString()] = { isOpen: true, start: "08:00", end: "22:00" };
@@ -486,7 +483,11 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [confirmData, setConfirmData] = useState<{ isOpen: boolean, onConfirm: () => void, title: string, body: string }>({ isOpen: false, onConfirm: () => {}, title: '', body: '' });
   const openConfirm = (title: string, body: string, onConfirm: () => void) => setConfirmData({ isOpen: true, onConfirm, title, body });
 
-  const loadData = async () => { if (activeTab === 'facilities') api.get('/api/pharmacies').then(setFacilities); if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); };
+  const loadData = async () => { 
+    if (activeTab === 'facilities') api.get('/api/pharmacies').then(setFacilities); 
+    if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); 
+    if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data));
+  };
   useEffect(() => { loadData(); }, [activeTab]);
 
   const handleSaveFacility = async (e: React.FormEvent) => {
@@ -495,7 +496,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
       if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload);
       else await api.post('/api/pharmacies', payload);
       setShowModal(false); loadData();
-    } catch (err: any) { alert(err.error || 'خطأ في الحفظ، قد تكون وصلت للحد الأقصى!'); }
+    } catch (err: any) { alert(err.error || 'خطأ في الحفظ، قد تكون وصلت للحد الأقصى المسموح لك!'); }
   };
 
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => {
@@ -506,6 +507,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); setProfileMsg(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { setProfileMsg(err.error || 'فشل التحديث'); } };
 
+  const handleSaveFooter = async (e: React.FormEvent) => { e.preventDefault(); try { await api.put('/api/admin/settings', footerForm); setFooterMsg('تم حفظ إعدادات الفوتر بنجاح'); } catch(err: any) { setFooterMsg('فشل الحفظ'); } };
+
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row w-full overflow-hidden">
       <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
@@ -513,6 +516,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide">
           <button onClick={() => setActiveTab('facilities')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'facilities' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><MapPin size={18} /> {dashboardTitle}</button>
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><User size={18} /> {t.userManagement}</button>}
+          {isSuperAdmin && <button onClick={() => setActiveTab('settings')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><Layout size={18} /> إعدادات الفوتر</button>}
           <button onClick={() => setActiveTab('profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><Settings size={18} /> {t.profileSettings}</button>
         </nav>
         <div className="hidden md:block p-4 border-t border-slate-100 mt-auto"><div className="flex items-center gap-3 px-4 py-3 mb-2"><div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold shrink-0">{user.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-900 truncate">{user.name}</p><p className="text-xs text-slate-500 capitalize">{user.role === 'admin' ? t.admin : user.role === 'doctor' ? t.doctor : t.pharmacist}</p></div></div><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> {t.logout}</button></div>
@@ -538,11 +542,13 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                       <div className="space-y-2 text-slate-600 mb-6"><p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p><p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p></div>
                       
                       {/* قسم التدخل اليدوي السريع للدوام */}
-                      <div className="bg-slate-50 p-3 rounded-xl mt-4 flex flex-wrap items-center gap-2 border border-slate-100">
-                        <span className="text-xs font-bold text-slate-500 my-auto ml-2 w-full sm:w-auto">تجاوز الجدول يدوياً:</span>
-                        <button onClick={() => setManualStatus(f.id, 'open')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='open' ? 'bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مفتوح دائماً</button>
-                        <button onClick={() => setManualStatus(f.id, 'closed')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='closed' ? 'bg-red-500 text-white shadow-sm ring-2 ring-red-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مغلق دائماً</button>
-                        <button onClick={() => setManualStatus(f.id, 'auto')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!f.manual_status || f.manual_status==='auto' ? 'bg-indigo-500 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>حسب الجدول التلقائي</button>
+                      <div className="bg-slate-50 p-3 rounded-xl mt-4 flex flex-col sm:flex-row items-center gap-2 border border-slate-100">
+                        <span className="text-xs font-bold text-slate-500 mb-2 sm:mb-0 sm:ml-2 w-full sm:w-auto text-center sm:text-right">تجاوز الجدول يدوياً:</span>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button onClick={() => setManualStatus(f.id, 'open')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='open' ? 'bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مفتوح دائماً</button>
+                          <button onClick={() => setManualStatus(f.id, 'closed')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${f.manual_status==='closed' ? 'bg-red-500 text-white shadow-sm ring-2 ring-red-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>مغلق دائماً</button>
+                          <button onClick={() => setManualStatus(f.id, 'auto')} className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!f.manual_status || f.manual_status==='auto' ? 'bg-indigo-500 text-white shadow-sm ring-2 ring-indigo-200' : 'bg-white border text-slate-600 hover:bg-slate-100'}`}>حسب الجدول</button>
+                        </div>
                       </div>
 
                       <div className="flex gap-2 border-t border-slate-100 pt-4 mt-6"><button onClick={() => { setEditingData(f); setForm({...f, working_hours: f.working_hours || defaultWorkingHours}); setShowModal(true); }} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"><Edit2 size={14} /> تعديل البيانات</button><button onClick={() => openConfirm(t.confirmTitle, t.confirmBody, async () => { await api.delete(`/api/pharmacies/${f.id}`); loadData(); })} className="px-4 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"><Trash2 size={14} /></button></div>
@@ -550,6 +556,24 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   );
                 })}
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'settings' && isSuperAdmin && (
+            <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-2xl">
+              <h2 className="text-2xl md:text-3xl font-bold mb-8">إعدادات أسفل الموقع (الفوتر)</h2>
+              <form onSubmit={handleSaveFooter} className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+                {footerMsg && <div className="p-3 bg-emerald-50 text-emerald-700 font-bold rounded-xl">{footerMsg}</div>}
+                <div><label className="block text-sm font-bold mb-1">نص الحقوق (Copyright)</label><input className="w-full px-4 py-2 border rounded-xl" value={footerForm.copyright} onChange={e => setFooterForm({...footerForm, copyright: e.target.value})} placeholder="© 2026 نظام صيدليات طيبة الإمام. جميع الحقوق محفوظة." /></div>
+                <div><label className="block text-sm font-bold mb-1">الوصف أسفل الحقوق</label><input className="w-full px-4 py-2 border rounded-xl" value={footerForm.description} onChange={e => setFooterForm({...footerForm, description: e.target.value})} placeholder="توفير المعلومات الأساسية عن المناوبات للمجتمع." /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-sm font-bold mb-1">رابط فيسبوك</label><input type="url" className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.facebook} onChange={e => setFooterForm({...footerForm, facebook: e.target.value})} /></div>
+                  <div><label className="block text-sm font-bold mb-1">رابط انستغرام</label><input type="url" className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.instagram} onChange={e => setFooterForm({...footerForm, instagram: e.target.value})} /></div>
+                  <div><label className="block text-sm font-bold mb-1">رقم التواصل العام</label><input className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.contact_phone} onChange={e => setFooterForm({...footerForm, contact_phone: e.target.value})} /></div>
+                  <div><label className="block text-sm font-bold mb-1">رقم الشكاوى</label><input className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.complaints_phone} onChange={e => setFooterForm({...footerForm, complaints_phone: e.target.value})} /></div>
+                </div>
+                <button type="submit" className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800">حفظ الإعدادات</button>
+              </form>
             </motion.div>
           )}
 
@@ -694,6 +718,7 @@ export default function App() {
   const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   const t = translations[lang] || translations['ar'];
 
   useEffect(() => {
@@ -706,6 +731,10 @@ export default function App() {
       .then(data => { setUser(data.user); setView('dashboard'); })
       .catch(() => setView('public'))
       .finally(() => setLoading(false));
+      
+    api.get('/api/public/settings').then(data => {
+      if(Object.keys(data).length > 0) setFooterData(data);
+    }).catch(console.error);
   }, []);
 
   const handleLogin = (u: UserType) => { setUser(u); setView('dashboard'); };
@@ -714,10 +743,10 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen font-sans text-slate-900 bg-slate-50">
+    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50">
       {view !== 'dashboard' && (
         <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> {lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet Health'}</button>
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> {lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet El-Imam Health'}</button>
           <div className="flex gap-2 md:gap-4">
             <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">
               {lang === 'ar' ? 'English' : 'العربية'}
@@ -728,11 +757,29 @@ export default function App() {
           </div>
         </nav>
       )}
-      <main>
+      
+      <main className="flex-1">
         {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
-        {view === 'login' && <LoginAndRegister onLogin={u => { setUser(u); setView('dashboard'); }} t={t} lang={lang} />}
-        {view === 'dashboard' && user && <Dashboard user={user} onLogout={() => { api.post('/api/auth/logout', {}).then(() => { setUser(null); setView('public'); }); }} t={t} lang={lang} />}
+        {view === 'login' && <LoginAndRegister onLogin={handleLogin} t={t} lang={lang} />}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
       </main>
+
+      {/* الفوتر الاحترافي (يظهر في الصفحة الرئيسية فقط) */}
+      {view === 'public' && (
+        <footer className="bg-[#0a1128] text-slate-300 py-12 mt-12 w-full text-center">
+          <div className="max-w-4xl mx-auto px-4">
+            <p className="text-base font-bold mb-3">{footerData?.copyright || '© 2026 نظام صيدليات طيبة الإمام. جميع الحقوق محفوظة.'}</p>
+            <p className="text-sm text-slate-400 mb-6">{footerData?.description || 'توفير المعلومات الأساسية عن المناوبات للمجتمع.'}</p>
+            
+            <div className="flex justify-center items-center gap-6 text-sm flex-wrap">
+              {footerData?.contact_phone && <p>📞 {lang==='ar'?'للتواصل':'Contact'}: <span dir="ltr" className="font-mono">{footerData.contact_phone}</span></p>}
+              {footerData?.complaints_phone && <p>⚠️ {lang==='ar'?'الشكاوى':'Complaints'}: <span dir="ltr" className="font-mono">{footerData.complaints_phone}</span></p>}
+              {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white transition-colors">📘 Facebook</a>}
+              {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white transition-colors">📸 Instagram</a>}
+            </div>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

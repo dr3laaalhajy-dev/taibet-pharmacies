@@ -12,7 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
-// تم إزالة replace ليعمل الرابط بشكل سليم 100%
+// تم إزالة replace نهائياً ليعمل الرابط بشكل سليم 100%
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -47,6 +47,13 @@ app.get('/api/public/doctors/:id', async (req, res) => {
     if (!doctor) return res.status(404).json({ error: 'User not found' });
     const managedFacilities = await pool.query('SELECT id, name, type, address, phone FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
     res.json({ ...doctor, facilities: managedFacilities.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/public/settings', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'footer'");
+    res.json(result.rows[0]?.value || {});
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -174,7 +181,6 @@ app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
       updateQuery += ` WHERE id = $10 AND doctor_id = $11`;
       params.push(req.params.id, req.user.id);
     }
-
     await pool.query(updateQuery, params);
     res.json({ message: 'تم التحديث' });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -188,7 +194,7 @@ app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- API Routes (Admin Users) ---
+// --- API Routes (Admin) ---
 app.get('/api/admin/users', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   try {
@@ -209,7 +215,6 @@ app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { email, password, role, name, pharmacy_limit, phone, notes } = req.body;
   if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'فقط المدير الرئيسي يمكنه تعيين مدراء جدد!' });
-
   const hashedPassword = bcrypt.hashSync(password, 10);
   try {
     const result = await pool.query(
@@ -247,6 +252,14 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
     if (targetUser && SUPER_ADMINS.includes(targetUser.email)) return res.status(403).json({ error: 'لا يمكن حذف حساب المدير الرئيسي للنظام.' });
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المستخدم' });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/admin/settings', authenticateToken, async (req: any, res) => {
+  if (req.user.role !== 'admin' || !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
+  try {
+    await pool.query("INSERT INTO settings (key, value) VALUES ('footer', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [req.body]);
+    res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
