@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Calendar, MapPin, Phone, 
   User, LogOut, Shield, Settings, Activity,
-  Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, Layout
+  Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, Layout, UploadCloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
@@ -22,29 +22,34 @@ L.Icon.Default.mergeOptions({
 // --- Types ---
 interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; }
 interface WorkingHours { isOpen: boolean; start: string; end: string; }
-interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; working_hours: Record<string, WorkingHours>; manual_status?: 'open' | 'closed' | 'auto'; }
+interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; specialty?: string; working_hours: Record<string, WorkingHours>; manual_status?: 'open' | 'closed' | 'auto'; }
 interface FooterSettings { copyright: string; description: string; facebook: string; instagram: string; contact_phone: string; complaints_phone: string; }
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 const DAYS_OF_WEEK = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
+const SPECIALTIES = [
+  "أمراض الجهاز الهضمي والكبد", "أمراض الكلى", "أمراض الغدد الصماء والسكري",
+  "طب الأطفال وحديثي الولادة", "أمراض القلب والأوعية الدموية", "الأمراض الجلدية والتناسلية",
+  "الأمراض الصدرية والجهاز التنفسي", "طب الأعصاب والنفسية", "أمراض الدم والأورام",
+  "العلاج الطبيعي والتأهيل", "الجراحة العامة", "جراحة العظام والكسور",
+  "جراحة المسالك البولية", "جراحة المخ والأعصاب", "جراحة الأنف والأذن والحنجرة",
+  "جراحة التجميل والحروق", "جراحة القلب والصدر", "طب وجراحة العيون", "النساء والتوليد"
+];
+
 const checkIsOpenNow = (f: Facility) => {
   if (f.manual_status === 'open') return true;
   if (f.manual_status === 'closed') return false;
-
   if (!f.working_hours) return false;
   const now = new Date();
   const dayIndex = now.getDay().toString();
   const todaySchedule = f.working_hours[dayIndex];
-  
   if (!todaySchedule || !todaySchedule.isOpen) return false;
-  
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const [startH, startM] = todaySchedule.start.split(':').map(Number);
   const [endH, endM] = todaySchedule.end.split(':').map(Number);
   const startMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
-
   if (endMinutes < startMinutes) return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
   return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
 };
@@ -184,8 +189,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                   )}
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>
+                    {f.type === 'clinic' && f.specialty && <span className="text-[11px] font-bold text-indigo-600 block mt-0.5">{f.specialty}</span>}
                     {f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}
-                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}
+                    {f.distance !== null && <span className="text-[11px] font-bold text-slate-500 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}
                   </div>
                 </div>
                 <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
@@ -236,8 +242,9 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 text-base">{f.name}</span>
+                            {f.type === 'clinic' && f.specialty && <span className="text-[10px] font-bold text-indigo-500 mt-0.5">{f.specialty}</span>}
                             <span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span>
-                            {f.distance !== null && <span className="text-[10px] font-bold text-indigo-500 mt-1 block">{lang === 'ar' ? 'يبعد' : 'Dist'}: {f.distance} {lang === 'ar' ? 'كم' : 'km'} 📍</span>}
+                            {f.distance !== null && <span className="text-[10px] font-bold text-slate-400 mt-1 block">{lang === 'ar' ? 'يبعد' : 'Dist'}: {f.distance} {lang === 'ar' ? 'كم' : 'km'} 📍</span>}
                             <div className="mt-2">
                               {isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}
                             </div>
@@ -302,6 +309,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                     <Popup className="custom-popup">
                       <div className="text-right min-w-[200px]" dir="rtl">
                         <h3 className={`font-bold text-lg ${isOpenNow ? 'text-emerald-600' : 'text-slate-900'}`}>{f.name}</h3>
+                        {f.type === 'clinic' && f.specialty && <p className="text-[10px] font-bold text-indigo-500 mt-1">{f.specialty}</p>}
                         <p className="text-xs text-slate-500 mt-1">{f.address}</p>
                         <p className="text-xs font-bold mt-2">{isOpenNow ? '🟢 مفتوح الآن' : '🔴 مغلق حالياً'}</p>
                       </div>
@@ -333,7 +341,10 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true);
+    e.preventDefault(); 
+    setError(''); 
+    setSuccessMsg(''); 
+    setLoading(true);
     try {
       if (isLogin) {
         const data = await api.post('/api/auth/login', { email, password });
@@ -352,16 +363,25 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
           setIsActivatedByKey(false);
         }
         
-        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey('');
+        setIsLogin(true); 
+        setPassword(''); 
+        setEmailPrefix(''); 
+        setActivationKey('');
       }
-    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); }
+    } catch (err: any) { 
+      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 w-full">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><Shield size={32} /></div>
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Shield size={32} />
+          </div>
           <h2 className="text-3xl font-bold text-slate-900">{isLogin ? t.loginTitle : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account')}</h2>
         </div>
         
@@ -381,15 +401,22 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
 
           {!isLogin && (
             <>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} /></div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label>
+                <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={name} onChange={e => setName(e.target.value)} />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label>
                   <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={role} onChange={e => setRole(e.target.value)}>
-                    <option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option>
+                    <option value="pharmacist">{t.pharmacist}</option>
+                    <option value="doctor">{t.doctor}</option>
                   </select>
                 </div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label><input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label>
+                  <input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={phone} onChange={e => setPhone(e.target.value)} />
+                </div>
               </div>
               
               <div className="pt-2 border-t border-slate-100 mt-2">
@@ -422,8 +449,14 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
             </div>
           )}
 
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} /></div>
-          <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">{loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}</button>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label>
+            <input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} />
+          </div>
+
+          <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors mt-6">
+            {loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}
+          </button>
         </form>
 
         <div className="mt-6 text-center border-t border-slate-100 pt-6">
@@ -522,15 +555,17 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const defaultWorkingHours: Record<string, WorkingHours> = {};
   for(let i=0; i<7; i++) defaultWorkingHours[i.toString()] = { isOpen: true, start: "08:00", end: "22:00" };
 
-  const [showModal, setShowModal] = useState(false); const [editingData, setEditingData] = useState<Facility | null>(null); const [form, setForm] = useState<any>({ name: '', address: '', phone: '', type: user.role === 'doctor' ? 'clinic' : 'pharmacy', latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', image_url: '', doctor_id: 0, working_hours: defaultWorkingHours });
+  const [showModal, setShowModal] = useState(false); const [editingData, setEditingData] = useState<Facility | null>(null); const [form, setForm] = useState<any>({ name: '', address: '', phone: '', type: user.role === 'doctor' ? 'clinic' : 'pharmacy', latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', image_url: '', specialty: '', doctor_id: 0, working_hours: defaultWorkingHours });
   const [showUserModal, setShowUserModal] = useState(false); const [editingUser, setEditingUser] = useState<UserType | null>(null); const [userForm, setUserForm] = useState({ email: '', password: '', role: 'pharmacist' as any, name: '', pharmacy_limit: 10, phone: '', notes: '' });
 
   const [doctorFilter, setDoctorFilter] = useState<number>(0);
   const [confirmData, setConfirmData] = useState<{ isOpen: boolean, onConfirm: () => void, title: string, body: string }>({ isOpen: false, onConfirm: () => {}, title: '', body: '' });
   const openConfirm = (title: string, body: string, onConfirm: () => void) => setConfirmData({ isOpen: true, onConfirm, title, body });
 
-  // لحفظ المفتاح المولد
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  
+  // حالة لرفع الصورة
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const loadData = async () => { 
     if (activeTab === 'facilities') api.get('/api/pharmacies').then(setFacilities); 
@@ -546,6 +581,28 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
       else await api.post('/api/pharmacies', payload);
       setShowModal(false); loadData();
     } catch (err: any) { alert(err.error || 'خطأ في الحفظ، قد تكون وصلت للحد الأقصى المسموح لك!'); }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      // استخدام مفتاح ImgBB عام لرفع الصور بسهولة ومجاناً
+      const res = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setForm({ ...form, image_url: data.data.url });
+      } else {
+        alert('فشل رفع الصورة.');
+      }
+    } catch (err) {
+      alert('حدث خطأ أثناء رفع الصورة.');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => {
@@ -586,7 +643,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                 <div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{dashboardTitle}</h2><p className="text-sm md:text-base text-slate-500">إدارة الجداول الأسبوعية وتغيير حالة الدوام يدوياً</p></div>
                 <div className="flex flex-wrap gap-2 md:gap-4 w-full sm:w-auto">
                   {user.role === 'admin' && <select className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={doctorFilter} onChange={e => setDoctorFilter(parseInt(e.target.value))}><option value="0">{t.allDoctors}</option>{users.filter(u => u.role === 'doctor' || u.role === 'pharmacist').map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>}
-                  <button onClick={() => { setEditingData(null); setForm({ name: '', address: '', phone: '', type: user.role === 'doctor' ? 'clinic' : 'pharmacy', latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', image_url: '', doctor_id: 0, working_hours: defaultWorkingHours }); setShowModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-900 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"><Plus size={20} /> {addButtonText}</button>
+                  <button onClick={() => { setEditingData(null); setForm({ name: '', address: '', phone: '', type: user.role === 'doctor' ? 'clinic' : 'pharmacy', latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', specialty: '', image_url: '', doctor_id: 0, working_hours: defaultWorkingHours }); setShowModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-slate-900 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"><Plus size={20} /> {addButtonText}</button>
                 </div>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
@@ -595,7 +652,11 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                   return (
                     <div key={f.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-4 gap-2"><div><span className={`text-[10px] px-2 py-1 rounded-full font-bold inline-block mb-2 ${f.type === 'clinic' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>{f.type === 'clinic' ? 'عيادة طبية' : 'صيدلية'}</span><h3 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3></div>{isOpenNow ? <span className="bg-emerald-500 text-white text-xs px-3 py-1 rounded-lg font-bold animate-pulse">مفتوح الآن</span> : <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-lg font-bold">مغلق حالياً</span>}</div>
-                      <div className="space-y-2 text-slate-600 mb-6"><p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p><p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p></div>
+                      <div className="space-y-2 text-slate-600 mb-6">
+                        {f.type === 'clinic' && f.specialty && <p className="flex items-center gap-2 text-sm font-bold text-indigo-600 mb-1"><Stethoscope size={14} className="shrink-0"/> <span className="truncate">{f.specialty}</span></p>}
+                        <p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
+                        <p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{f.phone}</span></p>
+                      </div>
                       
                       <div className="bg-slate-50 p-3 rounded-xl mt-4 flex flex-col sm:flex-row items-center gap-2 border border-slate-100">
                         <span className="text-xs font-bold text-slate-500 mb-2 sm:mb-0 sm:ml-2 w-full sm:w-auto text-center sm:text-right">تجاوز الجدول يدوياً:</span>
@@ -709,16 +770,51 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl md:text-2xl font-bold mb-6">{editingData ? 'تعديل البيانات والمواعيد' : addButtonText}</h3>
               <form onSubmit={handleSaveFacility} className="space-y-4">
+                
                 {user.role === 'admin' && (
                   <div><label className="block text-sm font-bold mb-2">نوع المنشأة</label><select className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.type} onChange={e => setForm({...form, type: e.target.value})}><option value="pharmacy">صيدلية</option><option value="clinic">عيادة طبية</option></select></div>
                 )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">اسم {form.type === 'clinic' ? 'العيادة' : 'الصيدلية'}</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+                  
+                  {form.type === 'clinic' && (
+                    <div className="col-span-1 md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">تخصص العيادة / الطبيب</label>
+                      <select 
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 mb-2" 
+                        value={form.specialty === '' ? '' : SPECIALTIES.includes(form.specialty) ? form.specialty : 'other'} 
+                        onChange={e => {
+                          if (e.target.value === 'other') setForm({...form, specialty: 'تخصص آخر'});
+                          else setForm({...form, specialty: e.target.value});
+                        }}
+                      >
+                        <option value="">اختر التخصص...</option>
+                        {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                        <option value="other">أخرى (كتابة يدوية)</option>
+                      </select>
+                      {(form.specialty && !SPECIALTIES.includes(form.specialty)) && (
+                         <input required placeholder="اكتب التخصص هنا..." className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.specialty === 'تخصص آخر' ? '' : form.specialty} onChange={e => setForm({...form, specialty: e.target.value})} />
+                      )}
+                    </div>
+                  )}
+
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">العنوان والمكان</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.address} onChange={e => setForm({...form, address: e.target.value})} /></div>
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">رقم الهاتف للاتصال</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">رقم الواتساب (اختياري)</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.whatsapp_phone} onChange={e => setForm({...form, whatsapp_phone: e.target.value})} /></div>
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">اسم {form.type === 'clinic' ? 'الطبيب المداوم' : 'الصيدلي المسؤول'}</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" value={form.pharmacist_name} onChange={e => setForm({...form, pharmacist_name: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">رابط صورة {form.type === 'clinic' ? 'العيادة' : 'الصيدلية'}</label><input type="url" placeholder="https://..." className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-left" dir="ltr" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} /></div>
+                  
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">صورة {form.type === 'clinic' ? 'العيادة' : 'الصيدلية'}</label>
+                    <div className="flex items-center gap-3">
+                      <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadingImage ? 'bg-slate-50 border-slate-300 text-slate-400' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>
+                        {uploadingImage ? <span className="animate-spin h-5 w-5 border-2 border-emerald-500 rounded-full border-t-transparent"></span> : <UploadCloud size={20} />}
+                        <span className="font-bold text-sm">{uploadingImage ? 'جاري الرفع...' : 'اضغط لرفع صورة من جهازك'}</span>
+                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                      </label>
+                      {form.image_url && <img src={form.image_url} alt="preview" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm" />}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0 relative mt-4">
@@ -766,7 +862,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                     </select>
                   </div>
                 )}
-                <div className="flex gap-3 pt-6 border-t border-slate-200"><button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">إلغاء</button><button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors">حفظ البيانات والمواعيد</button></div>
+                <div className="flex gap-3 pt-6 border-t border-slate-200"><button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">إلغاء</button><button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors" disabled={uploadingImage}>حفظ البيانات والمواعيد</button></div>
               </form>
             </motion.div>
           </div>
@@ -854,7 +950,6 @@ export default function App() {
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
       </main>
 
-      {/* الفوتر الاحترافي (يظهر في الصفحة الرئيسية فقط) */}
       {view === 'public' && (
         <footer className="bg-[#0a1128] text-slate-300 py-12 mt-12 w-full text-center">
           <div className="max-w-4xl mx-auto px-4">

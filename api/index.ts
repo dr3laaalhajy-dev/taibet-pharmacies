@@ -12,7 +12,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
-// تم تنظيف رابط قاعدة البيانات من الـ replace المزعج ليعمل 100%
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -35,7 +34,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // --- API Routes (Public) ---
 app.get('/api/public/facilities', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours, doctor_id, manual_status FROM pharmacies ORDER BY id DESC');
+    const result = await pool.query('SELECT id, name, type, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url, working_hours, doctor_id, manual_status, specialty FROM pharmacies ORDER BY id DESC');
     res.json(result.rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -45,7 +44,7 @@ app.get('/api/public/doctors/:id', async (req, res) => {
     const doctorResult = await pool.query('SELECT id, name, email, role, phone, notes FROM users WHERE id = $1', [req.params.id]);
     const doctor = doctorResult.rows[0];
     if (!doctor) return res.status(404).json({ error: 'User not found' });
-    const managedFacilities = await pool.query('SELECT id, name, type, address, phone FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
+    const managedFacilities = await pool.query('SELECT id, name, type, address, phone, specialty FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
     res.json({ ...doctor, facilities: managedFacilities.rows });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -80,14 +79,13 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     let isActive = false;
     
-    // التحقق من المفتاح إذا تم إدخاله
     if (activationKey) {
       const keyCheck = await pool.query('SELECT * FROM activation_keys WHERE key = $1 AND is_used = false', [activationKey]);
       if (keyCheck.rows.length === 0) {
         return res.status(400).json({ error: 'مفتاح التفعيل غير صحيح أو تم استخدامه مسبقاً.' });
       }
-      isActive = true; // تفعيل فوري
-      await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); // حرق المفتاح
+      isActive = true; 
+      await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); 
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
@@ -155,7 +153,7 @@ app.patch('/api/pharmacies/:id/status', authenticateToken, async (req: any, res)
 });
 
 app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
-  const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours } = req.body;
+  const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty } = req.body;
   const assignedDoctorId = req.user.role === 'admin' ? (doctor_id || req.user.id) : req.user.id;
   const facilityType = req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'));
   
@@ -172,25 +170,25 @@ app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto') RETURNING id`,
-      [name, address, phone, latitude, longitude, req.user.id, assignedDoctorId, pharmacist_name || null, whatsapp_phone || null, image_url || null, facilityType, working_hours || {}]
+      `INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status, specialty) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto', $13) RETURNING id`,
+      [name, address, phone, latitude, longitude, req.user.id, assignedDoctorId, pharmacist_name || null, whatsapp_phone || null, image_url || null, facilityType, working_hours || {}, specialty || null]
     );
     res.json({ id: result.rows[0].id });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
-  const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours } = req.body;
+  const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty } = req.body;
   try {
-    let updateQuery = `UPDATE pharmacies SET name = $1, address = $2, phone = $3, latitude = $4, longitude = $5, pharmacist_name = $6, whatsapp_phone = $7, image_url = $8, working_hours = $9`;
-    let params = [name, address, phone, latitude, longitude, pharmacist_name || null, whatsapp_phone || null, image_url || null, working_hours || {}];
+    let updateQuery = `UPDATE pharmacies SET name = $1, address = $2, phone = $3, latitude = $4, longitude = $5, pharmacist_name = $6, whatsapp_phone = $7, image_url = $8, working_hours = $9, specialty = $10`;
+    let params = [name, address, phone, latitude, longitude, pharmacist_name || null, whatsapp_phone || null, image_url || null, working_hours || {}, specialty || null];
     
     if (req.user.role === 'admin') {
-      updateQuery += `, doctor_id = $10, type = $11 WHERE id = $12`;
+      updateQuery += `, doctor_id = $11, type = $12 WHERE id = $13`;
       params.push(doctor_id, type, req.params.id);
     } else {
-      updateQuery += ` WHERE id = $10 AND doctor_id = $11`;
+      updateQuery += ` WHERE id = $11 AND doctor_id = $12`;
       params.push(req.params.id, req.user.id);
     }
     await pool.query(updateQuery, params);
@@ -278,7 +276,7 @@ app.put('/api/admin/settings', authenticateToken, async (req: any, res) => {
 // --- API Routes (Activation Keys) ---
 app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
-  const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); // توليد مفتاح عشوائي
+  const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); 
   try {
     await pool.query('INSERT INTO activation_keys (key) VALUES ($1)', [newKey]);
     res.json({ key: newKey });
