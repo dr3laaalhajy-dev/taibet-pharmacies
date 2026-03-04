@@ -5,16 +5,13 @@ import {
   Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User as UserType } from './types';
 // @ts-ignore
 import { translations } from './translations';
 
-// --- استيراد مكتبات الخرائط المجانية (Leaflet) ---
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// إصلاح مشكلة اختفاء أيقونة الدبوس في مكتبة Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -23,20 +20,12 @@ L.Icon.Default.mergeOptions({
 });
 
 // --- Types ---
+interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; }
 interface WorkingHours { isOpen: boolean; start: string; end: string; }
 interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; working_hours: Record<string, WorkingHours>; }
 
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 const DAYS_OF_WEEK = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-
-// --- API Helpers ---
-const api = {
-  get: (url: string) => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-  post: (url: string, body: any) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-  put: (url: string, body: any) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-  patch: (url: string, body?: any) => fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: body ? JSON.stringify(body) : undefined }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-  delete: (url: string) => fetch(url, { method: 'DELETE', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
-};
 
 // دالة لمعرفة هل المنشأة مفتوحة الآن بناءً على اليوم والوقت
 const checkIsOpenNow = (workingHours: Record<string, WorkingHours> | undefined) => {
@@ -68,7 +57,24 @@ const formatTime12h = (time24: string) => {
   return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
-// --- Helper Map Components ---
+// دالة حساب المسافة بالكيلومتر بين المستخدم والمنشأة
+const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // نصف قطر الأرض بالكيلومتر
+  const dLat = (lat2 - lat1) * Math.PI / 180; 
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  return (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))).toFixed(1);
+};
+
+// --- API Helpers ---
+const api = {
+  get: (url: string) => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  post: (url: string, body: any) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  put: (url: string, body: any) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  patch: (url: string) => fetch(url, { method: 'PATCH', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  delete: (url: string) => fetch(url, { method: 'DELETE', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+};
+
 const LocationPicker = ({ onLocationSelect, initialPosition }: { onLocationSelect: (lat: number, lng: number) => void, initialPosition?: [number, number] }) => {
   const [position, setPosition] = useState<[number, number] | null>(initialPosition || null);
   useMapEvents({ click(e) { setPosition([e.latlng.lat, e.latlng.lng]); onLocationSelect(e.latlng.lat, e.latlng.lng); } });
@@ -79,32 +85,57 @@ const RecenterMap = ({ position }: { position: [number, number] }) => {
 };
 
 // --- Components ---
-
 const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t: any }) => {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic'>('pharmacy');
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  
+  // حفظ موقع المستخدم
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    api.get('/api/public/facilities')
-      .then(data => setFacilities(data))
-      .finally(() => setLoading(false));
+    api.get('/api/public/facilities').then(data => {
+      setFacilities(data);
+      setLoading(false);
+    });
+
+    // طلب إذن الموقع من المستخدم
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => console.log("الموقع غير مفعل")
+      );
+    }
   }, []);
 
-  const filteredFacilities = facilities.filter(f => f.type === activeTab && (f.name.toLowerCase().includes(searchQuery.toLowerCase()) || f.address.toLowerCase().includes(searchQuery.toLowerCase())));
-  const currentlyOpen = filteredFacilities.filter(f => checkIsOpenNow(f.working_hours));
+  // معالجة البيانات: حساب المسافة + الترتيب (المفتوح والأقرب أولاً)
+  const processedFacilities = facilities
+    .filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery)))
+    .map(f => {
+      const distance = userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null;
+      return {
+        ...f,
+        isOpenNow: checkIsOpenNow(f.working_hours),
+        distance: distance
+      };
+    })
+    .sort((a, b) => {
+      if (a.isOpenNow && !b.isOpenNow) return -1;
+      if (!a.isOpenNow && b.isOpenNow) return 1;
+      if (a.distance !== null && b.distance !== null) return a.distance - b.distance;
+      return 0;
+    });
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
-    </div>
-  );
+  // أخذ أول 5 منشآت مفتوحة فقط لعرضها في الشريط القابل للسحب
+  const currentlyOpen = processedFacilities.filter(f => f.isOpenNow).slice(0, 5);
+
+  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden">
       <header className="mb-16 text-center">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-emerald-600 uppercase bg-emerald-50 rounded-full">
           {t.communityHealth}
@@ -141,16 +172,16 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
 
       <div className="flex flex-col gap-12 md:gap-16 mb-16">
         
-        {/* القسم الأول: المفتوح الآن */}
+        {/* القسم الأول: المفتوح الآن (شريط السحب) */}
         <div className="w-full">
           <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-            {activeTab === 'pharmacy' ? 'الصيدليات المناوبة الآن' : 'العيادات المفتوحة الآن'}
+            {activeTab === 'pharmacy' ? 'أقرب الصيدليات المفتوحة الآن' : 'أقرب العيادات المفتوحة الآن'}
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex overflow-x-auto gap-4 pb-6 snap-x scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
             {currentlyOpen.length > 0 ? currentlyOpen.map(f => (
-              <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+              <div key={`open-${f.id}`} className="min-w-[85vw] md:min-w-[320px] snap-center shrink-0 bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
                 <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">مفتوح الآن</div>
                 <div className="flex items-center gap-4 mb-4">
                   {f.image_url ? (
@@ -163,16 +194,17 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>
                     {f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}
+                    {f.distance !== null && <span className="text-[11px] font-bold text-indigo-600 mt-1.5 block">يبعد عنك: {f.distance} كم 📍</span>}
                   </div>
                 </div>
                 <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
                 <div className="flex gap-2">
-                  <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"><Phone size={14} className="inline mr-1"/> اتصال</a>
-                  {f.whatsapp_phone && <a href={`https://wa.me/${f.whatsapp_phone}`} target="_blank" className="flex-1 bg-emerald-500 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors"><MessageCircle size={14} className="inline mr-1"/> واتساب</a>}
+                  <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> اتصال</a>
+                  {f.whatsapp_phone && <a href={`https://wa.me/${f.whatsapp_phone}`} target="_blank" className="flex-1 bg-emerald-500 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-1"><MessageCircle size={14} /> واتساب</a>}
                 </div>
               </div>
             )) : (
-              <div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500">
+              <div className="w-full min-w-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500">
                 <Clock className="mx-auto text-slate-300 mb-4" size={48} />
                 <p className="text-slate-500 font-medium">لا يوجد {activeTab === 'pharmacy' ? 'صيدليات' : 'عيادات'} مفتوحة في هذا الوقت.</p>
               </div>
@@ -199,14 +231,15 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredFacilities.map((f, idx) => {
-                    const isOpenNow = checkIsOpenNow(f.working_hours);
+                  {processedFacilities.map((f, idx) => {
+                    const isOpenNow = f.isOpenNow;
                     return (
                       <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 text-base">{f.name}</span>
                             <span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span>
+                            {f.distance !== null && <span className="text-[10px] font-bold text-indigo-500 mt-1 block">يبعد: {f.distance} كم 📍</span>}
                             <div className="mt-2">
                               {isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">مفتوح الآن</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">مغلق</span>}
                             </div>
@@ -257,8 +290,8 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t
           <div className="h-[400px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 z-0 relative">
             <MapContainer center={[35.25, 36.7]} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {filteredFacilities.map(f => {
-                const isOpenNow = checkIsOpenNow(f.working_hours);
+              {processedFacilities.map(f => {
+                const isOpenNow = f.isOpenNow;
                 return (
                   <Marker key={`map-${f.id}`} position={[f.latitude || 35.25, f.longitude || 36.7]}>
                     <Popup className="custom-popup">
@@ -921,58 +954,28 @@ export default function App() {
   const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
-
-  const t = translations[lang];
-
-  useEffect(() => {
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = lang;
-  }, [lang]);
+  const t = translations[lang] || translations['ar'];
 
   useEffect(() => {
-    api.get('/api/auth/me')
-      .then(data => { setUser(data.user); setView('dashboard'); })
-      .catch(() => setView('public'))
-      .finally(() => setLoading(false));
+    document.documentElement.dir = 'rtl'; document.documentElement.lang = 'ar';
+    api.get('/api/auth/me').then(data => { setUser(data.user); setView('dashboard'); }).catch(() => setView('public')).finally(() => setLoading(false));
   }, []);
-
-  const handleLogin = (u: UserType) => { setUser(u); setView('dashboard'); };
-  const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); };
 
   if (loading) return null;
 
   return (
     <div className="min-h-screen font-sans text-slate-900 bg-slate-50">
       {view !== 'dashboard' && (
-        <nav className="bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/80">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2">
-            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" /> {t.appName}
-          </button>
-          <div className="flex gap-2 md:gap-4">
-            <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">
-              {lang === 'ar' ? 'English' : 'العربية'}
-            </button>
-            {view === 'public' ? (
-              <button onClick={() => setView('login')} className="bg-slate-900 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-800 transition-colors">{t.staffLogin}</button>
-            ) : (
-              <button onClick={() => setView('public')} className="text-slate-600 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-slate-50 transition-colors">{t.backToPublic}</button>
-            )}
-          </div>
+        <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90">
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> Taibet El-Imam Health</button>
+          <button onClick={() => setView(view === 'public' ? 'login' : 'public')} className="bg-slate-900 text-white px-6 py-2 rounded-full font-bold hover:bg-slate-800 transition-colors">{view === 'public' ? 'دخول الكادر الطبي' : 'العودة للرئيسية'}</button>
         </nav>
       )}
-
       <main>
         {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
-        {view === 'login' && <LoginAndRegister onLogin={handleLogin} t={t} lang={lang} />}
-        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
+        {view === 'login' && <LoginAndRegister onLogin={u => { setUser(u); setView('dashboard'); }} t={t} lang={lang} />}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={() => { api.post('/api/auth/logout', {}).then(() => { setUser(null); setView('public'); }); }} t={t} lang={lang} />}
       </main>
-
-      {view === 'public' && (
-        <footer className="bg-slate-900 text-slate-400 py-12 text-center mt-12">
-          <p className="text-sm">{t.copyright}</p>
-          <p className="text-xs mt-2">{t.footerNote}</p>
-        </footer>
-      )}
     </div>
   );
 }
