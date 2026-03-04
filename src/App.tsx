@@ -140,7 +140,7 @@ const PublicShopView = ({ onBack, facilities }: { onBack: () => void, facilities
               </div>
             </div>
           ))}
-          {filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><PackageSearch className="mx-auto mb-4 text-slate-300" size={48}/><p>لا توجد منتجات مطابقة للبحث.</p></div>}
+          {filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><Package className="mx-auto mb-4 text-slate-300" size={48}/><p>لا توجد منتجات مطابقة للبحث.</p></div>}
         </div>
       )}
     </div>
