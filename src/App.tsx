@@ -54,7 +54,7 @@ const api = {
 const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { const [p, setP] = useState<any>(initialPosition || null); useMapEvents({ click(e) { setP([e.latlng.lat, e.latlng.lng]); onLocationSelect(e.latlng.lat, e.latlng.lng); } }); return p ? <Marker position={p} /> : null; };
 const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
 
-// 🔴 تذكر أن تضع المفتاح الخاص بك في السطر التالي بدلاً من الكود القديم لكي يعمل الرفع بنجاح 🔴
+// 🔴 ضع مفتاح ImgBB هنا 🔴
 const uploadImageToImgBB = async (file: File) => { const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e); }); const f = new FormData(); f.append('image', base64.split(',')[1]); const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); const d = await r.json(); if (d.success) return d.data.url; throw new Error(d.error?.message || 'فشل الرفع'); };
 
 // --- 1. Doctor Profile Modal (Vezeeta Style) ---
@@ -73,8 +73,6 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
         
         {loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>) : doctor ? (
           <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Right Column: Doctor Details */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6 items-start">
                 <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm">
@@ -111,7 +109,6 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
               </div>
             </div>
 
-            {/* Left Column: Booking Widget */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-2xl border border-blue-200 shadow-lg overflow-hidden sticky top-6">
                 <div className="bg-blue-600 text-white text-center py-3 font-bold">{lang === 'ar' ? 'معلومات الحجز' : 'Booking Info'}</div>
@@ -154,18 +151,37 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
 };
 
 
-// 2. --- Public Shopping View with Cart ---
-const PublicShopView = ({ onBack, facilities, lang }: { onBack: () => void, facilities: Facility[], lang: string }) => {
+// 2. --- Public Shopping View with Cart (Updated with Wallet) ---
+const PublicShopView = ({ onBack, facilities, lang, user, refreshUser }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [customerName, setCustomerName] = useState(''); const [customerPhone, setCustomerPhone] = useState(''); const [orderSuccess, setOrderSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
+
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
   const ecommercePharmacies = facilities.filter(f => f.is_ecommerce_enabled); const selectedPharmacy = facilities.find(f => f.id === selectedPharmacyId);
   useEffect(() => { setCart([]); setOrderSuccess(false); }, [selectedPharmacyId]);
   const filteredProducts = products.filter(p => { const matchSearch = p.name.includes(searchQuery) || (p.pharmacy_name?.includes(searchQuery) && !selectedPharmacyId); const matchPharmacy = selectedPharmacyId ? p.pharmacy_id === selectedPharmacyId : true; return matchSearch && matchPharmacy; });
+  
   const addToCart = (p: Product) => { setCart(prev => { const exists = prev.find(item => item.product_id === p.id); const limit = p.max_per_user || p.quantity; if (exists) { if (exists.qty >= limit || exists.qty >= p.quantity) return prev; return prev.map(item => item.product_id === p.id ? { ...item, qty: item.qty + 1 } : item); } return [...prev, { ...p, product_id: p.id, qty: 1 }]; }); };
   const removeFromCart = (id: number) => setCart(prev => prev.filter(item => item.product_id !== id));
   const updateQty = (id: number, delta: number, maxAllowed: number, totalStock: number) => { setCart(prev => prev.map(item => { if (item.product_id === id) { const newQty = item.qty + delta; if (newQty > 0 && newQty <= Math.min(maxAllowed || totalStock, totalStock)) return { ...item, qty: newQty }; } return item; })); };
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
-  const submitOrder = async (e: React.FormEvent) => { e.preventDefault(); if(cart.length === 0) return; try { await api.post('/api/public/orders', { pharmacy_id: selectedPharmacyId, customer_name: customerName, customer_phone: customerPhone, items: cart, total_price: cartTotal }); setOrderSuccess(true); setCart([]); setShowCart(false); } catch(err) { alert(lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order'); } };
+  
+  const submitOrder = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if(cart.length === 0) return; 
+    
+    // التحقق من المحفظة
+    if (paymentMethod === 'wallet') {
+      if (!user) { alert(lang === 'ar' ? 'يجب تسجيل الدخول لاستخدام المحفظة.' : 'Login required for wallet.'); return; }
+      if (parseFloat(user.wallet_balance || '0') < cartTotal) { alert(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient wallet balance.'); return; }
+    }
+
+    try { 
+      await api.post('/api/public/orders', { pharmacy_id: selectedPharmacyId, customer_name: customerName, customer_phone: customerPhone, items: cart, total_price: cartTotal, payment_method: paymentMethod }); 
+      setOrderSuccess(true); setCart([]); setShowCart(false); 
+      if (paymentMethod === 'wallet') refreshUser(); // تحديث الرصيد بعد الشراء
+    } catch(err: any) { alert(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); } 
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 relative min-h-[80vh]">
@@ -173,11 +189,28 @@ const PublicShopView = ({ onBack, facilities, lang }: { onBack: () => void, faci
       {selectedPharmacyId && cart.length > 0 && !showCart && (<button onClick={() => setShowCart(true)} className="fixed bottom-8 left-8 bg-slate-900 text-white p-4 rounded-full shadow-2xl z-50 flex items-center justify-center animate-bounce hover:bg-slate-800"><ShoppingCart size={24} /><span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">{cart.length}</span></button>)}
       <AnimatePresence>
         {showCart && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end"><motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="bg-white w-full md:w-[400px] h-full shadow-2xl flex flex-col"><div className="p-6 border-b flex justify-between items-center bg-slate-50"><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="text-emerald-500"/> {lang === 'ar' ? 'سلة المشتريات' : 'Shopping Cart'}</h2><button onClick={() => setShowCart(false)} className="p-2 hover:bg-slate-200 rounded-full"><XCircle size={24}/></button></div><div className="flex-1 overflow-y-auto p-4 space-y-4">{cart.map(item => (<div key={item.product_id} className="flex items-center gap-4 bg-white p-3 border rounded-2xl shadow-sm">{item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}<div className="flex-1 min-w-0"><h4 className="font-bold text-sm line-clamp-1">{item.name}</h4><p className="text-emerald-600 font-bold text-sm" dir="ltr">{item.price} ل.س</p><div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div></div><button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button></div>))}</div><div className="p-6 border-t bg-slate-50"><div className="flex justify-between items-center mb-4 text-lg font-bold"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr">{cartTotal} ل.س</span></div><form onSubmit={submitOrder} className="space-y-3"><input required placeholder={lang === 'ar' ? "اسمك الكامل" : "Full Name"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerName} onChange={e=>setCustomerName(e.target.value)} /><input required placeholder={lang === 'ar' ? "رقم هاتفك للتواصل" : "Phone Number"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} /><button type="submit" className="w-full bg-emerald-500 text-white font-bold py-4 rounded-xl hover:bg-emerald-600 transition-colors shadow-lg">{lang === 'ar' ? 'تأكيد الطلب وإرساله للصيدلية' : 'Submit Order'}</button></form></div></motion.div></div>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end"><motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="bg-white w-full md:w-[400px] h-full shadow-2xl flex flex-col"><div className="p-6 border-b flex justify-between items-center bg-slate-50"><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="text-emerald-500"/> {lang === 'ar' ? 'سلة المشتريات' : 'Shopping Cart'}</h2><button onClick={() => setShowCart(false)} className="p-2 hover:bg-slate-200 rounded-full"><XCircle size={24}/></button></div><div className="flex-1 overflow-y-auto p-4 space-y-4">{cart.map(item => (<div key={item.product_id} className="flex items-center gap-4 bg-white p-3 border rounded-2xl shadow-sm">{item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}<div className="flex-1 min-w-0"><h4 className="font-bold text-sm line-clamp-1">{item.name}</h4><p className="text-emerald-600 font-bold text-sm" dir="ltr">{item.price} ل.س</p><div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div></div><button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button></div>))}</div>
+          <div className="p-6 border-t bg-slate-50">
+            <div className="flex justify-between items-center mb-4 text-lg font-bold"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-emerald-600">{cartTotal} ل.س</span></div>
+            
+            {/* خيارات الدفع */}
+            <div className="flex gap-2 mb-4">
+              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                <input type="radio" className="hidden" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} />
+                💵 {lang === 'ar' ? 'الدفع عند الاستلام' : 'Cash'}
+              </label>
+              <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
+                <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
+                {user && <span className="text-[10px] font-mono">{user.wallet_balance} ل.س</span>}
+              </label>
+            </div>
+
+            <form onSubmit={submitOrder} className="space-y-3"><input required placeholder={lang === 'ar' ? "اسمك الكامل" : "Full Name"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerName} onChange={e=>setCustomerName(e.target.value)} /><input required placeholder={lang === 'ar' ? "رقم هاتفك للتواصل" : "Phone Number"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} /><button type="submit" className={`w-full text-white font-bold py-4 rounded-xl transition-colors shadow-lg ${paymentMethod === 'wallet' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-500 hover:bg-emerald-600'}`}>{lang === 'ar' ? 'تأكيد الطلب' : 'Submit Order'}</button></form></div></motion.div></div>
         )}
       </AnimatePresence>
       <div className="text-center mb-12"><div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100"><ShoppingBag size={40}/></div><h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">{lang === 'ar' ? <>السوق <span className="text-emerald-500">الطبي</span></> : <>Medical <span className="text-emerald-500">Store</span></>}</h1><p className="text-slate-500 max-w-xl mx-auto">{selectedPharmacy ? (lang === 'ar' ? `تسوق منتجات ${selectedPharmacy.name} واطلبها مباشرة.` : `Shop ${selectedPharmacy.name} products directly.`) : (lang === 'ar' ? 'اختر صيدلية من القائمة أدناه لبدء التسوق وتصفح المنتجات المتاحة لديها.' : 'Choose a pharmacy below to start shopping.')}</p></div>
-      {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500"/><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً على رقمك لتأكيد الطلب وتجهيزه.' : 'The pharmacist will contact you soon.'}</p></div>)}
+      {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500"/><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p></div>)}
       {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100"/> : <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex justify-between items-center bg-indigo-50 p-4 rounded-2xl border border-indigo-100"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white text-indigo-600 px-4 py-2 rounded-lg shadow-sm border border-indigo-200">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (<div key={p.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col"><div className="aspect-square bg-slate-50 relative overflow-hidden">{p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={48}/></div>}{isOutOfStock && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center"><span className="bg-red-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-md rotate-[-12deg]">{lang === 'ar' ? 'نفذت الكمية' : 'Out of Stock'}</span></div>}</div><div className="p-4 flex flex-col flex-1"><h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>{p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}<div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between"><span className="font-extrabold text-lg text-slate-900" dir="ltr">{p.price} ل.س</span></div>{!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}</div></div>); })}{filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><Package className="mx-auto mb-4 text-slate-300" size={48}/><p>{lang === 'ar' ? 'لا توجد منتجات متاحة.' : 'No products available.'}</p></div>}</div>)}</>)}
     </div>
   );
@@ -324,11 +357,13 @@ const ServicesManager = ({ user, facilities, lang }: { user: UserType, facilitie
 };
 
 // 6. --- Main Public View ---
-const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: string, t: any }) => {
+const PublicView = ({ user, refreshUser, lang, t }: { user: UserType | null, refreshUser: () => void, lang: string, t: any }) => {
   const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; const [showShop, setShowShop] = useState(false);
   useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
-  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} />;
+  
+  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} />;
+  
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>;
@@ -446,7 +481,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
   );
 };
 
-// --- 7. Main Dashboard Component (Fully Integrated with Wallets) ---
+// --- 7. Main Dashboard Component ---
 const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
   const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings'>('facilities');
   const [facilities, setFacilities] = useState<Facility[]>([]); const [users, setUsers] = useState<any[]>([]);
@@ -558,10 +593,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
             </motion.div>
           )}
 
-          {activeTab === 'services' && (user.role === 'doctor' || user.role === 'dentist' || user.role === 'admin') && (<motion.div key="services" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><ServicesManager user={user} facilities={facilities.filter(f => f.type === 'clinic' || f.type === 'dental_clinic')} lang={lang} /></motion.div>)}
-          {activeTab === 'products' && (user.role === 'admin' || hasEcommerce) && (<motion.div key="products" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><ProductsManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></motion.div>)}
-          {activeTab === 'orders' && (user.role === 'admin' || hasEcommerce) && (<motion.div key="orders" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></motion.div>)}
-          
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2></div><div className="flex flex-wrap gap-3 w-full sm:w-auto">{isSuperAdmin && <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">توليد مفتاح تفعيل</button>}<button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><Plus size={20} /> {t.createUser}</button></div></div>
@@ -586,6 +617,10 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
             </motion.div>
           )}
 
+          {/* ... Services, Products, Orders, Settings, Profile rendering mapping (Using the same components defined above) ... */}
+          {activeTab === 'services' && (user.role === 'doctor' || user.role === 'dentist' || user.role === 'admin') && (<motion.div key="services" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><ServicesManager user={user} facilities={facilities.filter(f => f.type === 'clinic' || f.type === 'dental_clinic')} lang={lang} /></motion.div>)}
+          {activeTab === 'products' && (user.role === 'admin' || hasEcommerce) && (<motion.div key="products" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><ProductsManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></motion.div>)}
+          {activeTab === 'orders' && (user.role === 'admin' || hasEcommerce) && (<motion.div key="orders" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></motion.div>)}
           {activeTab === 'settings' && isSuperAdmin && (<motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold mb-8">إعدادات الفوتر</h2><form onSubmit={handleSaveFooter} className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">{footerMsg && <div className="p-3 bg-emerald-50 text-emerald-700 font-bold rounded-xl">{footerMsg}</div>}<div><label className="block text-sm font-bold mb-1">نص الحقوق (Copyright)</label><input className="w-full px-4 py-2 border rounded-xl" value={footerForm.copyright} onChange={e => setFooterForm({...footerForm, copyright: e.target.value})} /></div><div><label className="block text-sm font-bold mb-1">الوصف</label><input className="w-full px-4 py-2 border rounded-xl" value={footerForm.description} onChange={e => setFooterForm({...footerForm, description: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">رابط فيسبوك</label><input type="url" className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.facebook} onChange={e => setFooterForm({...footerForm, facebook: e.target.value})} /></div><div><label className="block text-sm font-bold mb-1">رابط انستغرام</label><input type="url" className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.instagram} onChange={e => setFooterForm({...footerForm, instagram: e.target.value})} /></div><div><label className="block text-sm font-bold mb-1">رقم التواصل العام</label><input className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.contact_phone} onChange={e => setFooterForm({...footerForm, contact_phone: e.target.value})} /></div><div><label className="block text-sm font-bold mb-1">رقم الشكاوى</label><input className="w-full px-4 py-2 border rounded-xl text-left" dir="ltr" value={footerForm.complaints_phone} onChange={e => setFooterForm({...footerForm, complaints_phone: e.target.value})} /></div></div><button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700">حفظ الإعدادات</button></form></motion.div>)}
           {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t.profileSettings}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6">{profileMsg && <div className={`p-4 rounded-xl text-sm font-bold ${profileMsg.includes('نجاح') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{profileMsg}</div>}<div><label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} /></div><button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">{t.saveChanges}</button></form></motion.div>)}
         </AnimatePresence>
@@ -654,6 +689,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   );
 };
 
+// 8. --- Main App Root Component (Handles Routing) ---
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
   const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
@@ -664,29 +700,58 @@ export default function App() {
 
   useEffect(() => { document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = lang; }, [lang]);
   useEffect(() => {
-    api.get('/api/auth/me').then(data => { setUser(data.user); setView('dashboard'); }).catch(() => setView('public')).finally(() => setLoading(false));
+    api.get('/api/auth/me').then(data => { 
+      setUser(data.user); 
+      // توجيه المريض للصفحة العامة دائماً بدلاً من لوحة التحكم
+      setView(data.user.role === 'patient' ? 'public' : 'dashboard'); 
+    }).catch(() => setView('public')).finally(() => setLoading(false));
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
-  const handleLogin = (u: UserType) => { setUser(u); setView('dashboard'); };
+  const handleLogin = (u: UserType) => { 
+    setUser(u); 
+    setView(u.role === 'patient' ? 'public' : 'dashboard'); 
+  };
   const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); };
+  const refreshUser = () => { api.get('/api/auth/me').then(data => setUser(data.user)).catch(console.error); };
 
   if (loading) return null;
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50">
       {view !== 'dashboard' && (
-        <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> {lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet El-Imam Health'}</button>
-          <div className="flex gap-2 md:gap-4">
+        <nav className="bg-white border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> <span className="hidden sm:inline">{lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet Health'}</span></button>
+          <div className="flex gap-2 md:gap-4 items-center">
+            
+            {/* عرض المحفظة للمريض في الصفحة العامة */}
+            {user && user.role === 'patient' && (
+              <div className="bg-blue-50 text-blue-700 px-3 md:px-4 py-1.5 rounded-full flex items-center gap-2 text-xs md:text-sm font-bold border border-blue-200 shadow-sm">
+                <Wallet size={16}/> <span dir="ltr">{user.wallet_balance || '0.00'} ل.س</span>
+              </div>
+            )}
+
             <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
-            <button onClick={() => setView(view === 'public' ? 'login' : 'public')} className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-blue-700 transition-colors shadow-md">{view === 'public' ? t.staffLogin : t.backToPublic}</button>
+            
+            {user ? (
+              <div className="flex gap-2">
+                {user.role !== 'patient' && view === 'public' && (
+                  <button onClick={() => setView('dashboard')} className="bg-slate-900 text-white px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-bold hover:bg-slate-800 transition-colors shadow-md">{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</button>
+                )}
+                <button onClick={handleLogout} className="bg-red-50 text-red-600 px-3 md:px-4 py-1.5 rounded-full flex items-center gap-1 text-xs md:text-sm font-bold hover:bg-red-100 transition-colors">
+                  <LogOut size={16}/> <span className="hidden sm:inline">{lang === 'ar' ? 'خروج' : 'Logout'}</span>
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setView(view === 'public' ? 'login' : 'public')} className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold hover:bg-blue-700 transition-colors shadow-md">{view === 'public' ? t.staffLogin : t.backToPublic}</button>
+            )}
+
           </div>
         </nav>
       )}
       
       <main className="flex-1">
-        {view === 'public' && <PublicView onLogin={() => setView('login')} lang={lang} t={t} />}
+        {view === 'public' && <PublicView onLogin={() => setView('login')} user={user} refreshUser={refreshUser} lang={lang} t={t} />}
         {view === 'login' && <LoginAndRegister onLogin={handleLogin} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
       </main>

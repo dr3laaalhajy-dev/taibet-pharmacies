@@ -63,8 +63,28 @@ app.get('/api/public/products', async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/public/orders', async (req, res) => {
-  const { pharmacy_id, customer_name, customer_phone, items, total_price } = req.body;
+// تحديث الطلبات لتشمل الدفع من المحفظة والخصم
+app.post('/api/public/orders', async (req: any, res: any) => {
+  const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method } = req.body;
+  let userId = null;
+
+  if (payment_method === 'wallet') {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: 'يجب تسجيل الدخول أولاً لاستخدام المحفظة.' });
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+      const userRes = await pool.query('SELECT wallet_balance FROM users WHERE id = $1', [userId]);
+      const balance = parseFloat(userRes.rows[0].wallet_balance);
+      if (balance < parseFloat(total_price)) return res.status(400).json({ error: 'رصيد المحفظة غير كافٍ لإتمام الطلب.' });
+      
+      // خصم الرصيد
+      await pool.query('UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [total_price, userId]);
+    } catch(e) {
+      return res.status(403).json({ error: 'جلستك انتهت، يرجى تسجيل الدخول مجدداً.' });
+    }
+  }
+
   try {
     for (const item of items) { await pool.query('UPDATE products SET quantity = quantity - $1 WHERE id = $2 AND quantity >= $1', [item.qty, item.product_id]); }
     await pool.query('INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price) VALUES ($1, $2, $3, $4, $5)', [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price]);
@@ -93,7 +113,6 @@ app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, phone, role, activationKey } = req.body;
   try {
     let isActive = false;
-    // المرضى يتم تفعيل حسابهم تلقائياً لكي يستخدموا المحفظة
     if (role === 'patient') {
       isActive = true;
     } else if (activationKey) {
@@ -194,7 +213,6 @@ app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res) => 
 app.get('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); res.json((await pool.query('SELECT id, email, role, name, pharmacy_limit, phone, notes, is_active, wallet_balance FROM users ORDER BY id DESC')).rows); });
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]); res.json({ success: true }); });
 
-// API شحن المحفظة
 app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'فقط المدير الرئيسي' });
   const { amount } = req.body;
