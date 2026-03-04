@@ -13,9 +13,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 // قائمة المدراء الرئيسيين المحصنين
 const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
 
+// أعدنا سطر الاتصال لشكله الأصلي لضمان استقراره (التحذير الذي ظهر لك سابقاً تم تجاهله ولن يؤثر)
 const pool = new Pool({
-  // قمنا بإزالة الكلمة التي تسبب التحذير لأننا نستخدم إعدادات SSL الخاصة بنا
-  connectionString: process.env.DATABASE_URL?.replace('?sslmode=require', ''),
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -37,24 +37,28 @@ const authenticateToken = (req: any, res: any, next: any) => {
 app.get('/api/public/on-call', async (req, res) => {
   const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   try {
+    // تم إصلاح مقارنة التاريخ باستخدام ::date لضمان توافق أنواع البيانات
     const onCall = await pool.query(`
       SELECT p.*, r.duty_date, r.notes 
       FROM pharmacies p 
       JOIN roster r ON p.id = r.pharmacy_id 
-      WHERE r.duty_date LIKE $1 || '%'
+      WHERE r.duty_date::date = $1::date
     `, [today]);
     
-    // تصفية التكرارات برمجياً لضمان عدم حدوث أخطاء
+    // تصفية التكرارات برمجياً
     const uniquePharmacies = onCall.rows.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
     res.json(uniquePharmacies);
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { 
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Database error' }); 
+  }
 });
 
 app.get('/api/public/pharmacies', async (req, res) => {
   try {
     const pharmacies = await pool.query('SELECT id, name, address, phone, latitude, longitude, pharmacist_name, whatsapp_phone, image_url FROM pharmacies');
     res.json(pharmacies.rows);
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/public/doctors/:id', async (req, res) => {
@@ -64,7 +68,7 @@ app.get('/api/public/doctors/:id', async (req, res) => {
     if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
     const managedPharmacies = await pool.query('SELECT id, name, address, phone FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
     res.json({ ...doctor, pharmacies: managedPharmacies.rows });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/public/roster', async (req, res) => {
@@ -79,7 +83,7 @@ app.get('/api/public/roster', async (req, res) => {
     `, [limit, offset]);
     const totalResult = await pool.query('SELECT COUNT(*) as count FROM roster');
     res.json({ data: roster.rows, total: parseInt(totalResult.rows[0].count), page, limit });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // --- API Routes (Auth & Profile) ---
@@ -99,7 +103,7 @@ app.post('/api/auth/login', async (req, res) => {
     } else {
       res.status(401).json({ error: 'بيانات الاعتماد غير صالحة' });
     }
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {
@@ -114,7 +118,7 @@ app.post('/api/auth/register', async (req, res) => {
     res.json({ success: true });
   } catch (err: any) {
     if (err.code === '23505') res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل!' });
-    else res.status(500).json({ error: 'حدث خطأ أثناء التسجيل' });
+    else res.status(500).json({ error: err.message });
   }
 });
 
@@ -142,7 +146,7 @@ app.post('/api/auth/update-profile', authenticateToken, async (req: any, res) =>
     if (phone !== undefined) await pool.query('UPDATE users SET phone = $1 WHERE id = $2', [phone, userId]);
     if (notes !== undefined) await pool.query('UPDATE users SET notes = $1 WHERE id = $2', [notes, userId]);
     res.json({ message: 'تم تحديث الملف الشخصي' });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // --- API Routes (Pharmacies & Roster) ---
@@ -151,7 +155,7 @@ app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
   try {
     let query = `
       SELECT p.*, 
-      EXISTS(SELECT 1 FROM roster r WHERE r.pharmacy_id = p.id AND r.duty_date LIKE $1 || '%') as is_on_call_today
+      EXISTS(SELECT 1 FROM roster r WHERE r.pharmacy_id = p.id AND r.duty_date::date = $1::date) as is_on_call_today
       FROM pharmacies p
     `;
     if (req.user.role === 'admin') {
@@ -161,26 +165,23 @@ app.get('/api/pharmacies', authenticateToken, async (req: any, res) => {
       const pharmacies = await pool.query(query + ' WHERE p.doctor_id = $2 ORDER BY p.id DESC', [today, req.user.id]);
       res.json(pharmacies.rows);
     }
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// مسار جديد لتفعيل وإيقاف مناوبة الصيدلية لليوم
 app.post('/api/pharmacies/:id/toggle-duty', authenticateToken, async (req: any, res) => {
   const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   try {
     const pharmacyId = req.params.id;
-    // التحقق هل الصيدلية مناوبة اليوم؟
-    const check = await pool.query('SELECT id FROM roster WHERE pharmacy_id = $1 AND duty_date LIKE $2 || \'%\'', [pharmacyId, today]);
+    // التحقق الآمن مع تحويل التواريخ
+    const check = await pool.query('SELECT id FROM roster WHERE pharmacy_id = $1 AND duty_date::date = $2::date', [pharmacyId, today]);
     if (check.rows.length > 0) {
-      // إزالة المناوبة
-      await pool.query('DELETE FROM roster WHERE pharmacy_id = $1 AND duty_date LIKE $2 || \'%\'', [pharmacyId, today]);
+      await pool.query('DELETE FROM roster WHERE pharmacy_id = $1 AND duty_date::date = $2::date', [pharmacyId, today]);
       res.json({ status: 'closed' });
     } else {
-      // إضافة مناوبة
       await pool.query("INSERT INTO roster (pharmacy_id, duty_date, notes) VALUES ($1, $2, '')", [pharmacyId, today]);
       res.json({ status: 'open' });
     }
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
@@ -193,7 +194,7 @@ app.post('/api/pharmacies', authenticateToken, async (req: any, res) => {
       [name, address, phone, latitude, longitude, req.user.id, assignedDoctorId, pharmacist_name || null, whatsapp_phone || null, image_url || null]
     );
     res.json({ id: result.rows[0].id });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
@@ -204,17 +205,15 @@ app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
       [name, address, phone, latitude, longitude, doctor_id, pharmacist_name || null, whatsapp_phone || null, image_url || null, req.params.id]
     );
     res.json({ message: 'تم التحديث' });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
   try {
-    // مسح المناوبات المرتبطة بالصيدلية أولاً لتجنب خطأ التبعية
     await pool.query('DELETE FROM roster WHERE pharmacy_id = $1', [req.params.id]);
-    // ثم مسح الصيدلية
     await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم الحذف' });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/roster', authenticateToken, async (req: any, res) => {
@@ -223,7 +222,7 @@ app.get('/api/roster', authenticateToken, async (req: any, res) => {
       ? await pool.query('SELECT r.*, p.name as pharmacy_name FROM roster r JOIN pharmacies p ON r.pharmacy_id = p.id ORDER BY r.duty_date ASC')
       : await pool.query('SELECT r.*, p.name as pharmacy_name FROM roster r JOIN pharmacies p ON r.pharmacy_id = p.id WHERE p.doctor_id = $1 ORDER BY r.duty_date ASC', [req.user.id]);
     res.json(roster.rows);
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/roster', authenticateToken, async (req: any, res) => {
@@ -231,7 +230,7 @@ app.post('/api/roster', authenticateToken, async (req: any, res) => {
   try {
     await pool.query('INSERT INTO roster (pharmacy_id, duty_date, notes) VALUES ($1, $2, $3)', [pharmacy_id, duty_date, notes]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/roster/:id', authenticateToken, async (req: any, res) => {
@@ -239,14 +238,14 @@ app.put('/api/roster/:id', authenticateToken, async (req: any, res) => {
   try {
     await pool.query('UPDATE roster SET pharmacy_id = $1, duty_date = $2, notes = $3 WHERE id = $4', [pharmacy_id, duty_date, notes, req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/roster/:id', authenticateToken, async (req: any, res) => {
   try {
     await pool.query('DELETE FROM roster WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // --- API Routes (Admin Users) ---
@@ -255,7 +254,7 @@ app.get('/api/admin/users', authenticateToken, async (req: any, res) => {
   try {
     const users = await pool.query('SELECT id, email, role, name, pharmacy_limit, phone, notes, is_active FROM users ORDER BY id DESC');
     res.json(users.rows);
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => {
@@ -263,7 +262,7 @@ app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, re
   try {
     await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
@@ -315,7 +314,7 @@ app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
       );
     }
     res.json({ message: 'تم تحديث المستخدم' });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
@@ -330,7 +329,7 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
 
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ message: 'تم حذف المستخدم' });
-  } catch (err) { res.status(500).json({ error: 'Database error' }); }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 export default app;
