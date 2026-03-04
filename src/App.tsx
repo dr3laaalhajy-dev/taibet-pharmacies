@@ -486,6 +486,7 @@ const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, 
         const data = await api.post('/api/auth/login', { email, password });
         onLogin(data.user);
       } else {
+        // دمج المعرف مع النطاق الثابت عند الإنشاء
         const fullEmail = `${emailPrefix}@taiba.pharma.sy`;
         await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role });
         setSuccessMsg(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! يرجى انتظار موافقة الإدارة لتفعيل حسابك.' : 'Account created! Please wait for admin approval.');
@@ -770,21 +771,20 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
     if (activeTab === 'roster') api.get('/api/roster').then(setRoster);
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers);
   };
+
   // --- دالة إضافة وإزالة صيدلية من مناوبات اليوم السريعة ---
   const toggleTodayDuty = async (pharmacyId: number, isCurrentlyOnCall: boolean) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
     try {
       if (isCurrentlyOnCall) {
-        // إذا كانت مفتوحة، نبحث عن رقم المناوبة ونحذفها
-        const entry = roster.find(r => r.pharmacy_id === pharmacyId && r.duty_date === today);
+        const entry = roster.find(r => r.pharmacy_id === pharmacyId && r.duty_date.split('T')[0] === today);
         if (entry) await api.delete(`/api/roster/${entry.id}`);
       } else {
-        // إذا كانت مغلقة، نضيفها لمناوبات اليوم
         await api.post('/api/roster', { pharmacy_id: pharmacyId, duty_date: today, notes: '' });
       }
-      loadData(); // تحديث البيانات فوراً
-    } catch (err) {
-      alert('حدث خطأ أثناء تحديث حالة الصيدلية');
+      loadData(); 
+    } catch (err: any) {
+      alert('حدث خطأ: ' + (err.error || 'تأكد من اتصالك بالإنترنت'));
     }
   };
   // --------------------------------------------------------
@@ -890,7 +890,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
           </button>
         </div>
 
-        <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto">
+        {/* إصلاح الأزرار الجانبية للموبايل */}
+        <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide">
           <button 
             onClick={() => setActiveTab('pharmacies')}
             className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'pharmacies' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -979,8 +980,8 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {pharmacies.filter(p => doctorFilter === 0 || p.doctor_id === doctorFilter).map(p => {
-                  const today = new Date().toISOString().split('T')[0];
-                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date === today);
+                  const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                  const isOnCall = roster.some(r => r.pharmacy_id === p.id && r.duty_date.split('T')[0] === today);
                   return (
                     <div key={p.id} className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                       
@@ -1012,6 +1013,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           )
                         )}
                       </div>
+
                       <div className="space-y-2 text-slate-600 mb-6">
                         <p className="flex items-center gap-2 text-sm"><MapPin size={14} className="shrink-0"/> <span className="truncate">{p.address}</span></p>
                         <p className="flex items-center gap-2 text-sm"><Phone size={14} className="shrink-0"/> <span className="truncate">{p.phone}</span></p>
@@ -1188,6 +1190,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           </button>
                         )}
                         
+                        {/* إخفاء زر التعديل إذا كان الحساب هو المدير الأساسي */}
                         {u.is_active && canEditTarget && (
                           <button 
                             onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
@@ -1197,6 +1200,7 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                           </button>
                         )}
 
+                        {/* إخفاء زر الحذف تماماً إذا كان الحساب هو المدير الأساسي */}
                         {canDeleteTarget && (
                           <button 
                             onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
