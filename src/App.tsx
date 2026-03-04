@@ -22,6 +22,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// قائمة المدراء الرئيسيين في الواجهة لإخفاء الأزرار
+const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
+
 // --- API Helpers ---
 const api = {
   get: (url: string) => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
@@ -424,6 +427,7 @@ const PublicView = ({ onLogin, lang, t }: { onLogin: () => void, lang: 'ar' | 'e
   );
 };
 
+// شاشة تسجيل الدخول وإنشاء الحساب
 const LoginAndRegister = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(''); 
@@ -659,8 +663,11 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
   const [activeTab, setActiveTab] = useState<'pharmacies' | 'roster' | 'users' | 'profile'>('pharmacies');
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]); // Using 'any' here since we added 'is_active'
   
+  // هل المستخدم الحالي هو أحد المدراء الرئيسيين؟
+  const isSuperAdmin = SUPER_ADMINS.includes(user.email);
+
   // Profile state
   const [profileEmail, setProfileEmail] = useState(user.email);
   const [profileName, setProfileName] = useState(user.name);
@@ -1061,65 +1068,69 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {users.map(u => (
-                  <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 border-yellow-200' : 'bg-white border-slate-200'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl shrink-0">
-                        {u.name[0]}
+                {users.map(u => {
+                  const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email);
+                  const canEditTarget = !isTargetSuperAdmin || u.email === user.email; // يمكنه تعديل الكل ما عدا المدراء الرئيسيين (إلا لو كان هو نفسه)
+                  const canDeleteTarget = !isTargetSuperAdmin; // لا أحد يستطيع حذف المدراء الرئيسيين
+                  
+                  return (
+                    <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 border-yellow-200' : 'bg-white border-slate-200'}`}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl shrink-0">
+                          {u.name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <button 
+                              onClick={() => setSelectedDoctorId(u.id)}
+                              className="font-bold text-slate-900 truncate hover:text-emerald-600 transition-colors text-left text-base md:text-lg"
+                            >
+                              {u.name}
+                            </button>
+                            {!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">{lang === 'ar' ? 'بانتظار التفعيل' : 'Pending'}</span>}
+                          </div>
+                          <p className="text-xs md:text-sm text-slate-500 truncate mt-1" dir="ltr">{u.email}</p>
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isTargetSuperAdmin ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>
+                              {isTargetSuperAdmin ? 'Super Admin' : (u.role === 'admin' ? t.admin : u.role === 'doctor' ? t.doctor : t.pharmacist)}
+                            </span>
+                            <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider">
+                              {t.pharmacyLimit}: {u.pharmacy_limit}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
+                      <div className="flex gap-2 border-t border-slate-100 pt-4 mt-auto">
+                        {!u.is_active && (
                           <button 
-                            onClick={() => setSelectedDoctorId(u.id)}
-                            className="font-bold text-slate-900 truncate hover:text-emerald-600 transition-colors text-left text-base md:text-lg"
+                            onClick={() => approveUser(u.id)} 
+                            className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 transition-colors text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
                           >
-                            {u.name}
+                            <CheckCircle size={14} /> {lang === 'ar' ? 'تفعيل الحساب' : 'Approve'}
                           </button>
-                          {!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">{lang === 'ar' ? 'بانتظار التفعيل' : 'Pending'}</span>}
-                        </div>
-                        <p className="text-xs md:text-sm text-slate-500 truncate mt-1" dir="ltr">{u.email}</p>
-                        <div className="flex gap-2 mt-2 flex-wrap">
-                          <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider">
-                            {u.role === 'admin' ? t.admin : u.role === 'doctor' ? t.doctor : t.pharmacist}
-                          </span>
-                          <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wider">
-                            {t.pharmacyLimit}: {u.pharmacy_limit}
-                          </span>
-                        </div>
+                        )}
+                        
+                        {u.is_active && canEditTarget && (
+                          <button 
+                            onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
+                            className="flex-1 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Edit2 size={12} /> {t.editUser}
+                          </button>
+                        )}
+
+                        {canDeleteTarget && (
+                          <button 
+                            onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
+                            className={`${u.is_active && !canEditTarget ? 'flex-1' : 'px-4'} py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2`}
+                          >
+                            <Trash2 size={12} /> {(u.is_active && !canEditTarget) && t.deleteUser}
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2 border-t border-slate-100 pt-4 mt-auto">
-                      {!u.is_active && (
-                        <button 
-                          onClick={() => approveUser(u.id)} 
-                          className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 transition-colors text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"
-                        >
-                          <CheckCircle size={14} /> {lang === 'ar' ? 'تفعيل الحساب' : 'Approve'}
-                        </button>
-                      )}
-                      
-                      {/* إخفاء زر التعديل إذا كان الحساب هو المدير الأساسي */}
-                      {u.is_active && (
-                        <button 
-                          onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }}
-                          className="flex-1 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Edit2 size={12} /> {t.editUser}
-                        </button>
-                      )}
-
-                      {/* إخفاء زر الحذف تماماً إذا كان الحساب هو المدير الأساسي */}
-                      {u.email !== 'admin@pharmaduty.com' && (
-                        <button 
-                          onClick={() => openConfirm(t.confirmTitle, t.confirmDeleteUser, async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); })}
-                          className={`${u.is_active ? 'flex-1' : 'px-4'} py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2`}
-                        >
-                          <Trash2 size={12} /> {u.is_active && t.deleteUser}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           )}
@@ -1240,7 +1251,6 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
               <h3 className="text-xl md:text-2xl font-bold mb-6">{editingPharma ? t.editPharmacy : t.addPharmacy}</h3>
               <form onSubmit={handleSavePharma} className="space-y-4">
                 <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0 relative">
-                  {/* خريطة اختيار الموقع المجانية */}
                   <MapContainer 
                     center={[pharmaForm.latitude || 35.25, pharmaForm.longitude || 36.7]} 
                     zoom={13} 
@@ -1461,7 +1471,10 @@ const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () =
                     >
                       <option value="pharmacist">{t.pharmacist}</option>
                       <option value="doctor">{t.doctor}</option>
-                      <option value="admin">{t.admin}</option>
+                      {/* المدير الفرعي لن يرى خيار إضافة مدير جديد */}
+                      {(isSuperAdmin || userForm.role === 'admin') && (
+                        <option value="admin">{t.admin}</option>
+                      )}
                     </select>
                   </div>
                   <div>

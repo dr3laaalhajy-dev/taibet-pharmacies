@@ -10,6 +10,9 @@ const { Pool } = pg;
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
+// قائمة المدراء الرئيسيين المحصنين
+const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy'];
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -230,6 +233,12 @@ app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, re
 app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { email, password, role, name, pharmacy_limit, phone, notes } = req.body;
+  
+  // حماية: يمنع المدير الفرعي من إنشاء مدير جديد
+  if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
+    return res.status(403).json({ error: 'فقط المدير الرئيسي يمكنه تعيين مدراء جدد!' });
+  }
+
   const hashedPassword = bcrypt.hashSync(password, 10);
   try {
     const result = await pool.query(
@@ -243,11 +252,21 @@ app.post('/api/admin/users', authenticateToken, async (req: any, res) => {
 app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { email, password, role, name, pharmacy_limit, phone, notes } = req.body;
+  
   try {
-    // درع الحماية: يمنع التعديل على إيميل أو صلاحيات المدير الأساسي
-    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
-    if (userResult.rows[0]?.email === 'admin@pharmaduty.com' && (role !== 'admin' || email !== 'admin@pharmaduty.com')) {
-      return res.status(403).json({ error: 'لا يمكن تغيير إيميل أو صلاحيات المدير الأساسي!' });
+    const targetUserResult = await pool.query('SELECT email, role FROM users WHERE id = $1', [req.params.id]);
+    const targetUser = targetUserResult.rows[0];
+
+    if (!targetUser) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+    // حماية 1: المدير الرئيسي فقط من يعدل بياناته، ولا يمكن لمدير آخر تعديل بيانات مدير رئيسي آخر
+    if (SUPER_ADMINS.includes(targetUser.email) && req.user.email !== targetUser.email) {
+      return res.status(403).json({ error: 'لا تمتلك صلاحية لتعديل بيانات هذا المدير الرئيسي!' });
+    }
+
+    // حماية 2: المدير الفرعي لا يمكنه ترقية شخص عادي ليصبح مدير
+    if (role === 'admin' && targetUser.role !== 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
+      return res.status(403).json({ error: 'فقط المدير الرئيسي يمكنه ترقية الحسابات إلى إدارة!' });
     }
 
     if (password) {
@@ -269,11 +288,12 @@ app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
 app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'لا يمكنك حذف نفسك' });
+  
   try {
-    // درع الحماية: يمنع حذف المدير الأساسي نهائياً
-    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
-    if (userResult.rows.length > 0 && userResult.rows[0].email === 'admin@pharmaduty.com') {
-      return res.status(403).json({ error: 'لا يمكن حذف حساب المدير الأساسي للنظام!' });
+    // حماية: يمنع حذف أي مدير رئيسي
+    const targetUserResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id]);
+    if (targetUserResult.rows.length > 0 && SUPER_ADMINS.includes(targetUserResult.rows[0].email)) {
+      return res.status(403).json({ error: 'مستحيل! لا يمكن حذف حساب المدير الرئيسي للنظام.' });
     }
 
     await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
