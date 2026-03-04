@@ -44,7 +44,7 @@ app.get('/api/public/doctors/:id', async (req, res) => {
     const doctorResult = await pool.query('SELECT id, name, email, role, phone, notes FROM users WHERE id = $1', [req.params.id]);
     const doctor = doctorResult.rows[0];
     if (!doctor) return res.status(404).json({ error: 'User not found' });
-    const managedFacilities = await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
+    const managedFacilities = await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id]);
     res.json({ ...doctor, facilities: managedFacilities.rows });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -181,7 +181,7 @@ app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => {
 
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => { try { await pool.query('DELETE FROM products WHERE pharmacy_id = $1', [req.params.id]); await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]); res.json({ message: 'تم الحذف' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
-// --- Products & Orders --- (Omitted logic details for brevity, remains unchanged from previous version)
+// --- Products & Orders --- 
 app.get('/api/products', authenticateToken, async (req: any, res) => { try { if (req.user.role === 'admin') res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id ORDER BY p.id DESC')).rows); else res.json((await pool.query('SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY p.id DESC', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/products', authenticateToken, async (req: any, res) => { const { pharmacy_id, name, price, quantity, image_url, max_per_user } = req.body; try { await pool.query('INSERT INTO products (pharmacy_id, name, price, quantity, image_url, max_per_user) VALUES ($1, $2, $3, $4, $5, $6)', [pharmacy_id, name, price, quantity, image_url || null, max_per_user || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.put('/api/products/:id', authenticateToken, async (req: any, res) => { const { name, price, quantity, image_url, max_per_user } = req.body; try { await pool.query('UPDATE products SET name = $1, price = $2, quantity = $3, image_url = $4, max_per_user = $5 WHERE id = $6', [name, price, quantity, image_url || null, max_per_user || null, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
@@ -193,6 +193,8 @@ app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res) => 
 // --- Admin ---
 app.get('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); res.json((await pool.query('SELECT id, email, role, name, pharmacy_limit, phone, notes, is_active, wallet_balance FROM users ORDER BY id DESC')).rows); });
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]); res.json({ success: true }); });
+
+// API شحن المحفظة
 app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'فقط المدير الرئيسي' });
   const { amount } = req.body;
@@ -201,6 +203,7 @@ app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res) => {
     res.json({ success: true });
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
+
 app.post('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { email, password, role, name, pharmacy_limit, phone, notes } = req.body; if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); try { res.json({ id: (await pool.query('INSERT INTO users (email, password, role, name, pharmacy_limit, phone, notes, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id', [email, bcrypt.hashSync(password, 10), role, name, pharmacy_limit || 10, phone || null, notes || null, true])).rows[0].id }); } catch (err) { res.status(400).json({ error: 'البريد مستخدم' }); } });
 app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { email, password, role, name, pharmacy_limit, phone, notes } = req.body; try { const targetUser = (await pool.query('SELECT email, role FROM users WHERE id = $1', [req.params.id])).rows[0]; if (SUPER_ADMINS.includes(targetUser.email) && req.user.email !== targetUser.email) return res.status(403).json({ error: 'ممنوع' }); if (password) await pool.query('UPDATE users SET email=$1, password=$2, role=$3, name=$4, pharmacy_limit=$5, phone=$6, notes=$7 WHERE id=$8', [email, bcrypt.hashSync(password, 10), role, name, pharmacy_limit, phone, notes, req.params.id]); else await pool.query('UPDATE users SET email=$1, role=$2, name=$3, pharmacy_limit=$4, phone=$5, notes=$6 WHERE id=$7', [email, role, name, pharmacy_limit, phone, notes, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]); res.json({ success: true }); });
