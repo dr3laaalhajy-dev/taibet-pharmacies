@@ -167,6 +167,30 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2></div><div className="flex flex-wrap gap-3 w-full sm:w-auto">{isSuperAdmin && <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">توليد مفتاح تفعيل</button>}<button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><Plus size={20} /> {t.createUser}</button></div></div>
+              
+              {/* 🟢 صندوق عرض مفتاح التفعيل الجديد وضعناه هنا 🟢 */}
+              {generatedKey && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 md:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                  <div>
+                    <p className="text-sm text-emerald-800 font-bold mb-1">
+                      {lang === 'ar' ? 'تم توليد المفتاح بنجاح! انسخه وأرسله للمستخدم:' : 'New Activation Key:'}
+                    </p>
+                    <p className="text-xl md:text-2xl font-mono font-extrabold text-emerald-900 select-all tracking-wider" dir="ltr">
+                      {generatedKey}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedKey);
+                      toast.success(lang === 'ar' ? 'تم نسخ المفتاح للحافظة' : 'Key copied to clipboard');
+                    }}
+                    className="shrink-0 bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-md"
+                  >
+                    {lang === 'ar' ? 'نسخ المفتاح' : 'Copy Key'}
+                  </button>
+                </motion.div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => {
                   const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email); const canEditTarget = !isTargetSuperAdmin || u.email === user.email; const canDeleteTarget = !isTargetSuperAdmin; 
