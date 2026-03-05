@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
-import { api } from '../api';
+import { api } from '../api-client';
 
 export const Auth = ({ onLogin, t, lang }: { onLogin: (user: any) => void, t: any, lang: string }) => {
   const [isLogin, setIsLogin] = useState(true); const [email, setEmail] = useState(''); const [emailPrefix, setEmailPrefix] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState(''); const [phone, setPhone] = useState(''); const [activationKey, setActivationKey] = useState(''); const [isActivatedByKey, setIsActivatedByKey] = useState(false); const [role, setRole] = useState('patient'); const [error, setError] = useState(''); const [successMsg, setSuccessMsg] = useState(''); const [loading, setLoading] = useState(false);
