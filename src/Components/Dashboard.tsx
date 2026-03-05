@@ -75,9 +75,15 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
     e.preventDefault();
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
+      
       setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
-    } catch(err: any) { toast.error(err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); }
+    } catch(err: any) { 
+      // 🟢 أضفنا هذا السطر لطباعة الخطأ الحقيقي في شاشة المطور
+      console.error("🔥 التفاصيل التقنية للخطأ:", err.response?.data || err.message || err);
+      
+      toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
+    }
   };
 
   return (

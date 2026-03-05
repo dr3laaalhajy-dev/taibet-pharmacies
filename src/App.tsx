@@ -46,14 +46,14 @@ export default function App() {
     e.preventDefault();
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
-      // 👇 التعديل هنا 👇
-      setShowSuccess(true)
       
-      setShowWalletModal(false); 
-      setWalletAmount('');
+      setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
+      setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
-      // 👇 التعديل هنا 👇
-      toast.error(err.error || (lang === 'ar' ? 'حدث خطأ أثناء الإرسال' : 'Error occurred')); 
+      // 🟢 أضفنا هذا السطر لطباعة الخطأ الحقيقي في شاشة المطور
+      console.error("🔥 التفاصيل التقنية للخطأ:", err.response?.data || err.message || err);
+      
+      toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
     }
   };
 
