@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import toast from 'react-hot-toast'; // 👈 استدعاء التنبيهات السريعة
-import { SuccessModal } from './SuccessModal'; // 👈 استدعاء النافذة الأنيقة
+import toast from 'react-hot-toast';
+import { SuccessModal } from './SuccessModal';
 import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer } from 'react-leaflet';
@@ -36,7 +36,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const openConfirm = (title: string, body: string, onConfirm: () => void) => setConfirmData({ isOpen: true, onConfirm, title, body });
   const [generatedKey, setGeneratedKey] = useState<string | null>(null); const [uploadingImage, setUploadingImage] = useState(false);
   
-  // حالات المحفظة والنافذة الأنيقة
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [successModalData, setSuccessModalData] = useState({ isOpen: false, title: '', message: '' });
   const [walletActionType, setWalletActionType] = useState<'deposit' | 'withdrawal'>('deposit');
@@ -61,19 +60,11 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
     try { await api.post(`/api/admin/wallet/${userId}`, { amount: parseFloat(amount) }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل الرصيد بنجاح!' : 'Balance updated!'); } catch(err) { toast.error(lang === 'ar' ? 'خطأ في العملية' : 'Error'); }
   };
 
-  // 🟢 الدالة المسؤولة عن فتح النافذة الأنيقة عند الشحن/السحب
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
-      
-      // إظهار النافذة الكبيرة بدلاً من الـ alert
-      setSuccessModalData({ 
-        isOpen: true, 
-        title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', 
-        message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' 
-      });
-      
+      setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { toast.error(err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); }
   };
@@ -188,7 +179,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
         </AnimatePresence>
       </div>
 
-      {/* Wallet Modal */}
       <AnimatePresence>
         {showWalletModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -205,14 +195,13 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
 
       <ConfirmModal isOpen={confirmData.isOpen} onClose={() => setConfirmData(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmData.onConfirm} title={confirmData.title} body={confirmData.body} t={t} />
 
-      {/* 🟢 النافذة الأنيقة للعمليات الكبيرة */}
+      {/* 🟢 النافذة الأنيقة الجديدة */}
       <SuccessModal 
         isOpen={successModalData.isOpen} 
         onClose={() => setSuccessModalData({ ...successModalData, isOpen: false })} 
         title={successModalData.title}
         message={successModalData.message}
       />
-      
     </div>
   );
 };
