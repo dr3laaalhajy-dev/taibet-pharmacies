@@ -112,19 +112,34 @@ app.delete('/api/orders/:id', authenticateToken, async (req: any, res) => {
 });
 
 // --- Wallet & User Admin ---
-app.post('/api/wallet/request', authenticateToken, async (req: any, res) => {
+// 🟢 مسار استقبال طلبات المحفظة (شحن أو سحب) - النسخة المنيعة
+app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => {
   const { type, amount } = req.body;
   if (!amount || amount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
+  
   try {
+    // التحقق من الرصيد في حالة السحب
     if (type === 'withdrawal') {
       const balance = parseFloat((await pool.query('SELECT wallet_balance FROM users WHERE id = $1', [req.user.id])).rows[0].wallet_balance);
       if (balance < amount) return res.status(400).json({ error: 'رصيد غير كافٍ للسحب' });
     }
-    await pool.query('INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', [req.user.id, req.user.name, req.user.email, type, amount]);
-    res.json({ success: true });
-  } catch(err: any) { res.status(500).json({ error: err.message }); }
-});
 
+    // 🟢 الحل الجذري: جلب بيانات المستخدم من الداتا بيز لتفادي التوكن القديم (undefined)
+    const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows[0];
+
+    // إرسال الطلب بأمان تام
+    await pool.query(
+      'INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', 
+      [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]
+    );
+
+    res.json({ success: true });
+  } catch(err: any) { 
+    // طباعة الخطأ الحقيقي في لوحة تحكم السيرفر (Vercel Logs)
+    console.error("🔥 خطأ المحفظة الجذري:", err);
+    res.status(500).json({ error: err.message || 'حدث خطأ في قاعدة البيانات.' }); 
+  }
+});
 app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
   try { res.json((await pool.query("SELECT * FROM wallet_requests ORDER BY id DESC")).rows); } catch(err: any) { res.status(500).json({ error: err.message }); }
@@ -147,16 +162,6 @@ app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, 
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// 🟢 مسار حذف سجل طلب المحفظة (خاص بالـ Super Admin)
-app.delete('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res: any) => {
-  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
-  try {
-    await pool.query('DELETE FROM wallet_requests WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch(err: any) { 
-    res.status(500).json({ error: err.message }); 
-  }
-});
 
 app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
