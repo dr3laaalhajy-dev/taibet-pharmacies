@@ -9,10 +9,27 @@ import cors from 'cors';
 const { Pool } = pg;
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
-const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy', 'alaa3@taiba.dental.sy'];
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 app.use(express.json()); app.use(cookieParser()); app.use(cors({ origin: true, credentials: true }));
+
+// 🟢 تهيئة قاعدة البيانات وإنشاء جدول السوبر آدمن تلقائياً
+const initDB = async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS super_admins (email VARCHAR(255) PRIMARY KEY)`);
+    // إدخال الإيميلات المؤسسة لحمايتها من الضياع
+    await pool.query(`INSERT INTO super_admins (email) VALUES ('alaa@taiba.pharma.sy'), ('admin@pharmaduty.com'), ('alaa3@taiba.dental.sy') ON CONFLICT DO NOTHING`);
+  } catch (e) {
+    console.error("خطأ في تهيئة قاعدة البيانات:", e);
+  }
+};
+initDB();
+
+// 🟢 دالة التحقق من السوبر آدمن (ديناميكية من قاعدة البيانات)
+const isSuperAdmin = async (email: string) => {
+  const res = await pool.query('SELECT email FROM super_admins WHERE email = $1', [email]);
+  return res.rows.length > 0 || email === 'admin@pharmaduty.com'; // حماية إضافية للآدمن الرئيسي
+};
 
 const authenticateToken = (req: any, res: any, next: any) => {
   const token = req.cookies.token;
@@ -87,7 +104,7 @@ app.post('/api/auth/update-profile', authenticateToken, async (req: any, res) =>
 // --- Facilities & Products ---
 app.get('/api/pharmacies', authenticateToken, async (req: any, res) => { try { res.json((await pool.query(req.user.role === 'admin' ? 'SELECT * FROM pharmacies ORDER BY id DESC' : 'SELECT * FROM pharmacies WHERE doctor_id = $1 ORDER BY id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/pharmacies/:id/status', authenticateToken, async (req: any, res) => { try { await pool.query(req.user.role === 'admin' ? 'UPDATE pharmacies SET manual_status = $1 WHERE id = $2' : 'UPDATE pharmacies SET manual_status = $1 WHERE id = $2 AND doctor_id = $3', req.user.role === 'admin' ? [req.body.manual_status, req.params.id] : [req.body.manual_status, req.params.id, req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.patch('/api/pharmacies/:id/ecommerce', authenticateToken, async (req: any, res) => { if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('UPDATE pharmacies SET is_ecommerce_enabled = $1 WHERE id = $2', [req.body.is_ecommerce_enabled, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.patch('/api/pharmacies/:id/ecommerce', authenticateToken, async (req: any, res) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('UPDATE pharmacies SET is_ecommerce_enabled = $1 WHERE id = $2', [req.body.is_ecommerce_enabled, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/pharmacies', authenticateToken, async (req: any, res) => { const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty, services, consultation_fee, waiting_time } = req.body; try { res.json({ id: (await pool.query(`INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status, specialty, services, consultation_fee, waiting_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto', $13, $14, $15, $16) RETURNING id`, [name, address, phone, latitude, longitude, req.user.id, req.user.role === 'admin' ? (doctor_id || req.user.id) : req.user.id, pharmacist_name || null, whatsapp_phone || null, image_url || null, req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'dentist' ? 'dental_clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'))), working_hours || {}, specialty || null, services || null, consultation_fee || 0, waiting_time || '15 دقيقة'])).rows[0].id }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res) => { const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty, services, consultation_fee, waiting_time } = req.body; try { let q = `UPDATE pharmacies SET name=$1, address=$2, phone=$3, latitude=$4, longitude=$5, pharmacist_name=$6, whatsapp_phone=$7, image_url=$8, working_hours=$9, specialty=$10, services=$11, consultation_fee=$12, waiting_time=$13`; let p = [name, address, phone, latitude, longitude, pharmacist_name || null, whatsapp_phone || null, image_url || null, working_hours || {}, specialty || null, services || null, consultation_fee || 0, waiting_time || '15 دقيقة']; if (req.user.role === 'admin') { q += `, doctor_id=$14, type=$15 WHERE id=$16`; p.push(doctor_id, type, req.params.id); } else { q += ` WHERE id=$14 AND doctor_id=$15`; p.push(req.params.id, req.user.id); } await pool.query(q, p); res.json({ message: 'تم' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res) => { try { await pool.query('DELETE FROM products WHERE pharmacy_id = $1', [req.params.id]); await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]); res.json({ message: 'تم' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
@@ -100,26 +117,21 @@ app.delete('/api/products/:id', authenticateToken, async (req: any, res) => { tr
 // --- Orders Management (With Auto-Delete) ---
 app.get('/api/orders', authenticateToken, async (req: any, res) => { 
   try { 
-    // الحذف التلقائي للطلبات القديمة جداً (أقدم من شهر)
     await pool.query("DELETE FROM orders WHERE status != 'pending' AND created_at < NOW() - INTERVAL '1 month'");
     res.json((await pool.query(req.user.role === 'admin' ? 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC' : 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY o.id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); 
   } catch (err: any) { res.status(500).json({ error: err.message }); } 
 });
 app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res) => { const { status } = req.body; try { const orderCheck = await pool.query('SELECT o.items, o.status FROM orders o WHERE o.id = $1', [req.params.id]); if (status === 'cancelled' && orderCheck.rows[0].status === 'pending') { const items = orderCheck.rows[0].items; for(const item of items) { await pool.query('UPDATE products SET quantity = quantity + $1 WHERE id = $2', [item.qty, item.product_id]); } } await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/orders/:id', authenticateToken, async (req: any, res) => { 
-  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
   try { await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- Wallet & User Admin ---
-
-// 🟢 مسار استقبال طلبات المحفظة (النسخة السحرية التي تصلح قاعدة البيانات تلقائياً)
+// --- Wallet Requests ---
 app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => {
   const { type, amount } = req.body;
   if (!amount || amount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
-  
   try {
-    // 🔥 1. الكود السحري: إجبار قاعدة البيانات على إنشاء أو تحديث الجدول تلقائياً
     await pool.query(`
       CREATE TABLE IF NOT EXISTS wallet_requests (
         id SERIAL PRIMARY KEY,
@@ -132,42 +144,27 @@ app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) =>
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
-    // محاولة إضافة الأعمدة الجديدة في حال كان الجدول القديم موجوداً
     try { await pool.query(`ALTER TABLE wallet_requests ADD COLUMN user_name VARCHAR(255);`); } catch(e){}
     try { await pool.query(`ALTER TABLE wallet_requests ADD COLUMN user_email VARCHAR(255);`); } catch(e){}
 
-    // 🔥 2. التحقق من الرصيد للسحب
     if (type === 'withdrawal') {
       const balance = parseFloat((await pool.query('SELECT wallet_balance FROM users WHERE id = $1', [req.user.id])).rows[0].wallet_balance);
       if (balance < amount) return res.status(400).json({ error: 'رصيد غير كافٍ للسحب' });
     }
-
-    // 🔥 3. جلب بيانات المستخدم الصحيحة من الداتا بيز
     const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows[0];
-
-    // 🔥 4. إرسال الطلب بأمان
-    await pool.query(
-      'INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', 
-      [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]
-    );
-
+    await pool.query('INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]);
     res.json({ success: true });
-  } catch(err: any) { 
-    // 🔴 سيتم كشف الخطأ الحقيقي وإرساله للواجهة لكي نعرف المشكلة فوراً
-    res.status(500).json({ error: 'السبب الحقيقي: ' + err.message }); 
-  }
+  } catch(err: any) { res.status(500).json({ error: 'السبب الحقيقي: ' + err.message }); }
 });
 
-// 🟢 مسار عرض طلبات المحفظة للإدارة
 app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res: any) => {
-  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
   try { res.json((await pool.query("SELECT * FROM wallet_requests ORDER BY id DESC")).rows); } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res) => {
-  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
-  const { action } = req.body; // 'approve' or 'reject'
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
+  const { action } = req.body; 
   try {
     const request = (await pool.query('SELECT * FROM wallet_requests WHERE id = $1', [req.params.id])).rows[0];
     if (request.status !== 'pending') return res.status(400).json({ error: 'الطلب معالج مسبقاً' });
@@ -182,51 +179,75 @@ app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, 
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-
 app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res) => {
-  if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
   try { await pool.query('UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [req.body.amount, req.params.id]); res.json({ success: true }); } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// --- Users Management ---
 app.get('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); res.json((await pool.query('SELECT id, email, role, name, pharmacy_limit, phone, notes, is_active, wallet_balance FROM users ORDER BY id DESC')).rows); });
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]); res.json({ success: true }); });
-app.post('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { email, password, role, name, pharmacy_limit, phone, notes } = req.body; if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); try { res.json({ id: (await pool.query('INSERT INTO users (email, password, role, name, pharmacy_limit, phone, notes, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id', [email, bcrypt.hashSync(password, 10), role, name, pharmacy_limit || 10, phone || null, notes || null, true])).rows[0].id }); } catch (err) { res.status(400).json({ error: 'البريد مستخدم' }); } });
 
-// 🟢 تعديل بيانات أي مستخدم بشكل كامل (للآدمن)
+app.post('/api/admin/users', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { email, password, role, name, phone, notes, pharmacy_limit, wallet_balance, is_active } = req.body;
+  try {
+    if (role === 'admin' && !(await isSuperAdmin(req.user.email))) {
+      return res.status(403).json({ error: 'صلاحية مرفوضة: فقط المدير العام (Super Admin) يمكنه تعيين مديرين جدد.' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (email, password, role, name, phone, notes, pharmacy_limit, wallet_balance, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [email, hashedPassword, role, name, phone, notes, pharmacy_limit, wallet_balance || 0, is_active !== undefined ? is_active : true]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 app.put('/api/admin/users/:id', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
-  
   const { id } = req.params;
   const { email, password, role, name, phone, notes, wallet_balance, is_active } = req.body;
-  
   try {
-    // التحقق من صلاحية السوبر آدمن (لا يمكن لمدير عادي أن يعطي صلاحية مدير)
-    if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
-      return res.status(403).json({ error: 'ليس لديك صلاحية لتعيين مدير جديد.' });
+    if (role === 'admin' && !(await isSuperAdmin(req.user.email))) {
+      return res.status(403).json({ error: 'صلاحية مرفوضة: فقط المدير العام (Super Admin) يمكنه ترقية الحسابات لدرجة مدير.' });
     }
-
     let query = 'UPDATE users SET name = $1, email = $2, role = $3, phone = $4, notes = $5, wallet_balance = $6, is_active = $7';
     let values = [name, email, role, phone, notes, wallet_balance || 0, is_active];
-
-    // إذا قام الآدمن بكتابة كلمة مرور جديدة للمستخدم، قم بتشفيرها وتحديثها
     if (password && password.trim() !== '') {
-      const hashedPassword = await bcrypt.hash(password, 10);
       query += ', password = $8 WHERE id = $9 RETURNING *';
-      values.push(hashedPassword, id);
+      values.push(await bcrypt.hash(password, 10), id);
     } else {
       query += ' WHERE id = $8 RETURNING *';
       values.push(id);
     }
-
     const result = await pool.query(query, values);
     res.json(result.rows[0]);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]); res.json({ success: true }); });
-app.put('/api/admin/settings', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin' || !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); await pool.query("INSERT INTO settings (key, value) VALUES ('footer', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [req.body]); res.json({ success: true }); });
-app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => { if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); await pool.query('INSERT INTO activation_keys (key) VALUES ($1)', [newKey]); res.json({ key: newKey }); });
+app.put('/api/admin/settings', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin' || !(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); await pool.query("INSERT INTO settings (key, value) VALUES ('footer', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [req.body]); res.json({ success: true }); });
+app.post('/api/admin/generate-key', authenticateToken, async (req: any, res) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); await pool.query('INSERT INTO activation_keys (key) VALUES ($1)', [newKey]); res.json({ key: newKey }); });
+
+// 🟢 --- مسارات غرفة السوبر آدمن ---
+app.get('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => {
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
+  const result = await pool.query('SELECT email FROM super_admins');
+  res.json(result.rows.map(row => row.email));
+});
+
+app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => {
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
+  await pool.query('INSERT INTO super_admins (email) VALUES ($1) ON CONFLICT DO NOTHING', [req.body.email]);
+  res.json({ message: 'تمت الإضافة بنجاح' });
+});
+
+app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => {
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
+  if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' });
+  await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]);
+  res.json({ message: 'تم الحذف بنجاح' });
+});
 
 export default app;

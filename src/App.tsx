@@ -36,7 +36,7 @@ export default function App() {
   const [walletAmount, setWalletAmount] = useState('');
 
   // 🟢 إعدادات المستخدم (العملة والعناوين)
-  const [currency, setCurrency] = useState<'old' | 'new'>('old'); // old = ل.س | new = ل.س جديدة
+  const [currency, setCurrency] = useState<'old' | 'new'>('old');
   const [addresses, setAddresses] = useState<string[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<string>('');
   const [newAddress, setNewAddress] = useState('');
@@ -70,7 +70,7 @@ export default function App() {
     const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${u.id}`) || '[]');
     setAddresses(savedAddresses); setDefaultAddress(localStorage.getItem(`defAddr_${u.id}`) || savedAddresses[0] || '');
   };
-  const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); };
+  const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); setIsMenuOpen(false); };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +120,8 @@ export default function App() {
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"> Taibet Health</button>
           
           <div className="flex gap-3 items-center">
-            {user && user.role === 'patient' && (
+            {/* 🟢 التعديل الأهم: إظهار المحفظة لجميع المسجلين (مرضى، أطباء، إدارة) */}
+            {user && (
               <button onClick={() => setShowWalletModal(true)} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-bold border border-blue-200 hover:bg-blue-100 transition-colors">
                 <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 <Plus size={14} className="bg-blue-600 text-white rounded-full p-0.5 ml-1" />
@@ -131,7 +132,6 @@ export default function App() {
             
             {user ? (
               <div className="relative">
-                {/* 🟢 زر الصورة الشخصية والقائمة العائمة */}
                 <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
                   {(user as any).profile_picture ? (
                     <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
@@ -158,15 +158,15 @@ export default function App() {
                         <Settings size={16} /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}
                       </button>
 
-                      {/* إخفاء لوحة التحكم عن المريض */}
+                      {/* 🟢 إظهار زر العودة للوحة التحكم فقط للموظفين/الإدارة */}
                       {user.role !== 'patient' && (
-                        <button onClick={() => { setView(view === 'dashboard' ? 'public' : 'dashboard'); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-3 transition-colors">
-                          <LayoutDashboard size={16} /> {view === 'dashboard' ? (lang === 'ar' ? 'الواجهة الرئيسية' : 'Main View') : (lang === 'ar' ? 'لوحة التحكم للموظفين' : 'Staff Dashboard')}
+                        <button onClick={() => { setView('dashboard'); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-3 transition-colors">
+                          <LayoutDashboard size={16} /> {lang === 'ar' ? 'لوحة تحكم الموظفين' : 'Staff Dashboard'}
                         </button>
                       )}
 
                       <div className="border-t border-slate-100 mt-2 pt-2">
-                        <button onClick={() => { handleLogout(); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
+                        <button onClick={handleLogout} className="w-full text-start px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
                           <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
                         </button>
                       </div>
@@ -180,15 +180,14 @@ export default function App() {
       )}
 
       <main className="flex-1">
-        {/* نمرر العملة والعنوان التلقائي للواجهة العامة ليستعملها المتجر */}
         {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} defaultAddress={defaultAddress} />}
         {view === 'login' && <Auth onLogin={handleLogin} t={t} lang={lang} />}
-        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
+        {/* 🟢 تمرير دالة onGoToPublic لمكون الداشبورد لكي يعمل الزر الأخضر هناك */}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} lang={lang} t={t} />}
         
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
       </main>
 
-      {/* 🟢 نافذة الملف الشخصي */}
       <AnimatePresence>
         {showProfileModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -214,20 +213,17 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 🟢 نافذة الإعدادات (شريط جانبي) */}
       <AnimatePresence>
         {showSettingsModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col md:flex-row h-[500px]">
               
-              {/* الشريط الجانبي */}
               <div className="w-full md:w-64 bg-slate-50 border-b md:border-b-0 md:border-l border-slate-200 p-6 flex flex-col">
                 <h3 className="text-xl font-bold mb-6 flex justify-between items-center">{lang === 'ar' ? 'الإعدادات' : 'Settings'} <button onClick={() => setShowSettingsModal(false)} className="md:hidden p-1 hover:bg-slate-200 rounded-full"><X size={20}/></button></h3>
                 <button onClick={() => setSettingsTab('currency')} className={`text-start px-4 py-3 rounded-xl font-bold mb-2 flex items-center gap-2 transition-colors ${settingsTab === 'currency' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}><CreditCard size={18}/> {lang === 'ar' ? 'العملة' : 'Currency'}</button>
                 <button onClick={() => setSettingsTab('addresses')} className={`text-start px-4 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors ${settingsTab === 'addresses' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}><MapPin size={18}/> {lang === 'ar' ? 'عناوين التوصيل' : 'Addresses'}</button>
               </div>
 
-              {/* محتوى الإعدادات */}
               <div className="flex-1 p-6 md:p-8 overflow-y-auto">
                 <div className="hidden md:flex justify-end mb-4"><button onClick={() => setShowSettingsModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X size={24}/></button></div>
                 
@@ -276,7 +272,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* نافذة شحن المحفظة */}
       <AnimatePresence>
         {showWalletModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">

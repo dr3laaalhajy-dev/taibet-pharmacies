@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { SuccessModal } from './SuccessModal';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -17,10 +17,22 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
   return ( <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center max-h-[90vh] overflow-y-auto"><div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div><h3 className="text-2xl font-bold text-slate-900 mb-2">{title}</h3><p className="text-slate-500 mb-8">{body}</p><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">{t.cancel}</button><button onClick={() => { onConfirm(); onClose(); }} className="flex-1 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">{t.deleteBtn}</button></div></motion.div></div> );
 };
 
-export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogout: () => void, lang: 'ar' | 'en', t: any }) => {
-  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests'>('facilities');
+// 🟢 تمت إضافة onGoToPublic للـ Props
+export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any }) => {
+  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings'>('facilities');
   const [facilities, setFacilities] = useState<Facility[]>([]); const [users, setUsers] = useState<any[]>([]);
-  const isSuperAdmin = SUPER_ADMINS.includes(user.email);
+  
+  // 🟢 حالات غرفة السوبر آدمن
+  const [superAdmins, setSuperAdmins] = useState<string[]>([]);
+  const [newSuperAdmin, setNewSuperAdmin] = useState('');
+  const [loadingSuperAdmins, setLoadingSuperAdmins] = useState(false);
+
+  // 🟢 جلب إيميلات السوبر آدمنز من السيرفر عند الدخول للوحة لمعرفة الصلاحيات بدقة
+  useEffect(() => {
+    api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => {});
+  }, []);
+
+  const isSuperAdmin = SUPER_ADMINS.includes(user.email) || superAdmins.includes(user.email);
   const hasEcommerce = facilities.some(f => f.is_ecommerce_enabled);
   
   const dashboardTitle = (user.role === 'doctor' || user.role === 'dentist') ? (lang === 'ar' ? 'عياداتي ومواعيدي' : 'My Clinics') : (user.role === 'pharmacist' ? (lang === 'ar' ? 'صيدلياتي ومواعيدي' : 'My Pharmacies') : (lang === 'ar' ? 'إدارة المنشآت الطبية' : 'Manage Facilities'));
@@ -41,22 +53,53 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const [walletActionType, setWalletActionType] = useState<'deposit' | 'withdrawal'>('deposit');
   const [walletAmount, setWalletAmount] = useState('');
 
-  // 🟢 حالات نافذة تعديل الرصيد الخاصة بالمدير
   const [adminWalletModal, setAdminWalletModal] = useState<{isOpen: boolean, userId: number | null}>({isOpen: false, userId: null});
   const [adminWalletAmount, setAdminWalletAmount] = useState('');
 
-  const loadData = async () => { if (activeTab === 'facilities' || activeTab === 'services') api.get('/api/pharmacies').then(setFacilities); if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); };
+  const loadData = async () => { 
+    if (activeTab === 'facilities' || activeTab === 'services') api.get('/api/pharmacies').then(setFacilities); 
+    if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); 
+    if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); 
+    if (activeTab === 'super_settings' && isSuperAdmin) fetchSuperAdmins(); // تحميل المديرين عند فتح الغرفة
+  };
   useEffect(() => { loadData(); }, [activeTab]);
+
+  // 🟢 دوال التحكم الخاصة بالسوبر آدمن
+  const fetchSuperAdmins = async () => {
+    setLoadingSuperAdmins(true);
+    try { const data = await api.get('/api/admin/super-admins'); setSuperAdmins(data); } 
+    catch (err: any) { console.error(err); }
+    setLoadingSuperAdmins(false);
+  };
+
+  const handleAddSuperAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSuperAdmin.trim() || !newSuperAdmin.includes('@')) return toast.error(lang === 'ar' ? 'إيميل غير صالح' : 'Invalid email');
+    try {
+      await api.post('/api/admin/super-admins', { email: newSuperAdmin.trim() });
+      toast.success(lang === 'ar' ? 'تمت إضافة المدير الخارق بنجاح' : 'Super Admin added');
+      setNewSuperAdmin(''); fetchSuperAdmins();
+    } catch (err: any) { toast.error(err.error || 'حدث خطأ'); }
+  };
+
+  const handleRemoveSuperAdmin = async (emailToRemove: string) => {
+    if(!confirm(lang === 'ar' ? `هل أنت متأكد من سحب الصلاحيات من ${emailToRemove}؟` : 'Are you sure?')) return;
+    try {
+      await api.delete(`/api/admin/super-admins/${emailToRemove}`);
+      toast.success(lang === 'ar' ? 'تم سحب الصلاحيات بنجاح' : 'Privileges revoked');
+      fetchSuperAdmins();
+    } catch (err: any) { toast.error(err.response?.data?.error || err.error || 'حدث خطأ'); }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); toast.success(lang === 'ar' ? 'تم رفع الصورة بنجاح' : 'Image uploaded'); } catch (err: any) { toast.error(err.message || (lang === 'ar' ? 'خطأ في الرفع' : 'Upload error')); } finally { setUploadingImage(false); } };
   const handleSaveFacility = async (e: React.FormEvent) => { e.preventDefault(); const payload = { ...form }; if (user.role !== 'admin') delete payload.doctor_id; try { if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload); else await api.post('/api/pharmacies', payload); setShowModal(false); loadData(); toast.success(lang === 'ar' ? 'تم حفظ البيانات بنجاح' : 'Saved successfully'); } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'خطأ في الحفظ!' : 'Save error!')); } };
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); toast.success(lang === 'ar' ? 'تم تحديث حالة الدوام' : 'Status updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } };
   const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل حالة المتجر' : 'Store updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'ممنوع' : 'Forbidden'); } };
   const generateActivationKey = async () => { 
-    setGeneratedKey(null); // تفريغ المفتاح القديم
+    setGeneratedKey(null); 
     try { 
       const res = await api.post('/api/admin/generate-key', {}); 
-      setTimeout(() => setGeneratedKey(res.key), 100); // إظهار الجديد بعد جزء من الثانية
+      setTimeout(() => setGeneratedKey(res.key), 100); 
       toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); 
     } catch (err: any) { 
       toast.error(lang === 'ar' ? 'خطأ' : 'Error'); 
@@ -67,7 +110,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { toast.error(err.error); } };
   const handleSaveFooter = async (e: React.FormEvent) => { e.preventDefault(); try { await api.put('/api/admin/settings', footerForm); toast.success(lang === 'ar' ? 'تم حفظ إعدادات الفوتر بنجاح' : 'Footer settings saved'); } catch(err: any) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Save failed'); } };
 
-  // 🟢 دالة تنفيذ تعديل رصيد الإدارة (بدون نافذة بدائية)
   const submitAdminWallet = async (e: React.FormEvent) => {
     e.preventDefault();
     if(!adminWalletModal.userId) return;
@@ -84,13 +126,10 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
     e.preventDefault();
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
-      
       setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
-      // 🟢 أضفنا هذا السطر لطباعة الخطأ الحقيقي في شاشة المطور
       console.error("🔥 التفاصيل التقنية للخطأ:", err.response?.data || err.message || err);
-      
       toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
     }
   };
@@ -120,7 +159,14 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><User size={18} /> {t.userManagement}</button>}
           {isSuperAdmin && <button onClick={() => setActiveTab('wallet_requests')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'wallet_requests' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Banknote size={18} /> {lang === 'ar' ? 'طلبات المحفظة' : 'Wallet Requests'}</button>}
           {isSuperAdmin && <button onClick={() => setActiveTab('settings')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Layout size={18} /> {lang === 'ar' ? 'إعدادات الفوتر' : 'Footer Settings'}</button>}
+          {isSuperAdmin && <button onClick={() => { setActiveTab('super_settings'); fetchSuperAdmins(); }} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'super_settings' ? 'bg-purple-50 text-purple-700' : 'text-slate-600 hover:bg-slate-50'}`}><ShieldAlert size={18} /> {lang === 'ar' ? 'غرفة السوبر آدمن' : 'Super Admins'}</button>}
           <button onClick={() => setActiveTab('profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Settings size={18} /> {t.profileSettings}</button>
+          
+          {/* 🟢 زر العودة للمتجر وتصفح الموقع للموظفين */}
+          <div className="md:mt-auto pt-2 border-t border-slate-100 hidden md:block"></div>
+          <button onClick={onGoToPublic} className="shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 border border-emerald-100 transition-colors shadow-sm">
+            <LayoutDashboard size={18} /> {lang === 'ar' ? 'تصفح الموقع الرئيسي' : 'Go to Public Site'}
+          </button>
         </nav>
         <div className="hidden md:block p-4 border-t border-slate-100 mt-auto"><div className="flex items-center gap-3 px-4 py-3 mb-2"><div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold shrink-0">{user.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-900 truncate">{user.name}</p><p className="text-xs text-slate-500 capitalize">{user.role === 'admin' ? t.admin : (user.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : (user.role === 'doctor' ? t.doctor : (user.role === 'pharmacist' ? t.pharmacist : 'مريض')))}</p></div></div><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> {t.logout}</button></div>
       </div>
@@ -179,11 +225,49 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
           {activeTab === 'orders' && (<motion.div key="orders" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></motion.div>)}
           {activeTab === 'wallet_requests' && (<motion.div key="wallet_requests" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><WalletRequestsManager user={user} lang={lang} /></motion.div>)}
           
+          {/* 🟢 تبويب السوبر آدمن (غرفة التحكم العليا) 🟢 */}
+          {activeTab === 'super_settings' && isSuperAdmin && (
+            <motion.div key="super_settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto">
+              <div className="bg-gradient-to-r from-purple-900 to-indigo-800 rounded-3xl p-6 md:p-8 mb-8 text-white shadow-xl flex items-center gap-4">
+                <ShieldAlert size={48} className="text-purple-300 opacity-80 hidden sm:block" />
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-extrabold mb-2">{lang === 'ar' ? 'غرفة التحكم العليا' : 'Supreme Control Room'}</h2>
+                  <p className="text-purple-200 text-sm">{lang === 'ar' ? 'انتبه: من تضيفه هنا سيملك تحكماً كاملاً ومطلقاً بالنظام وقواعد البيانات.' : 'Warning: Absolute power granted to members here.'}</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
+                <form onSubmit={handleAddSuperAdmin} className="flex flex-col sm:flex-row gap-3 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <input type="email" placeholder={lang === 'ar' ? "أدخل إيميل المدير الجديد (مثل: admin@mail.com)" : "New Super Admin Email..."} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-left" dir="ltr" value={newSuperAdmin} onChange={e => setNewSuperAdmin(e.target.value)} required />
+                  <button type="submit" className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"><Plus size={20}/> {lang === 'ar' ? 'ترقية لمدير خارق' : 'Promote'}</button>
+                </form>
+
+                <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><User size={20} className="text-purple-600"/> {lang === 'ar' ? 'المديرون الخارقون الحاليون' : 'Current Super Admins'}</h3>
+                
+                {loadingSuperAdmins ? (
+                  <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-purple-600"></div></div>
+                ) : (
+                  <div className="space-y-3">
+                    {superAdmins.map((email) => (
+                      <div key={email} className="flex items-center justify-between p-4 bg-white border-2 border-slate-100 rounded-2xl hover:border-purple-200 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center font-bold text-lg">{email[0].toUpperCase()}</div>
+                          <span className="font-bold text-slate-700 text-base md:text-lg tracking-wide" dir="ltr">{email}</span>
+                          {email === 'alaa@taiba.pharma.sy' && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold mx-2">{lang === 'ar' ? 'المؤسس' : 'Founder'}</span>}
+                        </div>
+                        <button onClick={() => handleRemoveSuperAdmin(email)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={20} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2></div><div className="flex flex-wrap gap-3 w-full sm:w-auto">{isSuperAdmin && <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">توليد مفتاح تفعيل</button>}<button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><Plus size={20} /> {t.createUser}</button></div></div>
               
-              {/* 🟢 صندوق عرض مفتاح التفعيل الجديد وضعناه هنا 🟢 */}
               {generatedKey && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 md:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                   <div>
@@ -208,28 +292,27 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {users.map(u => {
-                  const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email); const canEditTarget = !isTargetSuperAdmin || u.email === user.email; const canDeleteTarget = !isTargetSuperAdmin; 
+                  const isTargetSuperAdmin = SUPER_ADMINS.includes(u.email) || superAdmins.includes(u.email); const canEditTarget = !isTargetSuperAdmin || u.email === user.email; const canDeleteTarget = !isTargetSuperAdmin; 
                   return (
                     <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 border-yellow-200' : 'bg-white border-slate-200'}`}>
                       <div className="flex items-center gap-4"><div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl shrink-0">{u.name[0]}</div><div className="flex-1 min-w-0"><div className="flex justify-between items-start"><span className="font-bold text-slate-900 truncate text-left text-base md:text-lg">{u.name}</span>{!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">Pending</span>}</div><p className="text-xs md:text-sm text-slate-500 truncate mt-1" dir="ltr">{u.email}</p><div className="flex gap-2 mt-2 flex-wrap"><span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isTargetSuperAdmin ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>{u.role}</span><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase tracking-wider">{u.wallet_balance}ل.س جديدة </span></div></div></div>
                       <div className="flex gap-2 border-t border-slate-100 pt-4 mt-auto">
                         {!u.is_active && <button onClick={() => approveUser(u.id)} className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><CheckCircle size={14} /> تفعيل</button>}
-                        {/* 🟢 زر فتح نافذة تعديل الرصيد الجديدة */}
                         {isSuperAdmin && <button onClick={() => setAdminWalletModal({isOpen: true, userId: u.id})} className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Banknote size={14} /> الرصيد +/-</button>}
                         {u.is_active && canEditTarget && <button onClick={() => { 
-  setEditingUser(u); 
-  setUserForm({ 
-    email: u.email, 
-    password: '', 
-    role: u.role, 
-    name: u.name, 
-    phone: u.phone || '', 
-    notes: u.notes || '',
-    wallet_balance: u.wallet_balance || 0,
-    is_active: u.is_active || false
-  }); 
-  setShowUserModal(true); 
-}} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"><Edit2 size={16} /></button>}
+                          setEditingUser(u); 
+                          setUserForm({ 
+                            email: u.email, 
+                            password: '', 
+                            role: u.role, 
+                            name: u.name, 
+                            phone: u.phone || '', 
+                            notes: u.notes || '',
+                            wallet_balance: u.wallet_balance || 0,
+                            is_active: u.is_active || false
+                          }); 
+                          setShowUserModal(true); 
+                        }} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"><Edit2 size={16} /></button>}
                         {canDeleteTarget && <button onClick={() => openConfirm(t.confirmTitle, 'هل أنت متأكد؟', async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); toast.success('تم حذف المستخدم'); })} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>}
                       </div>
                     </div>
@@ -267,8 +350,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
         )}
       </AnimatePresence>
       
-
-      {/* 🟢 النافذة الجديدة الأنيقة لتعديل الرصيد من قبل المدير */}
       <AnimatePresence>
         {adminWalletModal.isOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -285,7 +366,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
         )}
       </AnimatePresence>
 
-    {/* 🟢 نافذة إضافة/تعديل المنشآت الطبية (مع الخريطة والميزات الكاملة) 🟢 */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -299,7 +379,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'الاسم' : 'Name'}</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
                   
-                  {/* تخصيص العيادات الطبية */}
                   {form.type === 'clinic' && (
                     <div className="col-span-1 md:col-span-2">
                       <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'تخصص العيادة' : 'Specialty'}</label>
@@ -312,7 +391,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                     </div>
                   )}
 
-                  {/* رسوم الكشف والانتظار */}
                   {(form.type === 'clinic' || form.type === 'dental_clinic') && (
                     <>
                       <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'سعر الكشف (ل.س)' : 'Consultation Fee'}</label><input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.consultation_fee} onChange={e => setForm({...form, consultation_fee: e.target.value})} /></div>
@@ -325,7 +403,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'الواتساب (اختياري)' : 'WhatsApp'}</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.whatsapp_phone} onChange={e => setForm({...form, whatsapp_phone: e.target.value})} /></div>
                   <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'اسم المسؤول' : 'In Charge'}</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.pharmacist_name} onChange={e => setForm({...form, pharmacist_name: e.target.value})} /></div>
                   
-                  {/* رفع الصورة الشعار */}
                   <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'صورة/شعار' : 'Logo/Image'}</label>
                     <div className="flex items-center gap-3">
@@ -339,7 +416,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                   </div>
                 </div>
 
-                {/* الخريطة التفاعلية */}
                 <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0 relative mt-4">
                   <MapContainer center={[form.latitude || 35.25, form.longitude || 36.7]} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -348,7 +424,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                   </MapContainer>
                 </div>
                 
-                {/* أوقات الدوام الأسبوعي */}
                 <div className="border-t border-slate-200 pt-6 mt-6">
                   <h4 className="font-bold text-lg mb-4 flex items-center gap-2"><Calendar className="text-blue-500"/> أوقات الدوام الأسبوعي</h4>
                   <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -396,8 +471,6 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
         )}
       </AnimatePresence>
 
-      {/* نافذة المستخدمين */}
-      {/* 🟢 نافذة إضافة/تعديل المستخدمين (بصلاحيات الإدارة المتقدمة) */}
       <AnimatePresence>
         {showUserModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -409,31 +482,22 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
               
               <form onSubmit={handleSaveUser} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* الاسم */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'الاسم الكامل' : 'Full Name'}</label>
                     <input required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
                   </div>
-                  
-                  {/* البريد الإلكتروني */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
                     <input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
                   </div>
-
-                  {/* كلمة المرور */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'كلمة المرور' : 'Password'} {editingUser && <span className="text-xs text-slate-400">({lang === 'ar' ? 'اتركه فارغاً لعدم التغيير' : 'Leave blank to keep'})</span>}</label>
                     <input type={editingUser ? "password" : "text"} required={!editingUser} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" placeholder={editingUser ? "***" : ""} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
                   </div>
-
-                  {/* رقم الهاتف */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رقم الهاتف' : 'Phone'}</label>
                     <input className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
                   </div>
-
-                  {/* الصلاحية / التخصص */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'نوع الحساب (الصلاحية)' : 'Role'}</label>
                     <select className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})}>
@@ -441,25 +505,20 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                       <option value="pharmacist">{lang === 'ar' ? 'صيدلي' : 'Pharmacist'}</option>
                       <option value="doctor">{lang === 'ar' ? 'طبيب بشري' : 'Doctor'}</option>
                       <option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option>
-                      {/* 🟢 فقط السوبر آدمن يمكنه رؤية وإعطاء صلاحية الآدمن لمستخدم آخر */}
                       {isSuperAdmin && <option value="admin">{lang === 'ar' ? 'مدير (Admin)' : 'Admin'}</option>}
                     </select>
                   </div>
-
-                  {/* رصيد المحفظة */}
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رصيد المحفظة (ل.س)' : 'Wallet Balance'}</label>
                     <input type="number" step="0.01" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.wallet_balance || ''} onChange={e => setUserForm({...userForm, wallet_balance: e.target.value})} />
                   </div>
                 </div>
 
-                {/* ملاحظات الإدارة */}
                 <div>
                   <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'ملاحظات / نبذة (تظهر في الملف الشخصي للطبيب)' : 'Notes / Bio'}</label>
                   <textarea rows={3} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})}></textarea>
                 </div>
 
-                {/* حالة الحساب */}
                 <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl mt-2">
                   <input type="checkbox" id="isActiveCheck" className="w-5 h-5 accent-emerald-500 cursor-pointer" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} />
                   <label htmlFor="isActiveCheck" className="font-bold text-slate-700 cursor-pointer select-none">
