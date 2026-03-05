@@ -1,6 +1,7 @@
 import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { LogOut, Wallet, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
@@ -108,6 +109,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      <SpeedInsights />
     </div>
   );
 }
