@@ -63,7 +63,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
                 <div className="bg-blue-600 text-white text-center py-3 font-bold">{lang === 'ar' ? 'معلومات الحجز' : 'Booking Info'}</div>
                 <div className="p-5">
                   <div className="flex justify-between items-center text-center border-b border-slate-100 pb-4 mb-4">
-                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الكشف' : 'Fees'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.consultation_fee || 0} {lang==='ar'?'ل.س جديدة':'L.S'}</span></div>
+                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الكشف' : 'Fees'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.consultation_fee || 0} {lang==='ar'?'ل.س':'L.S'}</span></div>
                     <div className="border-r border-slate-100 h-10"></div>
                     <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.waiting_time || '15 دقيقة'}</span></div>
                   </div>
@@ -99,8 +99,9 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
   );
 };
 
-const PublicShopView = ({ onBack, facilities, lang, user, refreshUser }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void }) => {
-  const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [customerName, setCustomerName] = useState(''); const [customerPhone, setCustomerPhone] = useState(''); const [orderSuccess, setOrderSuccess] = useState(false);
+// 🟢 مكون المتجر النظيف مع تطبيق العملة الجديدة والعناوين
+const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', defaultAddress: string }) => {
+  const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
 
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
@@ -111,20 +112,44 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser }: { onBac
   const addToCart = (p: Product) => { setCart(prev => { const exists = prev.find(item => item.product_id === p.id); const limit = p.max_per_user || p.quantity; if (exists) { if (exists.qty >= limit || exists.qty >= p.quantity) return prev; return prev.map(item => item.product_id === p.id ? { ...item, qty: item.qty + 1 } : item); } return [...prev, { ...p, product_id: p.id, qty: 1 }]; }); };
   const removeFromCart = (id: number) => setCart(prev => prev.filter(item => item.product_id !== id));
   const updateQty = (id: number, delta: number, maxAllowed: number, totalStock: number) => { setCart(prev => prev.map(item => { if (item.product_id === id) { const newQty = item.qty + delta; if (newQty > 0 && newQty <= Math.min(maxAllowed || totalStock, totalStock)) return { ...item, qty: newQty }; } return item; })); };
+  
+  // حساب المجموع الكلي مع العملة
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
   
   const submitOrder = async (e: React.FormEvent) => { 
     e.preventDefault(); 
     if(cart.length === 0) return; 
-    if (paymentMethod === 'wallet') {
-      if (!user) { alert(lang === 'ar' ? 'يجب تسجيل الدخول لاستخدام المحفظة.' : 'Login required for wallet.'); return; }
-      if (parseFloat(user.wallet_balance || '0') < cartTotal) { alert(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient wallet balance.'); return; }
+  
+    // 1. منع غير المسجلين من الطلب
+    if (!user) {
+      toast.error(lang === 'ar' ? 'يجب تسجيل الدخول كـ (مريض/مستخدم) لتتمكن من الطلب.' : 'Please login to order.');
+      return;
     }
+    
+    // 2. التحقق من المحفظة
+    if (paymentMethod === 'wallet') {
+      if (parseFloat(user.wallet_balance || '0') < cartTotal) { 
+        toast.error(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient wallet balance.'); 
+        return; 
+      }
+    }
+  
     try { 
-      await api.post('/api/public/orders', { pharmacy_id: selectedPharmacyId, customer_name: customerName, customer_phone: customerPhone, items: cart, total_price: cartTotal, payment_method: paymentMethod }); 
+      // 3. إرسال الطلب (مع العنوان التلقائي والاسم)
+      await api.post('/api/public/orders', { 
+        pharmacy_id: selectedPharmacyId, 
+        customer_name: user.name, 
+        customer_phone: user.phone || 'بدون رقم', 
+        delivery_address: defaultAddress || 'بدون عنوان', 
+        items: cart, 
+        total_price: cartTotal.toString(), 
+        payment_method: paymentMethod 
+      }); 
       setOrderSuccess(true); setCart([]); setShowCart(false); 
       if (paymentMethod === 'wallet') refreshUser(); 
-    } catch(err: any) { alert(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); } 
+    } catch(err: any) { 
+      toast.error(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); 
+    } 
   };
 
   return (
@@ -133,36 +158,86 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser }: { onBac
       {selectedPharmacyId && cart.length > 0 && !showCart && (<button onClick={() => setShowCart(true)} className="fixed bottom-8 left-8 bg-slate-900 text-white p-4 rounded-full shadow-2xl z-50 flex items-center justify-center animate-bounce hover:bg-slate-800"><ShoppingCart size={24} /><span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">{cart.length}</span></button>)}
       <AnimatePresence>
         {showCart && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end"><motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="bg-white w-full md:w-[400px] h-full shadow-2xl flex flex-col"><div className="p-6 border-b flex justify-between items-center bg-slate-50"><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="text-emerald-500"/> {lang === 'ar' ? 'سلة المشتريات' : 'Shopping Cart'}</h2><button onClick={() => setShowCart(false)} className="p-2 hover:bg-slate-200 rounded-full"><XCircle size={24}/></button></div><div className="flex-1 overflow-y-auto p-4 space-y-4">{cart.map(item => (<div key={item.product_id} className="flex items-center gap-4 bg-white p-3 border rounded-2xl shadow-sm">{item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}<div className="flex-1 min-w-0"><h4 className="font-bold text-sm line-clamp-1">{item.name}</h4><p className="text-emerald-600 font-bold text-sm" dir="ltr">{item.price}ل.س جديدة</p><div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div></div><button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button></div>))}</div>
-          <div className="p-6 border-t bg-slate-50">
-            <div className="flex justify-between items-center mb-4 text-lg font-bold"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-emerald-600">{cartTotal}ل.س جديدة</span></div>
-            <div className="flex gap-2 mb-4">
-              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                <input type="radio" className="hidden" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} />
-                💵 {lang === 'ar' ? 'الدفع عند الاستلام' : 'Cash'}
-              </label>
-              <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
-                <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
-                {user && <span className="text-[10px] font-mono">{user.wallet_balance}ل.س جديدة</span>}
-              </label>
-            </div>
-            <form onSubmit={submitOrder} className="space-y-3"><input required placeholder={lang === 'ar' ? "اسمك الكامل" : "Full Name"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerName} onChange={e=>setCustomerName(e.target.value)} /><input required placeholder={lang === 'ar' ? "رقم هاتفك للتواصل" : "Phone Number"} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-emerald-500" value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)} /><button type="submit" className={`w-full text-white font-bold py-4 rounded-xl transition-colors shadow-lg ${paymentMethod === 'wallet' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-500 hover:bg-emerald-600'}`}>{lang === 'ar' ? 'تأكيد الطلب' : 'Submit Order'}</button></form></div></motion.div></div>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end">
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="bg-white w-full md:w-[400px] h-full shadow-2xl flex flex-col">
+              <div className="p-6 border-b flex justify-between items-center bg-slate-50"><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingCart className="text-emerald-500"/> {lang === 'ar' ? 'سلة المشتريات' : 'Shopping Cart'}</h2><button onClick={() => setShowCart(false)} className="p-2 hover:bg-slate-200 rounded-full"><XCircle size={24}/></button></div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {cart.map(item => (
+                  <div key={item.product_id} className="flex items-center gap-4 bg-white p-3 border rounded-2xl shadow-sm">
+                    {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
+                      {/* 🟢 السعر داخل قائمة السلة */}
+                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</p>
+                      <div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div>
+                    </div>
+                    <button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
+                  </div>
+                ))}
+              </div>
+              <div className="p-6 border-t bg-slate-50">
+                <div className="flex justify-between items-center mb-4 text-lg font-bold">
+                  <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
+                  {/* 🟢 المجموع الكلي للسلة */}
+                  <span dir="ltr" className="text-emerald-600">{(cartTotal * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                </div>
+                
+                {/* 🟢 عرض العنوان الحالي للتوصيل */}
+                <div className="mb-4 bg-white p-3 border border-slate-200 rounded-xl shadow-sm">
+                  <p className="text-xs text-slate-500 font-bold mb-1">{lang === 'ar' ? 'سيتم التوصيل إلى:' : 'Delivery to:'}</p>
+                  <p className="text-sm font-medium text-slate-800 flex items-start gap-2">
+                    <MapPin size={16} className="text-blue-500 shrink-0 mt-0.5"/> 
+                    {defaultAddress || (lang === 'ar' ? 'يرجى إضافة عنوان من الإعدادات!' : 'Please add address in settings!')}
+                  </p>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                    <input type="radio" className="hidden" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} />
+                    💵 {lang === 'ar' ? 'الدفع عند الاستلام' : 'Cash'}
+                  </label>
+                  <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                    <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
+                    <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
+                    {/* عرض الرصيد في الدفع حسب العملة */}
+                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>}
+                  </label>
+                </div>
+                
+                <button onClick={submitOrder} disabled={!defaultAddress} className="w-full bg-emerald-500 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{lang === 'ar' ? 'تأكيد وإرسال الطلب' : 'Confirm Order'}</button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
       <div className="text-center mb-12"><div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100"><ShoppingBag size={40}/></div><h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">{lang === 'ar' ? <>السوق <span className="text-emerald-500">الطبي</span></> : <>Medical <span className="text-emerald-500">Store</span></>}</h1><p className="text-slate-500 max-w-xl mx-auto">{selectedPharmacy ? (lang === 'ar' ? `تسوق منتجات ${selectedPharmacy.name} واطلبها مباشرة.` : `Shop ${selectedPharmacy.name} products directly.`) : (lang === 'ar' ? 'اختر صيدلية من القائمة أدناه لبدء التسوق وتصفح المنتجات المتاحة لديها.' : 'Choose a pharmacy below to start shopping.')}</p></div>
       {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500"/><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p></div>)}
-      {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100"/> : <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex justify-between items-center bg-indigo-50 p-4 rounded-2xl border border-indigo-100"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white text-indigo-600 px-4 py-2 rounded-lg shadow-sm border border-indigo-200">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (<div key={p.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col"><div className="aspect-square bg-slate-50 relative overflow-hidden">{p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={48}/></div>}{isOutOfStock && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center"><span className="bg-red-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-md rotate-[-12deg]">{lang === 'ar' ? 'نفذت الكمية' : 'Out of Stock'}</span></div>}</div><div className="p-4 flex flex-col flex-1"><h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>{p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}<div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between"><span className="font-extrabold text-lg text-slate-900" dir="ltr">{p.price}ل.س جديدة</span></div>{!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}</div></div>); })}{filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><Package className="mx-auto mb-4 text-slate-300" size={48}/><p>{lang === 'ar' ? 'لا توجد منتجات متاحة.' : 'No products available.'}</p></div>}</div>)}</>)}
+      {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100"/> : <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex justify-between items-center bg-indigo-50 p-4 rounded-2xl border border-indigo-100"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white text-indigo-600 px-4 py-2 rounded-lg shadow-sm border border-indigo-200">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (
+        <div key={p.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col">
+          <div className="aspect-square bg-slate-50 relative overflow-hidden">{p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={48}/></div>}{isOutOfStock && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center"><span className="bg-red-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-md rotate-[-12deg]">{lang === 'ar' ? 'نفذت الكمية' : 'Out of Stock'}</span></div>}</div>
+          <div className="p-4 flex flex-col flex-1">
+            <h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
+            {p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
+            <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+              {/* 🟢 السعر في قائمة المنتجات */}
+              <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+            </div>
+            {!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}
+          </div>
+        </div>
+      ); })}{filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><Package className="mx-auto mb-4 text-slate-300" size={48}/><p>{lang === 'ar' ? 'لا توجد منتجات متاحة.' : 'No products available.'}</p></div>}</div>)}</>)}
     </div>
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t }: { user: UserType | null, refreshUser: () => void, lang: string, t: any }) => {
+// 🟢 مكون الواجهة العامة الرئيسي (تم تحديثه لاستقبال props العملة والعنوان)
+export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddress }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', defaultAddress: string }) => {
   const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; const [showShop, setShowShop] = useState(false);
   useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
-  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} />;
+  // 🟢 تمرير العملة والعنوان للمتجر
+  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} defaultAddress={defaultAddress} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
