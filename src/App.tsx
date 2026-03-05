@@ -46,9 +46,9 @@ export default function App() {
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
+      await api.post('/api/wallet/request', { type: 'deposit', amount: parseFloat(walletAmount) });
       
-      setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
+      setShowSuccess(true);
       setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
       // 🟢 أضفنا هذا السطر لطباعة الخطأ الحقيقي في شاشة المطور
