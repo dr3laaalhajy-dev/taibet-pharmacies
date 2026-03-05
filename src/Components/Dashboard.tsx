@@ -216,7 +216,20 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                         {!u.is_active && <button onClick={() => approveUser(u.id)} className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><CheckCircle size={14} /> تفعيل</button>}
                         {/* 🟢 زر فتح نافذة تعديل الرصيد الجديدة */}
                         {isSuperAdmin && <button onClick={() => setAdminWalletModal({isOpen: true, userId: u.id})} className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Banknote size={14} /> الرصيد +/-</button>}
-                        {u.is_active && canEditTarget && <button onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }} className="p-2 text-slate-400 hover:text-blue-600"><Edit2 size={16} /></button>}
+                        {u.is_active && canEditTarget && <button onClick={() => { 
+  setEditingUser(u); 
+  setUserForm({ 
+    email: u.email, 
+    password: '', 
+    role: u.role, 
+    name: u.name, 
+    phone: u.phone || '', 
+    notes: u.notes || '',
+    wallet_balance: u.wallet_balance || 0,
+    is_active: u.is_active || false
+  }); 
+  setShowUserModal(true); 
+}} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"><Edit2 size={16} /></button>}
                         {canDeleteTarget && <button onClick={() => openConfirm(t.confirmTitle, 'هل أنت متأكد؟', async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); toast.success('تم حذف المستخدم'); })} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>}
                       </div>
                     </div>
@@ -384,19 +397,80 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
       </AnimatePresence>
 
       {/* نافذة المستخدمين */}
+      {/* 🟢 نافذة إضافة/تعديل المستخدمين (بصلاحيات الإدارة المتقدمة) */}
       <AnimatePresence>
         {showUserModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-6 rounded-3xl w-full max-w-lg">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">{editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم'}</h3>
-                <button onClick={() => setShowUserModal(false)}><X size={24} className="text-slate-400" /></button>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">{editingUser ? (lang === 'ar' ? 'تعديل بيانات المستخدم' : 'Edit User') : (lang === 'ar' ? 'إضافة مستخدم جديد' : 'Add User')}</h3>
+                <button onClick={() => setShowUserModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
               </div>
+              
               <form onSubmit={handleSaveUser} className="space-y-4">
-                <input type="text" placeholder="الاسم" required className="w-full p-3 border rounded-xl" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
-                <input type="email" placeholder="البريد الإلكتروني" required className="w-full p-3 border rounded-xl" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
-                {!editingUser && <input type="password" placeholder="كلمة المرور" required className="w-full p-3 border rounded-xl" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />}
-                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold">حفظ</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* الاسم */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'الاسم الكامل' : 'Full Name'}</label>
+                    <input required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                  </div>
+                  
+                  {/* البريد الإلكتروني */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                    <input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                  </div>
+
+                  {/* كلمة المرور */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'كلمة المرور' : 'Password'} {editingUser && <span className="text-xs text-slate-400">({lang === 'ar' ? 'اتركه فارغاً لعدم التغيير' : 'Leave blank to keep'})</span>}</label>
+                    <input type={editingUser ? "password" : "text"} required={!editingUser} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" placeholder={editingUser ? "***" : ""} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
+                  </div>
+
+                  {/* رقم الهاتف */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رقم الهاتف' : 'Phone'}</label>
+                    <input className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
+                  </div>
+
+                  {/* الصلاحية / التخصص */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'نوع الحساب (الصلاحية)' : 'Role'}</label>
+                    <select className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})}>
+                      <option value="patient">{lang === 'ar' ? 'مريض / مستخدم عادي' : 'Patient'}</option>
+                      <option value="pharmacist">{lang === 'ar' ? 'صيدلي' : 'Pharmacist'}</option>
+                      <option value="doctor">{lang === 'ar' ? 'طبيب بشري' : 'Doctor'}</option>
+                      <option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option>
+                      {/* 🟢 فقط السوبر آدمن يمكنه رؤية وإعطاء صلاحية الآدمن لمستخدم آخر */}
+                      {isSuperAdmin && <option value="admin">{lang === 'ar' ? 'مدير (Admin)' : 'Admin'}</option>}
+                    </select>
+                  </div>
+
+                  {/* رصيد المحفظة */}
+                  <div>
+                    <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رصيد المحفظة (ل.س)' : 'Wallet Balance'}</label>
+                    <input type="number" step="0.01" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.wallet_balance || ''} onChange={e => setUserForm({...userForm, wallet_balance: e.target.value})} />
+                  </div>
+                </div>
+
+                {/* ملاحظات الإدارة */}
+                <div>
+                  <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'ملاحظات / نبذة (تظهر في الملف الشخصي للطبيب)' : 'Notes / Bio'}</label>
+                  <textarea rows={3} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})}></textarea>
+                </div>
+
+                {/* حالة الحساب */}
+                <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl mt-2">
+                  <input type="checkbox" id="isActiveCheck" className="w-5 h-5 accent-emerald-500 cursor-pointer" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} />
+                  <label htmlFor="isActiveCheck" className="font-bold text-slate-700 cursor-pointer select-none">
+                    {lang === 'ar' ? 'الحساب مفعل (يمكنه الدخول واستخدام النظام)' : 'Account is Active'}
+                  </label>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-4 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                  <button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors">{lang === 'ar' ? 'حفظ التعديلات' : 'Save Changes'}</button>
+                </div>
               </form>
             </motion.div>
           </div>

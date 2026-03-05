@@ -192,20 +192,37 @@ app.get('/api/admin/users', authenticateToken, async (req: any, res) => { if (re
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]); res.json({ success: true }); });
 app.post('/api/admin/users', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { email, password, role, name, pharmacy_limit, phone, notes } = req.body; if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' }); try { res.json({ id: (await pool.query('INSERT INTO users (email, password, role, name, pharmacy_limit, phone, notes, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id', [email, bcrypt.hashSync(password, 10), role, name, pharmacy_limit || 10, phone || null, notes || null, true])).rows[0].id }); } catch (err) { res.status(400).json({ error: 'البريد مستخدم' }); } });
 
-// تم إصلاح مشكلة تعديل المستخدمين هنا
-app.put('/api/admin/users/:id', authenticateToken, async (req: any, res) => { 
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); 
-  const { email, password, role, name, pharmacy_limit, phone, notes } = req.body; 
-  try { 
-    const targetUser = (await pool.query('SELECT email FROM users WHERE id = $1', [req.params.id])).rows[0]; 
-    if (SUPER_ADMINS.includes(targetUser.email) && req.user.email !== targetUser.email) return res.status(403).json({ error: 'لا يمكنك تعديل هذا الحساب' }); 
-    if (password && password.trim() !== '') {
-      await pool.query('UPDATE users SET email=$1, password=$2, role=$3, name=$4, pharmacy_limit=$5, phone=$6, notes=$7 WHERE id=$8', [email, bcrypt.hashSync(password, 10), role, name, pharmacy_limit || 10, phone || null, notes || null, req.params.id]); 
-    } else { 
-      await pool.query('UPDATE users SET email=$1, role=$2, name=$3, pharmacy_limit=$4, phone=$5, notes=$6 WHERE id=$7', [email, role, name, pharmacy_limit || 10, phone || null, notes || null, req.params.id]); 
+// 🟢 تعديل بيانات أي مستخدم بشكل كامل (للآدمن)
+app.put('/api/admin/users/:id', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  
+  const { id } = req.params;
+  const { email, password, role, name, phone, notes, wallet_balance, is_active } = req.body;
+  
+  try {
+    // التحقق من صلاحية السوبر آدمن (لا يمكن لمدير عادي أن يعطي صلاحية مدير)
+    if (role === 'admin' && !SUPER_ADMINS.includes(req.user.email)) {
+      return res.status(403).json({ error: 'ليس لديك صلاحية لتعيين مدير جديد.' });
     }
-    res.json({ success: true }); 
-  } catch (err: any) { res.status(500).json({ error: err.message }); } 
+
+    let query = 'UPDATE users SET name = $1, email = $2, role = $3, phone = $4, notes = $5, wallet_balance = $6, is_active = $7';
+    let values = [name, email, role, phone, notes, wallet_balance || 0, is_active];
+
+    // إذا قام الآدمن بكتابة كلمة مرور جديدة للمستخدم، قم بتشفيرها وتحديثها
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += ', password = $8 WHERE id = $9 RETURNING *';
+      values.push(hashedPassword, id);
+    } else {
+      query += ' WHERE id = $8 RETURNING *';
+      values.push(id);
+    }
+
+    const result = await pool.query(query, values);
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete('/api/admin/users/:id', authenticateToken, async (req: any, res) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]); res.json({ success: true }); });
