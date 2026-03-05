@@ -69,7 +69,7 @@ export default function App() {
             {user && user.role === 'patient' && (
               <div className="flex items-center gap-1">
                 <div className="bg-blue-50 text-blue-700 px-3 md:px-4 py-1.5 rounded-full flex items-center gap-2 text-xs md:text-sm font-bold border border-blue-200 shadow-sm">
-                  <Wallet size={16}/> <span dir="ltr">{user.wallet_balance || '0.00'}ل.س جديدة</span>
+                  <Wallet size={16}/> <span dir="ltr">{user.wallet_balance || '0.00'}ل.س جديدة </span>
                 </div>
                 <button onClick={() => setShowWalletModal(true)} className="bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700 transition-colors shadow-md"><Plus size={18}/></button>
               </div>
