@@ -1,3 +1,4 @@
+import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { LogOut, Wallet, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -42,16 +43,23 @@ export default function App() {
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/wallet/request', { type: 'deposit', amount: parseFloat(walletAmount) });
-      alert(lang === 'ar' ? 'تم إرسال طلب الشحن للمدير بنجاح.' : 'Request sent to admin.');
-      setShowWalletModal(false); setWalletAmount('');
-    } catch(err: any) { alert(err.error || 'خطأ'); }
+      await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
+      // 👇 التعديل هنا 👇
+      toast.success(lang === 'ar' ? 'تم إرسال طلب الشحن للإدارة بنجاح.' : 'Request sent to admin successfully.');
+      
+      setShowWalletModal(false); 
+      setWalletAmount('');
+    } catch(err: any) { 
+      // 👇 التعديل هنا 👇
+      toast.error(err.error || (lang === 'ar' ? 'حدث خطأ أثناء الإرسال' : 'Error occurred')); 
+    }
   };
 
   if (loading) return null;
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50">
+      <Toaster position="top-center" reverseOrder={false} />
       {view !== 'dashboard' && (
         <nav className="bg-white border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"> Taibet Health</button>
