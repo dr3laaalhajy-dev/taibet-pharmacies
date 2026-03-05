@@ -112,22 +112,41 @@ app.delete('/api/orders/:id', authenticateToken, async (req: any, res) => {
 });
 
 // --- Wallet & User Admin ---
-// 🟢 مسار استقبال طلبات المحفظة (شحن أو سحب) - النسخة المنيعة
+
+// 🟢 مسار استقبال طلبات المحفظة (النسخة السحرية التي تصلح قاعدة البيانات تلقائياً)
 app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => {
   const { type, amount } = req.body;
   if (!amount || amount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
   
   try {
-    // التحقق من الرصيد في حالة السحب
+    // 🔥 1. الكود السحري: إجبار قاعدة البيانات على إنشاء أو تحديث الجدول تلقائياً
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS wallet_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        user_name VARCHAR(255),
+        user_email VARCHAR(255),
+        type VARCHAR(50) NOT NULL,
+        amount DECIMAL(10, 2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // محاولة إضافة الأعمدة الجديدة في حال كان الجدول القديم موجوداً
+    try { await pool.query(`ALTER TABLE wallet_requests ADD COLUMN user_name VARCHAR(255);`); } catch(e){}
+    try { await pool.query(`ALTER TABLE wallet_requests ADD COLUMN user_email VARCHAR(255);`); } catch(e){}
+
+    // 🔥 2. التحقق من الرصيد للسحب
     if (type === 'withdrawal') {
       const balance = parseFloat((await pool.query('SELECT wallet_balance FROM users WHERE id = $1', [req.user.id])).rows[0].wallet_balance);
       if (balance < amount) return res.status(400).json({ error: 'رصيد غير كافٍ للسحب' });
     }
 
-    // 🟢 الحل الجذري: جلب بيانات المستخدم من الداتا بيز لتفادي التوكن القديم (undefined)
+    // 🔥 3. جلب بيانات المستخدم الصحيحة من الداتا بيز
     const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows[0];
 
-    // إرسال الطلب بأمان تام
+    // 🔥 4. إرسال الطلب بأمان
     await pool.query(
       'INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', 
       [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]
@@ -135,12 +154,13 @@ app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) =>
 
     res.json({ success: true });
   } catch(err: any) { 
-    // طباعة الخطأ الحقيقي في لوحة تحكم السيرفر (Vercel Logs)
-    console.error("🔥 خطأ المحفظة الجذري:", err);
-    res.status(500).json({ error: err.message || 'حدث خطأ في قاعدة البيانات.' }); 
+    // 🔴 سيتم كشف الخطأ الحقيقي وإرساله للواجهة لكي نعرف المشكلة فوراً
+    res.status(500).json({ error: 'السبب الحقيقي: ' + err.message }); 
   }
 });
-app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res) => {
+
+// 🟢 مسار عرض طلبات المحفظة للإدارة
+app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res: any) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
   try { res.json((await pool.query("SELECT * FROM wallet_requests ORDER BY id DESC")).rows); } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
