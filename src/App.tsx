@@ -13,12 +13,36 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 're
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// 🟢 --- الاستدعاءات الجديدة (Imports) --- 🟢
+import { UserType, WorkingHours, Facility, Product, CartItem, Order, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from './types';
+import { api, uploadImageToImgBB } from './api';
+import { ProductsManager } from './components/ProductsManager';
+import { OrdersManager } from './components/OrdersManager';
+import { ServicesManager } from './components/ServicesManager';
+// ------------------------------------------------
+
+// إعدادات أيقونة الخريطة
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png', iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' });
 
-// --- Imports from separated files ---
-import { UserType, WorkingHours, Facility, Product, CartItem, Order, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from './types';
-import { api, uploadImageToImgBB } from './api';
+// دوال مساعدة هامة (يجب أن تبقى هنا)
+const checkIsOpenNow = (f: Facility) => {
+  if (f.manual_status === 'open') return true; if (f.manual_status === 'closed') return false;
+  if (!f.working_hours) return false; const todaySchedule = f.working_hours[new Date().getDay().toString()];
+  if (!todaySchedule || !todaySchedule.isOpen) return false;
+  const currentMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const [sH, sM] = todaySchedule.start.split(':').map(Number); const [eH, eM] = todaySchedule.end.split(':').map(Number);
+  if ((eH * 60 + eM) < (sH * 60 + sM)) return currentMins >= (sH * 60 + sM) || currentMins <= (eH * 60 + eM);
+  return currentMins >= (sH * 60 + sM) && currentMins <= (eH * 60 + eM);
+};
+
+const formatTime12h = (t: string, lang: string = 'ar') => { if (!t) return ''; const [h, m] = t.split(':'); const d = new Date(); d.setHours(parseInt(h), parseInt(m)); return d.toLocaleTimeString(lang === 'en' ? 'en-US' : 'ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true }); };
+const getDistanceKm = (l1: number, ln1: number, l2: number, ln2: number) => { const R = 6371; const dLat = (l2 - l1) * Math.PI / 180; const dLon = (ln2 - ln1) * Math.PI / 180; const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(l1 * Math.PI / 180) * Math.cos(l2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); return (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))).toFixed(1); };
+
+const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { const [p, setP] = useState<any>(initialPosition || null); useMapEvents({ click(e) { setP([e.latlng.lat, e.latlng.lng]); onLocationSelect(e.latlng.lat, e.latlng.lng); } }); return p ? <Marker position={p} /> : null; };
+const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
+
+// --- 1. Doctor Profile Modal (Vezeeta Style) ---
 // --- 1. Doctor Profile Modal (Vezeeta Style) ---
 const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
   const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); const [loading, setLoading] = useState(true);
@@ -174,146 +198,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser }: { onBac
       <div className="text-center mb-12"><div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100"><ShoppingBag size={40}/></div><h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">{lang === 'ar' ? <>السوق <span className="text-emerald-500">الطبي</span></> : <>Medical <span className="text-emerald-500">Store</span></>}</h1><p className="text-slate-500 max-w-xl mx-auto">{selectedPharmacy ? (lang === 'ar' ? `تسوق منتجات ${selectedPharmacy.name} واطلبها مباشرة.` : `Shop ${selectedPharmacy.name} products directly.`) : (lang === 'ar' ? 'اختر صيدلية من القائمة أدناه لبدء التسوق وتصفح المنتجات المتاحة لديها.' : 'Choose a pharmacy below to start shopping.')}</p></div>
       {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500"/><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p></div>)}
       {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100"/> : <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex justify-between items-center bg-indigo-50 p-4 rounded-2xl border border-indigo-100"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white text-indigo-600 px-4 py-2 rounded-lg shadow-sm border border-indigo-200">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (<div key={p.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col"><div className="aspect-square bg-slate-50 relative overflow-hidden">{p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/> : <div className="w-full h-full flex items-center justify-center text-slate-300"><Package size={48}/></div>}{isOutOfStock && <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center"><span className="bg-red-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-md rotate-[-12deg]">{lang === 'ar' ? 'نفذت الكمية' : 'Out of Stock'}</span></div>}</div><div className="p-4 flex flex-col flex-1"><h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>{p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}<div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between"><span className="font-extrabold text-lg text-slate-900" dir="ltr">{p.price} ل.س</span></div>{!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}</div></div>); })}{filteredProducts.length === 0 && <div className="col-span-full py-20 text-center text-slate-500"><Package className="mx-auto mb-4 text-slate-300" size={48}/><p>{lang === 'ar' ? 'لا توجد منتجات متاحة.' : 'No products available.'}</p></div>}</div>)}</>)}
-    </div>
-  );
-};
-
-// 3. --- Products Manager Component ---
-const ProductsManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
-  const [products, setProducts] = useState<Product[]>([]); const [form, setForm] = useState<Partial<Product>>({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: facilities[0]?.id || 0 }); const [editingId, setEditingId] = useState<number | null>(null); const [uploadingImage, setUploadingImage] = useState(false); const [loading, setLoading] = useState(true); const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');
-  const loadProducts = () => { api.get('/api/products').then(setProducts).finally(() => setLoading(false)); };
-  useEffect(() => { loadProducts(); if(facilities.length > 0 && !form.pharmacy_id) setForm(prev => ({...prev, pharmacy_id: facilities[0].id})); }, [facilities]);
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); } catch (err: any) { alert(err.message); } finally { setUploadingImage(false); } };
-  const handleSave = async (e: React.FormEvent) => { e.preventDefault(); if (!form.pharmacy_id) return alert('اختر صيدلية أولاً'); try { if (editingId) await api.put(`/api/products/${editingId}`, form); else await api.post('/api/products', form); setForm({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: form.pharmacy_id, image_url: '' }); setEditingId(null); loadProducts(); } catch (err: any) { alert(err.error || 'فشل الحفظ'); } };
-  if (loading) return <div>{lang === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>;
-  if (facilities.length === 0 && user.role !== 'admin') return <div className="text-center py-20 text-slate-500">{lang === 'ar' ? 'لا تملك صيدلية مفعلة لإضافة منتجات.' : 'No active pharmacy to add products.'}</div>;
-  const displayProducts = adminFilter === 'all' ? products : products.filter(p => p.pharmacy_id === adminFilter);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-1">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm sticky top-8">
-          <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Package className="text-emerald-500"/> {editingId ? (lang === 'ar' ? 'تعديل المنتج' : 'Edit Product') : (lang === 'ar' ? 'إضافة منتج' : 'Add Product')}</h3>
-          <form onSubmit={handleSave} className="space-y-4">
-            {user.role === 'admin' && <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'الصيدلية' : 'Pharmacy'}</label><select required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" value={form.pharmacy_id} onChange={e=>setForm({...form, pharmacy_id: parseInt(e.target.value)})}>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></div>}
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'اسم المنتج' : 'Product Name'}</label><input required className="w-full px-4 py-3 rounded-xl border outline-none" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'السعر' : 'Price'}</label><input required type="number" className="w-full px-4 py-3 rounded-xl border outline-none" value={form.price} onChange={e=>setForm({...form, price: e.target.value})} /></div>
-              <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'الكمية الكلية' : 'Total Quantity'}</label><input required type="number" min="0" className="w-full px-4 py-3 rounded-xl border outline-none" value={form.quantity} onChange={e=>setForm({...form, quantity: parseInt(e.target.value)})} /></div>
-            </div>
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'الحد الأقصى للفرد (اختياري)' : 'Max per user (Optional)'}</label><input type="number" min="1" placeholder={lang === 'ar' ? "فارغ = بدون حد" : "Empty = no limit"} className="w-full px-4 py-3 rounded-xl border outline-none text-xs" value={form.max_per_user || ''} onChange={e=>setForm({...form, max_per_user: e.target.value ? parseInt(e.target.value) : undefined})} /></div>
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'صورة المنتج' : 'Product Image'}</label><div className="flex items-center gap-3"><label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer ${uploadingImage ? 'bg-slate-50 border-slate-300' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{uploadingImage ? <span className="animate-spin h-5 w-5 border-2 border-emerald-500 border-t-transparent rounded-full"></span> : <UploadCloud size={20}/>}<span className="text-sm font-bold">{uploadingImage ? (lang === 'ar' ? 'جاري الرفع...' : 'Uploading...') : (lang === 'ar' ? 'رفع صورة' : 'Upload Image')}</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage}/></label>{form.image_url && <img src={form.image_url} className="w-12 h-12 rounded-xl object-cover border"/>}</div></div>
-            <div className="flex gap-2 pt-4">
-              {editingId && <button type="button" onClick={() => {setEditingId(null); setForm({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: facilities[0]?.id || 0, image_url: '' });}} className="flex-1 py-3 rounded-xl font-bold bg-slate-100">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>}
-              <button type="submit" disabled={uploadingImage} className="flex-1 py-3 rounded-xl font-bold bg-slate-900 text-white disabled:opacity-50">{lang === 'ar' ? 'حفظ' : 'Save'}</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <div className="lg:col-span-2">
-        {user.role === 'admin' && (
-          <div className="mb-6 bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-4">
-            <label className="font-bold text-slate-700">{lang === 'ar' ? 'فلتر الصيدليات:' : 'Filter Pharmacies:'}</label>
-            <select className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none" value={adminFilter} onChange={e => setAdminFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}><option value="all">{lang === 'ar' ? 'عرض جميع المنتجات' : 'All Products'}</option>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-          </div>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {displayProducts.map(p => (
-            <div key={p.id} className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-4">
-              {p.image_url ? <img src={p.image_url} className="w-16 h-16 rounded-xl object-cover"/> : <div className="w-16 h-16 bg-slate-50 flex items-center justify-center"><Package size={24}/></div>}
-              <div className="flex-1 min-w-0">
-                {user.role === 'admin' && <span className="text-[10px] text-emerald-600 block">{p.pharmacy_name}</span>}
-                <h4 className="font-bold text-sm truncate">{p.name}</h4>
-                <div className="flex justify-between items-center mt-2 text-xs">
-                  <span className="font-bold" dir="ltr">{p.price} ل.س</span>
-                  <span className={`px-2 py-1 rounded-md font-bold ${p.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{p.quantity > 0 ? (lang === 'ar' ? `كمية: ${p.quantity}` : `Qty: ${p.quantity}`) : (lang === 'ar' ? 'نفذت' : 'Out of Stock')}</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 border-r border-slate-100 pr-2">
-                <button onClick={() => { setEditingId(p.id); setForm(p); }} className="p-2 text-slate-400 hover:text-emerald-600"><Edit2 size={14}/></button>
-                <button onClick={() => { if(window.confirm(lang === 'ar' ? 'حذف؟' : 'Delete?')) api.delete(`/api/products/${p.id}`).then(loadProducts); }} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={14}/></button>
-              </div>
-            </div>
-          ))}
-          {displayProducts.length === 0 && <div className="col-span-full text-center py-12 text-slate-500">{lang === 'ar' ? 'لا توجد منتجات.' : 'No products found.'}</div>}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 4. --- Orders Manager Component ---
-const OrdersManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
-  const [orders, setOrders] = useState<Order[]>([]); const [loading, setLoading] = useState(true); const [activeSubTab, setActiveSubTab] = useState<'pending' | 'past'>('pending'); const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');
-  const loadOrders = () => { api.get('/api/orders').then(setOrders).finally(() => setLoading(false)); };
-  useEffect(() => { loadOrders(); }, []);
-  const updateStatus = async (id: number, status: string) => { if(!window.confirm(lang === 'ar' ? `تأكيد تغيير حالة الطلب؟` : 'Confirm status change?')) return; try { await api.patch(`/api/orders/${id}/status`, { status }); loadOrders(); } catch(err) { alert(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } };
-  const filteredOrders = adminFilter === 'all' ? orders : orders.filter(o => o.pharmacy_name === facilities.find(f => f.id === adminFilter)?.name);
-  const pendingOrders = filteredOrders.filter(o => o.status === 'pending'); const pastOrders = filteredOrders.filter(o => o.status !== 'pending'); const displayOrders = activeSubTab === 'pending' ? pendingOrders : pastOrders;
-  if (loading) return <div>{lang === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>;
-
-  return (
-    <div>
-      {user.role === 'admin' && (
-        <div className="mb-6 bg-white p-4 rounded-2xl border border-slate-200 flex items-center gap-4 max-w-xl">
-          <label className="font-bold text-slate-700">{lang === 'ar' ? 'فلتر الصيدليات:' : 'Filter Pharmacies:'}</label>
-          <select className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none" value={adminFilter} onChange={e => setAdminFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}><option value="all">{lang === 'ar' ? 'عرض جميع الطلبات' : 'All Orders'}</option>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
-        </div>
-      )}
-      <div className="flex gap-4 mb-8">
-        <button onClick={() => setActiveSubTab('pending')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${activeSubTab === 'pending' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? `طلبات جديدة (${pendingOrders.length})` : `New Orders (${pendingOrders.length})`}</button>
-        <button onClick={() => setActiveSubTab('past')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${activeSubTab === 'past' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? 'طلبات سابقة' : 'Past Orders'}</button>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {displayOrders.map(o => (
-          <div key={o.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-4 mb-4">
-              <div>
-                <h4 className="font-bold text-lg text-slate-900">{o.customer_name}</h4><p className="text-sm font-mono text-slate-500 mt-1">{o.customer_phone}</p>
-                {user.role === 'admin' && <p className="text-[10px] bg-indigo-50 px-2 py-1 rounded text-indigo-700 mt-2 font-bold inline-block">صيدلية: {o.pharmacy_name}</p>}
-              </div>
-              <div className="text-right">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${o.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : o.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                  {o.status === 'pending' ? (lang === 'ar' ? 'قيد الانتظار' : 'Pending') : o.status === 'completed' ? (lang === 'ar' ? 'مكتمل' : 'Completed') : (lang === 'ar' ? 'ملغي' : 'Cancelled')}
-                </span>
-                <p className="text-[10px] text-slate-400 mt-2" dir="ltr">{new Date(o.created_at).toLocaleString('ar-EG')}</p>
-              </div>
-            </div>
-            <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              {o.items.map((item, idx) => ( <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0"><span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span><span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty} ل.س</span></div> ))}
-              <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price} ل.س</span></div>
-            </div>
-            {o.status === 'pending' && (
-              <div className="flex gap-3">
-                <button onClick={() => updateStatus(o.id, 'completed')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 flex justify-center items-center gap-2 transition-colors"><CheckCircle size={18}/> {lang === 'ar' ? 'قبول وإنهاء' : 'Complete'}</button>
-                <button onClick={() => updateStatus(o.id, 'cancelled')} className="px-6 bg-red-50 text-red-600 py-3 rounded-xl font-bold hover:bg-red-100 transition-colors"><Trash2 size={18}/></button>
-              </div>
-            )}
-          </div>
-        ))}
-        {displayOrders.length === 0 && <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-3xl">{lang === 'ar' ? 'لا يوجد طلبات في هذه القائمة.' : 'No orders here.'}</div>}
-      </div>
-    </div>
-  );
-};
-
-// 5. --- Services Manager Component ---
-const ServicesManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
-  const [selectedFacility, setSelectedFacility] = useState<number | null>(facilities[0]?.id || null); const [servicesText, setServicesText] = useState(''); const [saving, setSaving] = useState(false); const [msg, setMsg] = useState('');
-  useEffect(() => { if (selectedFacility) { const f = facilities.find(fac => fac.id === selectedFacility); setServicesText(f?.services || ''); setMsg(''); } }, [selectedFacility, facilities]);
-  const handleSaveServices = async () => { if (!selectedFacility) return; setSaving(true); setMsg(''); const f = facilities.find(fac => fac.id === selectedFacility); if (!f) return; try { await api.put(`/api/pharmacies/${f.id}`, { ...f, services: servicesText }); setMsg(lang === 'ar' ? 'تم حفظ الخدمات بنجاح!' : 'Services saved successfully!'); } catch(err) { setMsg(lang === 'ar' ? 'حدث خطأ أثناء الحفظ.' : 'Error saving services.'); } finally { setSaving(false); } };
-  if (facilities.length === 0) return <div className="text-center py-20 text-slate-500">{lang === 'ar' ? 'يرجى إضافة عيادة أولاً.' : 'Please add a clinic first.'}</div>;
-
-  return (
-    <div className="max-w-2xl bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-slate-900"><Smile className="text-emerald-500"/> {lang === 'ar' ? 'الخدمات التي أقدمها' : 'Services I Provide'}</h2>
-      <p className="text-slate-500 mb-6 text-sm">{lang === 'ar' ? 'اختر العيادة واكتب قائمة الخدمات الطبية التي تقدمها ليتمكن المرضى من رؤيتها.' : 'Select a clinic and write down the services you offer.'}</p>
-      {msg && <div className={`p-4 rounded-xl text-sm font-bold mb-4 ${msg.includes('نجاح') || msg.includes('successfully') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg}</div>}
-      <div className="space-y-4">
-        <div><label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'اختر العيادة:' : 'Select Clinic:'}</label><select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={selectedFacility || ''} onChange={e => setSelectedFacility(parseInt(e.target.value))}>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></div>
-        <div><label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'قائمة الخدمات (مثال: تبييض أسنان، زراعة، حشوات):' : 'List of Services:'}</label><textarea rows={6} placeholder={lang === 'ar' ? 'اكتب خدماتك هنا...' : 'Write your services here...'} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500" value={servicesText} onChange={e => setServicesText(e.target.value)}></textarea></div>
-        <button onClick={handleSaveServices} disabled={saving} className="w-full py-4 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors">{saving ? '...' : (lang === 'ar' ? 'حفظ الخدمات' : 'Save Services')}</button>
-      </div>
     </div>
   );
 };
