@@ -1,3 +1,4 @@
+import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { LogOut, Wallet, Plus, X } from 'lucide-react';
@@ -24,6 +25,7 @@ export default function App() {
   const t = translations[lang] || translations['ar'];
 
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
 
   useEffect(() => { document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = lang; }, [lang]);
@@ -45,7 +47,7 @@ export default function App() {
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) });
       // 👇 التعديل هنا 👇
-      toast.success(lang === 'ar' ? 'تم إرسال طلب الشحن للإدارة بنجاح.' : 'Request sent to admin successfully.');
+      setShowSuccess(true)
       
       setShowWalletModal(false); 
       setWalletAmount('');
@@ -86,6 +88,12 @@ export default function App() {
         {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} />}
         {view === 'login' && <Auth onLogin={handleLogin} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
+      <SuccessModal 
+        isOpen={showSuccess} 
+        onClose={() => setShowSuccess(false)} 
+        title={lang === 'ar' ? "تم إرسال طلبك للإدارة بنجاح." : "Request sent successfully."}
+        message={lang === 'ar' ? "شكراً لتواصلكم معنا." : "Thank you for contacting us."}
+      />
       </main>
       <AnimatePresence>
         {showWalletModal && (
