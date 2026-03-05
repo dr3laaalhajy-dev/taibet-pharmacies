@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, Wallet, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
-import { translations } from '../translations'; // تأكد من المسار حسب مكان الملف
+import { translations } from './translations'; // تأكد من المسار حسب مكان الملف
 import { UserType, FooterSettings } from '../types';
 import { api } from '../api';
 import { PublicView } from './Components/PublicView'; 
