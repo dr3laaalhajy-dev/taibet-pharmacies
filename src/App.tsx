@@ -16,9 +16,9 @@ import 'leaflet/dist/leaflet.css';
 // 🟢 --- الاستدعاءات الجديدة (Imports) --- 🟢
 import { UserType, WorkingHours, Facility, Product, CartItem, Order, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from './types';
 import { api, uploadImageToImgBB } from './api';
-import { ProductsManager } from './components/ProductsManager';
-import { OrdersManager } from './components/OrdersManager';
-import { ServicesManager } from './components/ServicesManager';
+import { ProductsManager } from './Components/ProductsManager';
+import { OrdersManager } from './Components/OrdersManager';
+import { ServicesManager } from './Components/ServicesManager';
 // ------------------------------------------------
 
 // إعدادات أيقونة الخريطة
