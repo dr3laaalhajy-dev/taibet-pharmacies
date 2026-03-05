@@ -66,3 +66,4 @@ export const ProductsManager = ({ user, facilities, lang }: { user: UserType, fa
     </div>
   );
 };
+// force update files
