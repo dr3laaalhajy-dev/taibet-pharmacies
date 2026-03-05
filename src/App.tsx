@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { LogOut, Wallet, Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
-import { translations } from './translations';
-import { UserType, FooterSettings } from './types';
-import { api } from './api';
-import { PublicView } from './Components/PublicView'; // تأكد أن حرف C كبير
+import { translations } from '../translations'; // تأكد من المسار حسب مكان الملف
+import { UserType, FooterSettings } from '../types';
+import { api } from '../api';
+import { PublicView } from './Components/PublicView'; 
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
 
@@ -23,7 +23,6 @@ export default function App() {
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   const t = translations[lang] || translations['ar'];
 
-  // حالات خاصة بنافذة شحن المحفظة للمريض
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
 
@@ -46,7 +45,6 @@ export default function App() {
   
   const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); };
 
-  // إرسال طلب الشحن من الصفحة العامة
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -65,19 +63,12 @@ export default function App() {
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"><img src="/logo.png" className="w-8 h-8"/> <span className="hidden sm:inline">{lang === 'ar' ? 'طيبة الامام الصحية' : 'Taibet Health'}</span></button>
           <div className="flex gap-2 md:gap-4 items-center">
             
-            {/* رصيد المحفظة + زر الزائد للشحن (يظهر فقط للمريض في الواجهة العامة) */}
             {user && user.role === 'patient' && (
               <div className="flex items-center gap-1">
                 <div className="bg-blue-50 text-blue-700 px-3 md:px-4 py-1.5 rounded-full flex items-center gap-2 text-xs md:text-sm font-bold border border-blue-200 shadow-sm">
                   <Wallet size={16}/> <span dir="ltr">{user.wallet_balance || '0.00'} ل.س</span>
                 </div>
-                <button 
-                  onClick={() => setShowWalletModal(true)}
-                  className="bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700 transition-colors shadow-md"
-                  title="شحن الرصيد"
-                >
-                  <Plus size={18}/>
-                </button>
+                <button onClick={() => setShowWalletModal(true)} className="bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700 transition-colors shadow-md"><Plus size={18}/></button>
               </div>
             )}
 
@@ -105,7 +96,6 @@ export default function App() {
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} lang={lang} t={t} />}
       </main>
 
-      {/* نافذة شحن الرصيد المنبثقة للمريض */}
       <AnimatePresence>
         {showWalletModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -120,32 +110,12 @@ export default function App() {
                   <input type="number" min="1" required className="w-full px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none focus:border-blue-600 text-center text-2xl font-bold text-blue-600 bg-blue-50/30" placeholder="0.00" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">ل.س</span>
                 </div>
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-                  {lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request'}
-                </button>
-                <p className="text-center text-[10px] text-slate-400 mt-4 leading-relaxed">
-                  {lang === 'ar' ? 'سيتم إضافة المبلغ لمحفظتك فور مراجعة الإدارة وتأكيد عملية الدفع الكاش.' : 'Balance will be added after admin review.'}
-                </p>
+                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">{lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request'}</button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-
-      {view === 'public' && (
-        <footer className="bg-[#0a1128] text-slate-300 py-12 mt-12 w-full text-center">
-          <div className="max-w-4xl mx-auto px-4">
-            <p className="text-base font-bold mb-3">{footerData?.copyright || '© 2026 نظام صيدليات طيبة الإمام. جميع الحقوق محفوظة.'}</p>
-            <p className="text-sm text-slate-400 mb-6">{footerData?.description || 'توفير المعلومات الأساسية عن المناوبات للمجتمع.'}</p>
-            <div className="flex justify-center items-center gap-6 text-sm flex-wrap">
-              {footerData?.contact_phone && <p>📞 {lang==='ar'?'للتواصل':'Contact'}: <span dir="ltr" className="font-mono">{footerData.contact_phone}</span></p>}
-              {footerData?.complaints_phone && <p>⚠️ {lang==='ar'?'الشكاوى':'Complaints'}: <span dir="ltr" className="font-mono">{footerData.complaints_phone}</span></p>}
-              {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white transition-colors">📘 Facebook</a>}
-              {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white transition-colors">📸 Instagram</a>}
-            </div>
-          </div>
-        </footer>
-      )}
     </div>
   );
 }
