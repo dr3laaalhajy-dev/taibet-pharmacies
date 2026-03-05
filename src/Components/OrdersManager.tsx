@@ -43,11 +43,17 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               {o.items.map((item, idx) => ( <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0"><span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span><span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty} ل.س</span></div> ))}
               <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price} ل.س</span></div>
             </div>
-            {o.status === 'pending' && (
+            {o.status === 'pending' ? (
               <div className="flex gap-3">
                 <button onClick={() => updateStatus(o.id, 'completed')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 flex justify-center items-center gap-2 transition-colors"><CheckCircle size={18}/> {lang === 'ar' ? 'قبول وإنهاء' : 'Complete'}</button>
                 <button onClick={() => updateStatus(o.id, 'cancelled')} className="px-6 bg-red-50 text-red-600 py-3 rounded-xl font-bold hover:bg-red-100 transition-colors"><Trash2 size={18}/></button>
               </div>
+            ) : (
+              (user.email.includes('admin') || user.role === 'admin') && (
+                <div className="flex justify-end border-t border-slate-100 pt-3">
+                  <button onClick={async () => { if(window.confirm('حذف نهائي؟')) { await api.delete(`/api/orders/${o.id}`); loadOrders(); } }} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Trash2 size={16}/> حذف الطلب السابق</button>
+                </div>
+              )
             )}
           </div>
         ))}
