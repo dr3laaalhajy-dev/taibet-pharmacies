@@ -52,7 +52,16 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const handleSaveFacility = async (e: React.FormEvent) => { e.preventDefault(); const payload = { ...form }; if (user.role !== 'admin') delete payload.doctor_id; try { if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload); else await api.post('/api/pharmacies', payload); setShowModal(false); loadData(); toast.success(lang === 'ar' ? 'تم حفظ البيانات بنجاح' : 'Saved successfully'); } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'خطأ في الحفظ!' : 'Save error!')); } };
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); toast.success(lang === 'ar' ? 'تم تحديث حالة الدوام' : 'Status updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } };
   const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل حالة المتجر' : 'Store updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'ممنوع' : 'Forbidden'); } };
-  const generateActivationKey = async () => { try { const res = await api.post('/api/admin/generate-key', {}); setGeneratedKey(res.key); toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); } catch (err: any) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
+  const generateActivationKey = async () => { 
+    setGeneratedKey(null); // تفريغ المفتاح القديم
+    try { 
+      const res = await api.post('/api/admin/generate-key', {}); 
+      setTimeout(() => setGeneratedKey(res.key), 100); // إظهار الجديد بعد جزء من الثانية
+      toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); 
+    } catch (err: any) { 
+      toast.error(lang === 'ar' ? 'خطأ' : 'Error'); 
+    } 
+  };
   const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); toast.success(lang === 'ar' ? 'تم تفعيل المستخدم' : 'User approved'); } catch (err) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
   const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); toast.success(lang === 'ar' ? 'تم حفظ بيانات المستخدم' : 'User saved'); } catch (err: any) { toast.error(err.error); } };
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { toast.error(err.error); } };
@@ -216,7 +225,17 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
               </div>
             </motion.div>
           )}
-
+        {activeTab === 'settings' && isSuperAdmin && (
+            <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-2xl">
+              <h2 className="text-2xl font-bold text-slate-900 mb-6">{lang === 'ar' ? 'إعدادات الفوتر' : 'Footer Settings'}</h2>
+              <form onSubmit={handleSaveFooter} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                <input type="text" placeholder={lang === 'ar' ? 'حقوق النشر' : 'Copyright'} className="w-full p-3 border rounded-xl" value={footerForm.copyright} onChange={e => setFooterForm({...footerForm, copyright: e.target.value})} />
+                <input type="text" placeholder={lang === 'ar' ? 'رقم التواصل' : 'Contact Phone'} className="w-full p-3 border rounded-xl" value={footerForm.contact_phone} onChange={e => setFooterForm({...footerForm, contact_phone: e.target.value})} />
+                <textarea placeholder={lang === 'ar' ? 'الوصف' : 'Description'} className="w-full p-3 border rounded-xl" value={footerForm.description} onChange={e => setFooterForm({...footerForm, description: e.target.value})} />
+                <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">{lang === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}</button>
+              </form>
+            </motion.div>
+          )}
           {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t.profileSettings}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6"><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} /></div><button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">{t.saveChanges}</button></form></motion.div>)}
         </AnimatePresence>
       </div>
@@ -234,6 +253,7 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
           </div>
         )}
       </AnimatePresence>
+      
 
       {/* 🟢 النافذة الجديدة الأنيقة لتعديل الرصيد من قبل المدير */}
       <AnimatePresence>
@@ -246,6 +266,46 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
               <form onSubmit={submitAdminWallet}>
                 <input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 mb-6 text-center text-xl font-bold" placeholder="0" value={adminWalletAmount} onChange={e => setAdminWalletAmount(e.target.value)} />
                 <button type="submit" className="w-full py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">{lang === 'ar' ? 'حفظ التعديل' : 'Save Balance'}</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* نافذة المنشآت */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-6 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">{editingData ? 'تعديل البيانات' : 'إضافة منشأة'}</h3>
+                <button onClick={() => setShowModal(false)}><X size={24} className="text-slate-400" /></button>
+              </div>
+              <form onSubmit={handleSaveFacility} className="space-y-4">
+                <input type="text" placeholder="اسم المنشأة" required className="w-full p-3 border rounded-xl" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                <input type="text" placeholder="العنوان" required className="w-full p-3 border rounded-xl" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+                <input type="text" placeholder="رقم الهاتف" required className="w-full p-3 border rounded-xl" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold">حفظ</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* نافذة المستخدمين */}
+      <AnimatePresence>
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-6 rounded-3xl w-full max-w-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">{editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم'}</h3>
+                <button onClick={() => setShowUserModal(false)}><X size={24} className="text-slate-400" /></button>
+              </div>
+              <form onSubmit={handleSaveUser} className="space-y-4">
+                <input type="text" placeholder="الاسم" required className="w-full p-3 border rounded-xl" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                <input type="email" placeholder="البريد الإلكتروني" required className="w-full p-3 border rounded-xl" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                {!editingUser && <input type="password" placeholder="كلمة المرور" required className="w-full p-3 border rounded-xl" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />}
+                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold">حفظ</button>
               </form>
             </motion.div>
           </div>
