@@ -122,7 +122,7 @@ export default function App() {
           <div className="flex gap-3 items-center">
             {user && user.role === 'patient' && (
               <button onClick={() => setShowWalletModal(true)} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-bold border border-blue-200 hover:bg-blue-100 transition-colors">
-                <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 <Plus size={14} className="bg-blue-600 text-white rounded-full p-0.5 ml-1" />
               </button>
             )}
@@ -234,14 +234,14 @@ export default function App() {
                 {settingsTab === 'currency' && (
                   <div className="animate-in fade-in">
                     <h4 className="text-lg font-bold mb-4">{lang === 'ar' ? 'اختر العملة المفضلة' : 'Select Currency'}</h4>
-                    <p className="text-sm text-slate-500 mb-6">{lang === 'ar' ? 'ملاحظة: 1 ل.س = 100 ل.س جديدة' : 'Note: 1 L.S = 100 New L.S'}</p>
+                    <p className="text-sm text-slate-500 mb-6">{lang === 'ar' ? 'ملاحظة: 100 ل.س = 1 ل.س جديدة' : 'Note: 100 L.S = 1 New L.S'}</p>
                     <div className="space-y-3">
                       <label className={`flex items-center justify-between p-4 border-2 rounded-2xl cursor-pointer transition-colors ${currency === 'old' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}>
                         <div className="flex items-center gap-3"><input type="radio" checked={currency === 'old'} onChange={() => setCurrency('old')} className="w-5 h-5 accent-blue-600" /> <span className="font-bold text-lg">الليرة السورية (ل.س)</span></div>
                       </label>
                       <label className={`flex items-center justify-between p-4 border-2 rounded-2xl cursor-pointer transition-colors ${currency === 'new' ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
                         <div className="flex items-center gap-3"><input type="radio" checked={currency === 'new'} onChange={() => setCurrency('new')} className="w-5 h-5 accent-emerald-600" /> <span className="font-bold text-lg">الليرة الجديدة (ل.س جديدة)</span></div>
-                        <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">× 100</span>
+                        <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">÷ 100</span>
                       </label>
                     </div>
                   </div>

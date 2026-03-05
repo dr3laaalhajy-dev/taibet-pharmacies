@@ -99,7 +99,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
   );
 };
 
-// 🟢 مكون المتجر النظيف مع تطبيق العملة الجديدة والعناوين
+// 🟢 مكون المتجر بعد تصحيح العملية الحسابية (القسمة على 100)
 const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
@@ -113,20 +113,17 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   const removeFromCart = (id: number) => setCart(prev => prev.filter(item => item.product_id !== id));
   const updateQty = (id: number, delta: number, maxAllowed: number, totalStock: number) => { setCart(prev => prev.map(item => { if (item.product_id === id) { const newQty = item.qty + delta; if (newQty > 0 && newQty <= Math.min(maxAllowed || totalStock, totalStock)) return { ...item, qty: newQty }; } return item; })); };
   
-  // حساب المجموع الكلي مع العملة
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
   
   const submitOrder = async (e: React.FormEvent) => { 
     e.preventDefault(); 
     if(cart.length === 0) return; 
   
-    // 1. منع غير المسجلين من الطلب
     if (!user) {
       toast.error(lang === 'ar' ? 'يجب تسجيل الدخول كـ (مريض/مستخدم) لتتمكن من الطلب.' : 'Please login to order.');
       return;
     }
     
-    // 2. التحقق من المحفظة
     if (paymentMethod === 'wallet') {
       if (parseFloat(user.wallet_balance || '0') < cartTotal) { 
         toast.error(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient wallet balance.'); 
@@ -135,7 +132,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
     }
   
     try { 
-      // 3. إرسال الطلب (مع العنوان التلقائي والاسم)
       await api.post('/api/public/orders', { 
         pharmacy_id: selectedPharmacyId, 
         customer_name: user.name, 
@@ -167,8 +163,8 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                     {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                      {/* 🟢 السعر داخل قائمة السلة */}
-                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</p>
+                      {/* 🟢 تعديل 1: القسمة على 100 في سلة المشتريات */}
+                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</p>
                       <div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div>
                     </div>
                     <button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
@@ -178,11 +174,10 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
               <div className="p-6 border-t bg-slate-50">
                 <div className="flex justify-between items-center mb-4 text-lg font-bold">
                   <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
-                  {/* 🟢 المجموع الكلي للسلة */}
-                  <span dir="ltr" className="text-emerald-600">{(cartTotal * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                  {/* 🟢 تعديل 2: القسمة على 100 في المجموع الكلي */}
+                  <span dir="ltr" className="text-emerald-600">{(cartTotal / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 </div>
                 
-                {/* 🟢 عرض العنوان الحالي للتوصيل */}
                 <div className="mb-4 bg-white p-3 border border-slate-200 rounded-xl shadow-sm">
                   <p className="text-xs text-slate-500 font-bold mb-1">{lang === 'ar' ? 'سيتم التوصيل إلى:' : 'Delivery to:'}</p>
                   <p className="text-sm font-medium text-slate-800 flex items-start gap-2">
@@ -199,8 +194,8 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                   <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
                     <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
                     <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
-                    {/* عرض الرصيد في الدفع حسب العملة */}
-                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>}
+                    {/* 🟢 تعديل 3: القسمة على 100 في رصيد المحفظة هنا */}
+                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>}
                   </label>
                 </div>
                 
@@ -219,8 +214,8 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
             <h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
             {p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
             <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-              {/* 🟢 السعر في قائمة المنتجات */}
-              <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) * (currency === 'new' ? 100 : 1)).toFixed(currency === 'new' ? 0 : 2)} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+              {/* 🟢 تعديل 4: القسمة على 100 في بطاقة المنتج */}
+              <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
             </div>
             {!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}
           </div>
