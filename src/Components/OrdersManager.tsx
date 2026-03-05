@@ -40,8 +40,8 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               </div>
             </div>
             <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              {o.items.map((item, idx) => ( <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0"><span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span><span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty} ل.س</span></div> ))}
-              <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price} ل.س</span></div>
+              {o.items.map((item, idx) => ( <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0"><span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span><span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty}ل.س جديدة</span></div> ))}
+              <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg"><span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span><span dir="ltr" className="text-indigo-600">{o.total_price}ل.س جديدة</span></div>
             </div>
             {o.status === 'pending' ? (
               <div className="flex gap-3">

@@ -64,7 +64,7 @@ export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: 'a
                     {req.type === 'deposit' ? (lang === 'ar' ? 'إيداع (شحن)' : 'Deposit') : (lang === 'ar' ? 'سحب كاش' : 'Withdrawal')}
                   </span>
                   <span className="mx-3 text-slate-300">|</span>
-                  <span className="text-lg text-slate-900" dir="ltr">{req.amount}جديدة ل.س</span>
+                  <span className="text-lg text-slate-900" dir="ltr">{req.amount}ل.س جديدة</span>
                 </p>
               </div>
               <div className="flex gap-2 w-full md:w-auto">

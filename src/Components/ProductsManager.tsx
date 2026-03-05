@@ -51,7 +51,7 @@ export const ProductsManager = ({ user, facilities, lang }: { user: UserType, fa
                 {user.role === 'admin' && <span className="text-[10px] text-emerald-600 block">{p.pharmacy_name}</span>}
                 <h4 className="font-bold text-sm truncate">{p.name}</h4>
                 <div className="flex justify-between items-center mt-2 text-xs">
-                  <span className="font-bold" dir="ltr">{p.price} ل.س</span>
+                  <span className="font-bold" dir="ltr">{p.price}ل.س جديدة</span>
                   <span className={`px-2 py-1 rounded-md font-bold ${p.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{p.quantity > 0 ? (lang === 'ar' ? `كمية: ${p.quantity}` : `Qty: ${p.quantity}`) : (lang === 'ar' ? 'نفذت' : 'Out of Stock')}</span>
                 </div>
               </div>
