@@ -43,7 +43,6 @@ const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { const [
 const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
 
 // --- 1. Doctor Profile Modal (Vezeeta Style) ---
-// --- 1. Doctor Profile Modal (Vezeeta Style) ---
 const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
   const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); const [loading, setLoading] = useState(true);
   useEffect(() => { api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false)); }, [doctorId]);
