@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { SuccessModal } from './SuccessModal';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -41,6 +41,10 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const [walletActionType, setWalletActionType] = useState<'deposit' | 'withdrawal'>('deposit');
   const [walletAmount, setWalletAmount] = useState('');
 
+  // 🟢 حالات نافذة تعديل الرصيد الخاصة بالمدير
+  const [adminWalletModal, setAdminWalletModal] = useState<{isOpen: boolean, userId: number | null}>({isOpen: false, userId: null});
+  const [adminWalletAmount, setAdminWalletAmount] = useState('');
+
   const loadData = async () => { if (activeTab === 'facilities' || activeTab === 'services') api.get('/api/pharmacies').then(setFacilities); if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); };
   useEffect(() => { loadData(); }, [activeTab]);
 
@@ -54,10 +58,17 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
   const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { toast.error(err.error); } };
   const handleSaveFooter = async (e: React.FormEvent) => { e.preventDefault(); try { await api.put('/api/admin/settings', footerForm); toast.success(lang === 'ar' ? 'تم حفظ إعدادات الفوتر بنجاح' : 'Footer settings saved'); } catch(err: any) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Save failed'); } };
 
-  const handleManageWalletBalance = async (userId: number) => {
-    const amount = prompt(lang === 'ar' ? 'أدخل المبلغ (أدخل قيمة سالبة للخصم، مثلاً -500):' : 'Enter amount (-500 to deduct):');
-    if(!amount || isNaN(Number(amount))) return;
-    try { await api.post(`/api/admin/wallet/${userId}`, { amount: parseFloat(amount) }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل الرصيد بنجاح!' : 'Balance updated!'); } catch(err) { toast.error(lang === 'ar' ? 'خطأ في العملية' : 'Error'); }
+  // 🟢 دالة تنفيذ تعديل رصيد الإدارة (بدون نافذة بدائية)
+  const submitAdminWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if(!adminWalletModal.userId) return;
+    try { 
+      await api.post(`/api/admin/wallet/${adminWalletModal.userId}`, { amount: parseFloat(adminWalletAmount) }); 
+      loadData(); 
+      toast.success(lang === 'ar' ? 'تم تعديل الرصيد بنجاح!' : 'Balance updated!'); 
+      setAdminWalletModal({isOpen: false, userId: null});
+      setAdminWalletAmount('');
+    } catch(err) { toast.error(lang === 'ar' ? 'خطأ في العملية' : 'Error'); }
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
@@ -164,7 +175,8 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
                       <div className="flex items-center gap-4"><div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-bold text-xl shrink-0">{u.name[0]}</div><div className="flex-1 min-w-0"><div className="flex justify-between items-start"><span className="font-bold text-slate-900 truncate text-left text-base md:text-lg">{u.name}</span>{!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">Pending</span>}</div><p className="text-xs md:text-sm text-slate-500 truncate mt-1" dir="ltr">{u.email}</p><div className="flex gap-2 mt-2 flex-wrap"><span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isTargetSuperAdmin ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>{u.role}</span><span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase tracking-wider">{u.wallet_balance} ل.س</span></div></div></div>
                       <div className="flex gap-2 border-t border-slate-100 pt-4 mt-auto">
                         {!u.is_active && <button onClick={() => approveUser(u.id)} className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><CheckCircle size={14} /> تفعيل</button>}
-                        {isSuperAdmin && <button onClick={() => handleManageWalletBalance(u.id)} className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Banknote size={14} /> الرصيد +/-</button>}
+                        {/* 🟢 زر فتح نافذة تعديل الرصيد الجديدة */}
+                        {isSuperAdmin && <button onClick={() => setAdminWalletModal({isOpen: true, userId: u.id})} className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Banknote size={14} /> الرصيد +/-</button>}
                         {u.is_active && canEditTarget && <button onClick={() => { setEditingUser(u); setUserForm({ email: u.email, password: '', role: u.role, name: u.name, pharmacy_limit: u.pharmacy_limit || 10, phone: u.phone || '', notes: u.notes || '' }); setShowUserModal(true); }} className="p-2 text-slate-400 hover:text-blue-600"><Edit2 size={16} /></button>}
                         {canDeleteTarget && <button onClick={() => openConfirm(t.confirmTitle, 'هل أنت متأكد؟', async () => { await api.delete(`/api/admin/users/${u.id}`); loadData(); toast.success('تم حذف المستخدم'); })} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>}
                       </div>
@@ -193,9 +205,25 @@ export const Dashboard = ({ user, onLogout, lang, t }: { user: UserType, onLogou
         )}
       </AnimatePresence>
 
+      {/* 🟢 النافذة الجديدة الأنيقة لتعديل الرصيد من قبل المدير */}
+      <AnimatePresence>
+        {adminWalletModal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-sm relative">
+              <button onClick={() => setAdminWalletModal({isOpen: false, userId: null})} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+              <h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تعديل رصيد المستخدم' : 'Manage User Balance'}</h3>
+              <p className="text-xs text-slate-500 mb-6">{lang === 'ar' ? 'أدخل المبلغ بالموجب للإضافة، أو بالسالب للخصم (مثال: -500)' : 'Positive to add, negative to deduct.'}</p>
+              <form onSubmit={submitAdminWallet}>
+                <input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 mb-6 text-center text-xl font-bold" placeholder="0" value={adminWalletAmount} onChange={e => setAdminWalletAmount(e.target.value)} />
+                <button type="submit" className="w-full py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">{lang === 'ar' ? 'حفظ التعديل' : 'Save Balance'}</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <ConfirmModal isOpen={confirmData.isOpen} onClose={() => setConfirmData(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmData.onConfirm} title={confirmData.title} body={confirmData.body} t={t} />
 
-      {/* 🟢 النافذة الأنيقة الجديدة */}
       <SuccessModal 
         isOpen={successModalData.isOpen} 
         onClose={() => setSuccessModalData({ ...successModalData, isOpen: false })} 

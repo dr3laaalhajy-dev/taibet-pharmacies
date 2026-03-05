@@ -7,12 +7,44 @@ export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: st
   const [requests, setRequests] = useState<WalletRequest[]>([]); const [loading, setLoading] = useState(true);
   const loadRequests = () => { api.get('/api/admin/wallet-requests').then(setRequests).finally(() => setLoading(false)); };
   useEffect(() => { loadRequests(); }, []);
+const handleAction = (id: number, action: 'approve' | 'reject') => {
+    // إظهار نافذة التأكيد المصغرة الأنيقة
+    toast((t) => (
+      <div className="flex flex-col gap-4 text-center">
+        <p className="font-bold text-lg text-slate-800">
+          {lang === 'ar' ? 'تأكيد الإجراء؟' : 'Confirm action?'}
+        </p>
+        <div className="flex justify-center gap-3">
+          
+          {/* زر حسناً (يحتوي على كود الاتصال بالسيرفر) */}
+          <button 
+            onClick={async () => { 
+              toast.dismiss(t.id); // إخفاء النافذة أولاً
+              try { 
+                await api.patch(`/api/admin/wallet-requests/${id}`, { action }); 
+                loadRequests(); 
+                toast.success(lang === 'ar' ? 'تمت العملية بنجاح' : 'Success'); // رسالة نجاح خضراء بدلاً من الصمت
+              } catch (err) { 
+                toast.error(lang === 'ar' ? 'حدث خطأ' : 'Error'); // رسالة خطأ حمراء بدلاً من alert
+              }
+            }} 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold transition-colors"
+          >
+            {lang === 'ar' ? 'حسناً' : 'Confirm'}
+          </button>
 
-  const handleAction = async (id: number, action: 'approve' | 'reject') => {
-    if (!window.confirm(lang === 'ar' ? 'تأكيد الإجراء؟' : 'Confirm action?')) return;
-    try { await api.patch(`/api/admin/wallet-requests/${id}`, { action }); loadRequests(); } catch (err) { alert('خطأ'); }
+          {/* زر إلغاء (يقوم فقط بإخفاء النافذة) */}
+          <button 
+            onClick={() => toast.dismiss(t.id)} 
+            className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2 rounded-xl font-bold transition-colors"
+          >
+            {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+          </button>
+
+        </div>
+      </div>
+    ), { duration: Infinity }); // Infinity تعني أن النافذة لن تختفي حتى يضغط المستخدم على أحد الزرين
   };
-
   if (loading) return <div>{lang === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>;
 
   return (
