@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { translations } from './translations';
 import { UserType, FooterSettings } from './types';
 import { api } from './api-client';
-import { PublicView } from './Components/PublicView'; 
+import { PublicView } from './Components/PublicView';
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
 import L from 'leaflet';
