@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Smile } from 'lucide-react';
 import { UserType, Facility } from '../types';
-import { api } from '../api';
+import { api } from '../api-client';
 
 export const ServicesManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [selectedFacility, setSelectedFacility] = useState<number | null>(facilities[0]?.id || null); const [servicesText, setServicesText] = useState(''); const [saving, setSaving] = useState(false); const [msg, setMsg] = useState('');

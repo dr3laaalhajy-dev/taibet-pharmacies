@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, UploadCloud, Edit2, Trash2 } from 'lucide-react';
 import { UserType, Facility, Product } from '../types';
-import { api, uploadImageToImgBB } from '../api';
+import { api, uploadImageToImgBB } from '../api-client';
 
 export const ProductsManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [form, setForm] = useState<Partial<Product>>({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: facilities[0]?.id || 0 }); const [editingId, setEditingId] = useState<number | null>(null); const [uploadingImage, setUploadingImage] = useState(false); const [loading, setLoading] = useState(true); const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');

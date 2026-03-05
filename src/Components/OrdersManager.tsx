@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Trash2 } from 'lucide-react';
 import { UserType, Facility, Order } from '../types';
-import { api } from '../api';
+import { api } from '../api-client';
 
 export const OrdersManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [orders, setOrders] = useState<Order[]>([]); const [loading, setLoading] = useState(true); const [activeSubTab, setActiveSubTab] = useState<'pending' | 'past'>('pending'); const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');

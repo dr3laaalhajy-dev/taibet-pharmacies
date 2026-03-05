@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, A
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
-import { api, uploadImageToImgBB } from '../api';
+import { api, uploadImageToImgBB } from '../api-client';
 import { checkIsOpenNow, LocationPicker, RecenterMap } from '../helpers';
 import { ProductsManager } from './ProductsManager';
 import { OrdersManager } from './OrdersManager';

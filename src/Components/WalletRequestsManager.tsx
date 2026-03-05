@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { WalletRequest, UserType } from '../types';
-import { api } from '../api';
+import { api } from '../api-client';
 
 export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: string }) => {
   const [requests, setRequests] = useState<WalletRequest[]>([]); const [loading, setLoading] = useState(true);

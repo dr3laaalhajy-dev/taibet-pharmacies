@@ -3,7 +3,7 @@ import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCirc
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN } from '../types';
-import { api } from '../api';
+import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 
 const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
