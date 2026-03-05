@@ -148,12 +148,12 @@ app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, 
 });
 
 // 🟢 مسار حذف سجل طلب المحفظة (خاص بالـ Super Admin)
-app.delete('/api/admin/wallet-requests/:id', authenticateToken, async (req, res) => {
+app.delete('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res: any) => {
   if (!SUPER_ADMINS.includes(req.user.email)) return res.status(403).json({ error: 'ممنوع' });
   try {
     await pool.query('DELETE FROM wallet_requests WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch(err) { 
+  } catch(err: any) { 
     res.status(500).json({ error: err.message }); 
   }
 });
