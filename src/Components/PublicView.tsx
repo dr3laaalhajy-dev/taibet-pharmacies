@@ -302,73 +302,72 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
           </div>
         </div>
       </div>
-      {/* 🟢 الفوتر الاحترافي (مبني بناءً على إعدادات السوبر آدمن) */}
-      <footer className="bg-[#0c5bc6] text-white pt-16 pb-8 mt-16 border-t-4 border-blue-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 text-center md:text-start">
+     {/* 🟢 الفوتر الاحترافي (عرض الشاشة بالكامل ومتحكم به برمجياً) */}
+      <footer className="bg-[#0c5bc6] text-white pt-12 pb-10 mt-16 border-t-[5px] border-blue-400 w-screen relative left-[50%] right-[50%] -ml-[50vw] -mr-[50vw]">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center sm:text-start">
             
-            {/* العمود الأول (يمين): الشعار والروابط */}
-            <div>
-              <h3 className="text-2xl font-extrabold mb-6 font-mono tracking-wider">{footerData?.appName || 'Taibet Health'}</h3>
-              <ul className="space-y-4 font-medium text-blue-100">
-                <li><a href={footerData?.aboutLink || '#'} className="hover:text-white transition-colors">{lang === 'ar' ? 'من نحن' : 'About Us'}</a></li>
-                <li><a href={footerData?.teamLink || '#'} className="hover:text-white transition-colors">{lang === 'ar' ? 'فريق العمل' : 'Our Team'}</a></li>
-                <li><a href={footerData?.careersLink || '#'} className="hover:text-white transition-colors">{lang === 'ar' ? 'وظائف' : 'Careers'}</a></li>
+            {/* العمود الأول: الشعار والروابط */}
+            {(footerData?.appName || footerData?.aboutLink || footerData?.teamLink || footerData?.careersLink) && (
+              <div className="flex flex-col items-center sm:items-start">
+                {footerData?.appName && <h3 className="text-2xl font-extrabold mb-5 font-mono tracking-wider">{footerData.appName}</h3>}
+                <ul className="space-y-2 font-medium text-blue-100">
+                  {footerData?.aboutLink && <li><a href={footerData.aboutLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'من نحن' : 'About Us'}</a></li>}
+                  {footerData?.teamLink && <li><a href={footerData.teamLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'فريق العمل' : 'Our Team'}</a></li>}
+                  {footerData?.careersLink && <li><a href={footerData.careersLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'وظائف' : 'Careers'}</a></li>}
+                </ul>
+              </div>
+            )}
+
+            {/* العمود الثاني: ابحث عن طريق (أساسي) */}
+            <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 sm:border-0 pt-6 sm:pt-0">
+              <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
+              <ul className="space-y-2 font-medium text-blue-100">
+                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'التخصص' : 'Specialty'}</button></li>
+                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
               </ul>
             </div>
 
-            {/* العمود الثاني: ابحث عن طريق */}
-            <div>
-              <h3 className="text-xl font-bold mb-6">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
-              <ul className="space-y-4 font-medium text-blue-100">
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص' : 'Specialty'}</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'المنطقة' : 'Area'}</a></li>
-              </ul>
-            </div>
+            {/* العمود الثالث: للأطباء (يختفي إذا كان الرابط فارغاً) */}
+            {footerData?.doctorJoinLink && (
+              <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 sm:border-0 pt-6 sm:pt-0">
+                <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'هل أنت طبيب ؟' : 'Are you a doctor?'}</h3>
+                <ul className="space-y-2 font-medium text-blue-100">
+                  <li><a href={footerData.doctorJoinLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'انضم إلى أطبائنا' : 'Join our doctors'}</a></li>
+                </ul>
+              </div>
+            )}
 
-            {/* العمود الثالث: للأطباء */}
-            <div>
-              <h3 className="text-xl font-bold mb-6">{lang === 'ar' ? 'هل أنت طبيب ؟' : 'Are you a doctor?'}</h3>
-              <ul className="space-y-4 font-medium text-blue-100">
-                <li><a href={footerData?.doctorJoinLink || '#'} className="hover:text-white transition-colors">{lang === 'ar' ? 'انضم إلى أطبائنا' : 'Join our doctors'}</a></li>
-              </ul>
-            </div>
-
-            {/* العمود الرابع (يسار): المساعدة والتطبيقات */}
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-xl font-bold mb-6">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
-              <ul className="space-y-4 font-medium text-blue-100 mb-8 w-full">
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</a></li>
-              </ul>
+            {/* العمود الرابع: المساعدة والتطبيقات */}
+            <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 lg:border-0 pt-6 lg:pt-0">
+              {(footerData?.libraryLink || footerData?.contactLink || footerData?.termsLink || footerData?.privacyLink) && (
+                <>
+                  <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
+                  <ul className="space-y-2 font-medium text-blue-100 mb-8 text-center sm:text-start w-full">
+                    {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
+                    {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
+                    {footerData?.termsLink && <li><a href={footerData.termsLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a></li>}
+                    {footerData?.privacyLink && <li><a href={footerData.privacyLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</a></li>}
+                  </ul>
+                </>
+              )}
 
               {/* أزرار التطبيقات */}
-              <div className="space-y-3 w-full max-w-[200px] mb-6 mx-auto md:mx-0">
-                {footerData?.androidLink && (
-                  <a href={footerData.androidLink} target="_blank" rel="noreferrer" className="block border border-white/20 bg-black/30 hover:bg-black/50 rounded-xl p-2 transition-all">
-                    <div className="flex items-center gap-3">
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-8 object-contain" />
-                    </div>
-                  </a>
-                )}
-                {footerData?.iosLink && (
-                  <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="block border border-white/20 bg-black/30 hover:bg-black/50 rounded-xl p-2 transition-all">
-                    <div className="flex items-center gap-3">
-                      <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-8 object-contain" />
-                    </div>
-                  </a>
-                )}
-              </div>
+              {(footerData?.androidLink || footerData?.iosLink) && (
+                <div className="flex gap-3 mb-6 w-full justify-center sm:justify-start">
+                  {footerData?.androidLink && <a href={footerData.androidLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-10 object-contain" /></a>}
+                  {footerData?.iosLink && <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-10 object-contain" /></a>}
+                </div>
+              )}
 
               {/* السوشيال ميديا */}
-              <div className="flex items-center justify-center md:justify-start gap-6 text-white w-full">
-                {footerData?.twitter && <a href={footerData.twitter} target="_blank" className="hover:scale-110 transition-transform"><span className="text-2xl font-bold font-mono">X</span></a>}
-                {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:scale-110 transition-transform"><svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
-                {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:scale-110 transition-transform"><svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
+              <div className="flex items-center justify-center sm:justify-start gap-5 text-blue-200 w-full mt-2">
+                {footerData?.twitter && <a href={footerData.twitter} target="_blank" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
+                {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
+                {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
               </div>
             </div>
+
           </div>
         </div>
       </footer>
