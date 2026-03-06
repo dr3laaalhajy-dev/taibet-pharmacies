@@ -128,10 +128,20 @@ export default function App() {
               </button>
             )}
             
-            <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
+           <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
             
             {user ? (
-              <div className="relative">
+              <div className="flex items-center gap-2 md:gap-3">
+                {/* 🟢 زر لوحة التحكم السريع (يظهر للموظفين والإدارة فقط بجانب الصورة) */}
+                {user.role !== 'patient' && (
+                  <button onClick={() => setView('dashboard')} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-md">
+                    <LayoutDashboard size={16} />
+                    <span className="hidden sm:inline">{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+                  </button>
+                )}
+
+                <div className="relative">
+                  {/* 🟢 زر الصورة الشخصية والقائمة العائمة */}
                 <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
                   {(user as any).profile_picture ? (
                     <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
@@ -157,14 +167,7 @@ export default function App() {
                       <button onClick={() => { setShowSettingsModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
                         <Settings size={16} /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}
                       </button>
-
-                      {/* 🟢 إظهار زر العودة للوحة التحكم فقط للموظفين/الإدارة */}
-                      {user.role !== 'patient' && (
-                        <button onClick={() => { setView('dashboard'); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-3 transition-colors">
-                          <LayoutDashboard size={16} /> {lang === 'ar' ? 'لوحة تحكم الموظفين' : 'Staff Dashboard'}
-                        </button>
-                      )}
-
+                    
                       <div className="border-t border-slate-100 mt-2 pt-2">
                         <button onClick={handleLogout} className="w-full text-start px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
                           <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}

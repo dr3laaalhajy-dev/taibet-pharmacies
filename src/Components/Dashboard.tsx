@@ -136,8 +136,18 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row w-full overflow-hidden">
-      <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
-        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center"><h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">Taibet Health</h1><button onClick={onLogout} className="md:hidden p-2 rounded-lg bg-red-50 text-red-600"><LogOut size={18} /></button></div>
+     <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
+        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 hidden lg:flex items-center gap-2">Taibet Health</h1>
+          
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
+             {/* 🟢 الزر الأخضر تم نقله للأعلى هنا */}
+             <button onClick={onGoToPublic} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-200">
+               <LayoutDashboard size={16} /> {lang === 'ar' ? 'تصفح المتجر' : 'Public Site'}
+             </button>
+             <button onClick={onLogout} className="md:hidden p-2 rounded-lg bg-red-50 text-red-600"><LogOut size={18} /></button>
+          </div>
+        </div>
         
         <div className="mx-4 mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 text-white shadow-lg shadow-blue-200 relative overflow-hidden">
           <div className="flex justify-between items-center mb-1 relative z-10">
@@ -162,11 +172,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
           {isSuperAdmin && <button onClick={() => { setActiveTab('super_settings'); fetchSuperAdmins(); }} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'super_settings' ? 'bg-purple-50 text-purple-700' : 'text-slate-600 hover:bg-slate-50'}`}><ShieldAlert size={18} /> {lang === 'ar' ? 'غرفة السوبر آدمن' : 'Super Admins'}</button>}
           <button onClick={() => setActiveTab('profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Settings size={18} /> {t.profileSettings}</button>
           
-          {/* 🟢 زر العودة للمتجر وتصفح الموقع للموظفين */}
-          <div className="md:mt-auto pt-2 border-t border-slate-100 hidden md:block"></div>
-          <button onClick={onGoToPublic} className="shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 border border-emerald-100 transition-colors shadow-sm">
-            <LayoutDashboard size={18} /> {lang === 'ar' ? 'تصفح الموقع الرئيسي' : 'Go to Public Site'}
-          </button>
         </nav>
         <div className="hidden md:block p-4 border-t border-slate-100 mt-auto"><div className="flex items-center gap-3 px-4 py-3 mb-2"><div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold shrink-0">{user.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-900 truncate">{user.name}</p><p className="text-xs text-slate-500 capitalize">{user.role === 'admin' ? t.admin : (user.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : (user.role === 'doctor' ? t.doctor : (user.role === 'pharmacist' ? t.pharmacist : 'مريض')))}</p></div></div><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"><LogOut size={18} /> {t.logout}</button></div>
       </div>
