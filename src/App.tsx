@@ -15,7 +15,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 // 🔴 دالة رفع الصور
-const uploadImageToImgBB = async (file: File) => { const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e); }); const f = new FormData(); f.append('image', base64.split(',')[1]); const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); const d = await r.json(); if (d.success) return d.data.url; throw new Error(d.error?.message || 'فشل الرفع'); };
+const uploadImageToImgBB = async (file: File) => { const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e); }); const f = new FormData(); f.append('image', base64.split(',')[1]); const r = await fetch('https://api.imgbb.com/1/upload?key=64478fda62377a10dd4822f3a50f8098', { method: 'POST', body: f }); const d = await r.json(); if (d.success) return d.data.url; throw new Error(d.error?.message || 'فشل الرفع'); };
 
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
