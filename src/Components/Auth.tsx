@@ -1,84 +1,49 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { Shield, MessageCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 import { api } from '../api-client';
-import toast from 'react-hot-toast';
+import { ArrowRight, /* أيقوناتك الأخرى */ } from 'lucide-react';
 
 export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => void, onBack: () => void, t: any, lang: string }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', phone: '', activationKey: '' });
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const payload = isLogin ? { email: formData.email, password: formData.password } : { ...formData, role: 'patient' };
-      const data = await api.post(endpoint, payload);
-      
-      if (isLogin) {
-        onLogin(data.user);
-        toast.success(lang === 'ar' ? 'تم تسجيل الدخول بنجاح' : 'Login successful');
-      } else {
-        toast.success(lang === 'ar' ? 'تم إنشاء الحساب، يرجى تسجيل الدخول' : 'Account created, please login');
-        setIsLogin(true);
-      }
-    } catch (err: any) {
-      toast.error(err.error || (lang === 'ar' ? 'حدث خطأ' : 'An error occurred'));
-    } finally {
-      setLoading(false);
-    }
+  const [isLogin, setIsLogin] = useState(true); const [email, setEmail] = useState(''); const [emailPrefix, setEmailPrefix] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState(''); const [phone, setPhone] = useState(''); const [activationKey, setActivationKey] = useState(''); const [isActivatedByKey, setIsActivatedByKey] = useState(false); const [role, setRole] = useState('patient'); const [error, setError] = useState(''); const [successMsg, setSuccessMsg] = useState(''); const [loading, setLoading] = useState(false);
+  
+  const handleSubmit = async (e: React.FormEvent) => { 
+    e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true); 
+    try { 
+      if (isLogin) { 
+        const data = await api.post('/api/auth/login', { email, password }); onLogin(data.user); 
+      } else { 
+        const domain = role === 'patient' ? '@taiba.user.sy' : (role === 'dentist' ? '@taiba.dental.sy' : (role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy')); 
+        const fullEmail = `${emailPrefix}${domain}`; 
+        const res = await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role, activationKey }); 
+        if (res.isActive) { setSuccessMsg('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.'); setIsActivatedByKey(true); } 
+        else { setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى التواصل مع الإدارة لتفعيل حسابك (للكوادر الطبية).'); setIsActivatedByKey(false); } 
+        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey(''); 
+      } 
+    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); } 
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-      {/* 🟢 زر الرجوع للرئيسية */}
-      <div className="w-full max-w-md mb-4">
+    {/* 🟢 زر الرجوع للرئيسية (أضفه في أعلى تصميمك) */}
+      <div className="w-full max-w-md mx-auto mb-4 pt-4">
         <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors">
           <ArrowRight className={lang === 'en' ? 'rotate-180' : ''} size={20} />
           {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
         </button>
       </div>
-
-      <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100">
-        <h2 className="text-3xl font-extrabold text-center mb-8 text-slate-900">
-          {isLogin ? (lang === 'ar' ? 'تسجيل الدخول' : 'Login') : (lang === 'ar' ? 'إنشاء حساب' : 'Register')}
-        </h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {!isLogin && (
-            <>
-              <div className="relative">
-                <User className="absolute top-1/2 -translate-y-1/2 text-slate-400 rtl:right-4 ltr:left-4" size={20} />
-                <input required type="text" placeholder={lang === 'ar' ? 'الاسم الكامل' : 'Full Name'} className="w-full px-12 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-              </div>
-              <div className="relative">
-                <Phone className="absolute top-1/2 -translate-y-1/2 text-slate-400 rtl:right-4 ltr:left-4" size={20} />
-                <input type="text" placeholder={lang === 'ar' ? 'رقم الهاتف' : 'Phone'} className="w-full px-12 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none text-left" dir="ltr" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-              </div>
-            </>
-          )}
-          <div className="relative">
-            <Mail className="absolute top-1/2 -translate-y-1/2 text-slate-400 rtl:right-4 ltr:left-4" size={20} />
-            <input required type="email" placeholder={lang === 'ar' ? 'البريد الإلكتروني' : 'Email'} className="w-full px-12 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none text-left" dir="ltr" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-          </div>
-          <div className="relative">
-            <Lock className="absolute top-1/2 -translate-y-1/2 text-slate-400 rtl:right-4 ltr:left-4" size={20} />
-            <input required type="password" placeholder={lang === 'ar' ? 'كلمة المرور' : 'Password'} className="w-full px-12 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none text-left" dir="ltr" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-          </div>
-          
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">
-            {loading ? '...' : (isLogin ? (lang === 'ar' ? 'دخول' : 'Login') : (lang === 'ar' ? 'تسجيل' : 'Register'))}
-          </button>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 w-full">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
+        <div className="text-center mb-8"><div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><Shield size={32} /></div><h2 className="text-3xl font-bold text-slate-900">{isLogin ? t.loginTitle : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account')}</h2></div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm">{error}</div>}
+          {successMsg && (<div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-sm flex flex-col gap-3 text-center border border-emerald-100"><span className="font-bold">{successMsg}</span>{!isActivatedByKey && role !== 'patient' && successMsg.includes('التواصل') && (<a href="https://wa.me/963000000000" target="_blank" rel="noreferrer" className="bg-emerald-500 text-white py-2 rounded-lg font-bold flex justify-center items-center gap-2 hover:bg-emerald-600 transition-colors"><MessageCircle size={16} /> تواصل عبر واتساب للتفعيل</a>)}</div>)}
+          {!isLogin && (<><div><label className="block text-sm font-medium text-slate-700 mb-1">{t.fullName}</label><input required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" value={name} onChange={e => setName(e.target.value)} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">{t.role}</label><select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" value={role} onChange={e => setRole(e.target.value)}><option value="patient">{lang === 'ar' ? 'مريض / مستخدم' : 'Patient'}</option><option value="pharmacist">{t.pharmacist}</option><option value="doctor">{t.doctor}</option><option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option></select></div><div><label className="block text-sm font-medium text-slate-700 mb-1">{t.phone}</label><input className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" value={phone} onChange={e => setPhone(e.target.value)} /></div></div>{role !== 'patient' && <div className="pt-2 border-t border-slate-100 mt-2"><p className="text-xs text-slate-500 mb-2 font-medium leading-relaxed">مفتاح التفعيل للكادر الطبي (اختياري):</p><input placeholder="مفتاح التفعيل (إن وجد)" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono text-center tracking-widest uppercase" value={activationKey} onChange={e => setActivationKey(e.target.value.toUpperCase())} /></div>}</>)}
+          {isLogin ? (<div><label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} /><div className="flex gap-2 mt-2 justify-end flex-wrap" dir="ltr"><button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.user.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.user.sy</button><button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.pharma.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.pharma.sy</button><button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.Health.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.Health.sy</button><button type="button" onClick={() => setEmail(email.split('@')[0] + '@taiba.dental.sy')} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded-lg hover:bg-slate-200 transition-colors">@taiba.dental.sy</button></div></div>) : (<div><label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label><div className="flex" dir="ltr"><input type="text" required placeholder="username" className="flex-1 px-4 py-3 rounded-l-xl border border-r-0 border-slate-200 outline-none text-left focus:ring-2 focus:ring-blue-500" value={emailPrefix} onChange={e => setEmailPrefix(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, ''))} /><div className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-r-xl text-slate-500 font-mono text-xs flex items-center select-none">{role === 'patient' ? '@taiba.user.sy' : (role === 'dentist' ? '@taiba.dental.sy' : (role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy'))}</div></div></div>)}
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={password} onChange={e => setPassword(e.target.value)} /></div>
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors mt-6">{loading ? '...' : (isLogin ? t.signIn : (lang === 'ar' ? 'تسجيل حساب' : 'Sign Up'))}</button>
         </form>
-        
-        <p className="text-center mt-6 text-slate-500">
-          {isLogin ? (lang === 'ar' ? 'ليس لديك حساب؟ ' : "Don't have an account? ") : (lang === 'ar' ? 'لديك حساب بالفعل؟ ' : 'Already have an account? ')}
-          <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 font-bold hover:underline">
-            {isLogin ? (lang === 'ar' ? 'إنشاء حساب جديد' : 'Register here') : (lang === 'ar' ? 'تسجيل الدخول' : 'Login here')}
-          </button>
-        </p>
-      </div>
+        <div className="mt-6 text-center border-t border-slate-100 pt-6"><p className="text-sm text-slate-600">{isLogin ? (lang === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?") : (lang === 'ar' ? 'لديك حساب بالفعل؟' : 'Already have an account?')}<button type="button" onClick={() => {setIsLogin(!isLogin); setError(''); setSuccessMsg('');}} className="text-blue-600 font-bold hover:underline mx-2">{isLogin ? (lang === 'ar' ? 'إنشاء حساب' : 'Sign Up') : (lang === 'ar' ? 'تسجيل الدخول' : 'Login')}</button></p></div>
+      </motion.div>
     </div>
   );
 };
