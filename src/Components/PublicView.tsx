@@ -231,137 +231,141 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
   useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
-  // 🟢 تمرير العملة والعنوان للمتجر
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} defaultAddress={defaultAddress} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden min-h-[80vh]">
-      <header className="mb-16 text-center">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 uppercase bg-blue-50 rounded-full border border-blue-100">{t.communityHealth}</motion.div>
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">{lang === 'ar' ? <>منصة <span className="text-blue-600">طيبة الإمام</span> الصحية</> : <>Taibet El-Imam <span className="text-blue-600">Health Platform</span></>}</h1>
-        <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
-        <div className="max-w-xl mx-auto relative group"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} /><input type="text" placeholder={t.searchPlaceholder} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-blue-600 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
-        <div className="flex justify-center gap-3 mt-10 flex-wrap">
-          <button onClick={() => setActiveTab('pharmacy')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><BriefcaseMedical size={18} /> {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}</button>
-          <button onClick={() => setActiveTab('clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'clinic' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Stethoscope size={18} /> {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}</button>
-          <button onClick={() => setActiveTab('dental_clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Smile size={18} /> {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}</button>
-        </div>
-        {activeTab === 'pharmacy' && (<div className="mt-6 flex justify-center"><button onClick={() => setShowShop(true)} className="px-8 py-3.5 rounded-2xl font-bold transition-all shadow-md flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 animate-pulse"><ShoppingCart size={18} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}</button></div>)}
-      </header>
-
-      <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
-
-      <div className="flex flex-col gap-12 md:gap-16 mb-16">
-        <div className="w-full">
-          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
-              <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
-                <div className="flex items-center gap-4 mb-4 mt-2">
-                  {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <Smile size={24} /> : <Activity size={24} />)}</div>}
-                  <div><h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
-                </div>
-                <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
-                <div className="flex gap-2">
-                  {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
-                    <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="flex-1 bg-blue-50 text-blue-700 border border-blue-100 text-center py-2.5 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">{lang === 'ar' ? 'احجز موعد' : 'Book Appt'}</button>
-                  )}
-                  <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
-                </div>
-              </div>
-            )) : (<div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500"><Clock className="mx-auto text-slate-300 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
+    <div className="w-full flex flex-col min-h-[85vh]">
+      {/* 🟢 حاوية المحتوى الأساسي (محددة العرض) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden flex-1">
+        <header className="mb-16 text-center">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 uppercase bg-blue-50 rounded-full border border-blue-100">{t.communityHealth}</motion.div>
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">{lang === 'ar' ? <>منصة <span className="text-blue-600">طيبة الإمام</span> الصحية</> : <>Taibet El-Imam <span className="text-blue-600">Health Platform</span></>}</h1>
+          <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
+          <div className="max-w-xl mx-auto relative group"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} /><input type="text" placeholder={t.searchPlaceholder} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-blue-600 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          <div className="flex justify-center gap-3 mt-10 flex-wrap">
+            <button onClick={() => setActiveTab('pharmacy')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><BriefcaseMedical size={18} /> {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}</button>
+            <button onClick={() => setActiveTab('clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'clinic' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Stethoscope size={18} /> {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}</button>
+            <button onClick={() => setActiveTab('dental_clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Smile size={18} /> {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}</button>
           </div>
-          {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
-        </div>
+          {activeTab === 'pharmacy' && (<div className="mt-6 flex justify-center"><button onClick={() => setShowShop(true)} className="px-8 py-3.5 rounded-2xl font-bold transition-all shadow-md flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 animate-pulse"><ShoppingCart size={18} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}</button></div>)}
+        </header>
 
-        <div className="w-full">
-          <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Calendar className="text-slate-400" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}</h2>
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full">
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar'?'الصيدلية':'Pharmacy') : (activeTab === 'clinic' ? (lang === 'ar'?'العيادة':'Clinic') : (lang === 'ar'?'العيادة':'Dental Clinic'))}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paginatedFacilities.map((f, idx) => {
-                    const isOpenNow = f.isOpenNow;
-                    return (
-                      <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
-                        {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 ${isToday ? 'bg-blue-50/30' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
-                        <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 text-xs">---</span>}</td>
-                      </motion.tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
+
+        <div className="flex flex-col gap-12 md:gap-16 mb-16">
+          <div className="w-full">
+            <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
+                <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                  <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
+                  <div className="flex items-center gap-4 mb-4 mt-2">
+                    {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <Smile size={24} /> : <Activity size={24} />)}</div>}
+                    <div><h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
+                  </div>
+                  <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
+                  <div className="flex gap-2">
+                    {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
+                      <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="flex-1 bg-blue-50 text-blue-700 border border-blue-100 text-center py-2.5 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">{lang === 'ar' ? 'احجز موعد' : 'Book Appt'}</button>
+                    )}
+                    <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
+                  </div>
+                </div>
+              )) : (<div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500"><Clock className="mx-auto text-slate-300 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
             </div>
-            {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 bg-slate-50"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+            {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+          </div>
+
+          <div className="w-full">
+            <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Calendar className="text-slate-400" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}</h2>
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden w-full">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar'?'الصيدلية':'Pharmacy') : (activeTab === 'clinic' ? (lang === 'ar'?'العيادة':'Clinic') : (lang === 'ar'?'العيادة':'Dental Clinic'))}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedFacilities.map((f, idx) => {
+                      const isOpenNow = f.isOpenNow;
+                      return (
+                        <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
+                          {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 ${isToday ? 'bg-blue-50/30' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
+                          <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 text-xs">---</span>}</td>
+                        </motion.tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 bg-slate-50"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+            </div>
           </div>
         </div>
-      </div>
-     {/* 🟢 الفوتر الاحترافي (عرض الشاشة بالكامل ومتحكم به برمجياً) */}
-      <footer className="bg-[#0c5bc6] text-white pt-12 pb-10 mt-16 border-t-[5px] border-blue-400 w-screen relative left-[50%] right-[50%] -ml-[50vw] -mr-[50vw]">
+      </div> {/* 🟢 أغلقنا حاوية المحتوى هنا، ليتمكن الفوتر من التمدد بحرية */}
+
+      {/* 🟢 الفوتر الاحترافي (عرض الشاشة بالكامل ومتحكم به برمجياً) */}
+      <footer className="w-full bg-[#0c5bc6] text-white pt-12 pb-10 mt-auto border-t-[5px] border-blue-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center sm:text-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center lg:text-start">
             
             {/* العمود الأول: الشعار والروابط */}
             {(footerData?.appName || footerData?.aboutLink || footerData?.teamLink || footerData?.careersLink) && (
-              <div className="flex flex-col items-center sm:items-start">
-                {footerData?.appName && <h3 className="text-2xl font-extrabold mb-5 font-mono tracking-wider">{footerData.appName}</h3>}
-                <ul className="space-y-2 font-medium text-blue-100">
-                  {footerData?.aboutLink && <li><a href={footerData.aboutLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'من نحن' : 'About Us'}</a></li>}
-                  {footerData?.teamLink && <li><a href={footerData.teamLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'فريق العمل' : 'Our Team'}</a></li>}
-                  {footerData?.careersLink && <li><a href={footerData.careersLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'وظائف' : 'Careers'}</a></li>}
+              <div className="flex flex-col items-center lg:items-start">
+                {footerData?.appName && <h3 className="text-3xl font-extrabold mb-5 font-mono tracking-wider">{footerData.appName}</h3>}
+                <ul className="space-y-3 font-medium text-blue-100">
+                  {footerData?.aboutLink && <li><a href={footerData.aboutLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'من نحن' : 'About Us'}</a></li>}
+                  {footerData?.teamLink && <li><a href={footerData.teamLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'فريق العمل' : 'Our Team'}</a></li>}
+                  {footerData?.careersLink && <li><a href={footerData.careersLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'وظائف' : 'Careers'}</a></li>}
                 </ul>
               </div>
             )}
 
             {/* العمود الثاني: ابحث عن طريق (أساسي) */}
-            <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 sm:border-0 pt-6 sm:pt-0">
+            <div className="flex flex-col items-center lg:items-start sm:border-r border-blue-500/30 lg:border-0 sm:pr-8 pt-8 sm:pt-0">
               <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
-              <ul className="space-y-2 font-medium text-blue-100">
-                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'التخصص' : 'Specialty'}</button></li>
-                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
+              <ul className="space-y-3 font-medium text-blue-100">
+                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص' : 'Specialty'}</button></li>
+                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
               </ul>
             </div>
 
             {/* العمود الثالث: للأطباء (يختفي إذا كان الرابط فارغاً) */}
             {footerData?.doctorJoinLink && (
-              <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 sm:border-0 pt-6 sm:pt-0">
+              <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 sm:border-0 pt-8 sm:pt-0">
                 <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'هل أنت طبيب ؟' : 'Are you a doctor?'}</h3>
-                <ul className="space-y-2 font-medium text-blue-100">
-                  <li><a href={footerData.doctorJoinLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'انضم إلى أطبائنا' : 'Join our doctors'}</a></li>
+                <ul className="space-y-3 font-medium text-blue-100">
+                  <li><a href={footerData.doctorJoinLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'انضم إلى أطبائنا' : 'Join our doctors'}</a></li>
                 </ul>
               </div>
             )}
 
             {/* العمود الرابع: المساعدة والتطبيقات */}
-            <div className="flex flex-col items-center sm:items-start border-t border-blue-500/30 lg:border-0 pt-6 lg:pt-0">
+            <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 lg:border-0 pt-8 lg:pt-0">
               {(footerData?.libraryLink || footerData?.contactLink || footerData?.termsLink || footerData?.privacyLink) && (
                 <>
                   <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
-                  <ul className="space-y-2 font-medium text-blue-100 mb-8 text-center sm:text-start w-full">
-                    {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
-                    {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
-                    {footerData?.termsLink && <li><a href={footerData.termsLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a></li>}
-                    {footerData?.privacyLink && <li><a href={footerData.privacyLink} className="hover:text-white transition-colors py-1 block">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</a></li>}
+                  <ul className="space-y-3 font-medium text-blue-100 mb-8 text-center lg:text-start w-full">
+                    {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
+                    {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
+                    {footerData?.termsLink && <li><a href={footerData.termsLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a></li>}
+                    {footerData?.privacyLink && <li><a href={footerData.privacyLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</a></li>}
                   </ul>
                 </>
               )}
 
               {/* أزرار التطبيقات */}
               {(footerData?.androidLink || footerData?.iosLink) && (
-                <div className="flex gap-3 mb-6 w-full justify-center sm:justify-start">
+                <div className="flex flex-col sm:flex-row gap-3 mb-6 w-full justify-center lg:justify-start">
                   {footerData?.androidLink && <a href={footerData.androidLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-10 object-contain" /></a>}
                   {footerData?.iosLink && <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-10 object-contain" /></a>}
                 </div>
               )}
 
               {/* السوشيال ميديا */}
-              <div className="flex items-center justify-center sm:justify-start gap-5 text-blue-200 w-full mt-2">
+              <div className="flex items-center justify-center lg:justify-start gap-6 text-blue-100 w-full mt-2">
                 {footerData?.twitter && <a href={footerData.twitter} target="_blank" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
                 {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
                 {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
