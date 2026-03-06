@@ -138,7 +138,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row w-full overflow-hidden">
      <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 md:sticky md:top-0 md:h-screen z-20">
         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center gap-2">
-          <h1 className="text-xl font-bold text-slate-900 hidden lg:flex items-center gap-2">Taibet Health</h1>
+          <h1 className="text-xl font-bold text-slate-900 hidden lg:flex items-center gap-2">Taiba Health</h1>
           
           <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
              {/* 🟢 الزر الأخضر تم نقله للأعلى هنا */}

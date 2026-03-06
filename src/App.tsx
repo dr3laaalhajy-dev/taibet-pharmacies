@@ -128,7 +128,7 @@ export default function App() {
       
       {view !== 'dashboard' && (
         <nav className="bg-white border-b px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md bg-white/90 shadow-sm">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"> Taibet Health</button>
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"> Taiba Health</button>
           
           <div className="flex gap-3 items-center">
             {user && (
