@@ -14,8 +14,25 @@ import { Dashboard } from './Components/Dashboard';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({ 
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png', 
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png', 
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' 
+});
+
 // 🔴 دالة رفع الصور
-const uploadImageToImgBB = async (file: File) => { const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e); }); const f = new FormData(); f.append('image', base64.split(',')[1]); const r = await fetch('https://api.imgbb.com/1/upload?key=64478fda62377a10dd4822f3a50f8098', { method: 'POST', body: f }); const d = await r.json(); if (d.success) return d.data.url; throw new Error(d.error?.message || 'فشل الرفع'); };
+const uploadImageToImgBB = async (file: File) => { 
+  const base64 = await new Promise<string>((resolve, reject) => { 
+    const reader = new FileReader(); reader.readAsDataURL(file); 
+    reader.onload = () => resolve(reader.result as string); 
+    reader.onerror = e => reject(e); 
+  }); 
+  const f = new FormData(); f.append('image', base64.split(',')[1]); 
+  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
+  const d = await r.json(); if (d.success) return d.data.url; 
+  throw new Error(d.error?.message || 'فشل الرفع'); 
+};
 
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
@@ -24,24 +41,20 @@ export default function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   
-  // 🟢 حالات القائمة والنوافذ الجديدة
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'currency' | 'addresses'>('currency');
   
-  // 🟢 حالات المحفظة والنجاح
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
 
-  // 🟢 إعدادات المستخدم (العملة والعناوين)
   const [currency, setCurrency] = useState<'old' | 'new'>('old');
   const [addresses, setAddresses] = useState<string[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<string>('');
   const [newAddress, setNewAddress] = useState('');
 
-  // 🟢 بيانات تعديل الملف الشخصي
   const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '', profile_picture: '' });
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -53,7 +66,6 @@ export default function App() {
     api.get('/api/auth/me').then(data => { 
       setUser(data.user); 
       setView(data.user.role === 'patient' ? 'public' : 'dashboard');
-      // تحميل العناوين المحفوظة محلياً لهذا المستخدم
       const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${data.user.id}`) || '[]');
       const savedDefault = localStorage.getItem(`defAddr_${data.user.id}`) || savedAddresses[0] || '';
       setAddresses(savedAddresses); setDefaultAddress(savedDefault);
@@ -61,7 +73,6 @@ export default function App() {
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
-  // تحديث فورم الملف الشخصي عند فتحه
   useEffect(() => { if(user) setProfileForm({ name: user.name, email: user.email, password: '', profile_picture: (user as any).profile_picture || '' }); }, [user, showProfileModal]);
 
   const refreshUser = () => { api.get('/api/auth/me').then(data => setUser(data.user)).catch(console.error); };
@@ -120,7 +131,6 @@ export default function App() {
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2"> Taibet Health</button>
           
           <div className="flex gap-3 items-center">
-            {/* 🟢 التعديل الأهم: إظهار المحفظة لجميع المسجلين (مرضى، أطباء، إدارة) */}
             {user && (
               <button onClick={() => setShowWalletModal(true)} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-bold border border-blue-200 hover:bg-blue-100 transition-colors">
                 <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
@@ -128,11 +138,12 @@ export default function App() {
               </button>
             )}
             
-           <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
+            <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
             
             {user ? (
               <div className="flex items-center gap-2 md:gap-3">
-                {/* 🟢 زر لوحة التحكم السريع (يظهر للموظفين والإدارة فقط بجانب الصورة) */}
+                
+                {/* 🟢 زر لوحة التحكم السريع بجانب الصورة (للإدارة والموظفين فقط) */}
                 {user.role !== 'patient' && (
                   <button onClick={() => setView('dashboard')} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-md">
                     <LayoutDashboard size={16} />
@@ -141,41 +152,41 @@ export default function App() {
                 )}
 
                 <div className="relative">
-                  {/* 🟢 زر الصورة الشخصية والقائمة العائمة */}
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
-                  {(user as any).profile_picture ? (
-                    <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
-                  ) : (
-                    <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </button>
+                  <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
+                    {(user as any).profile_picture ? (
+                      <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
+                    ) : (
+                      <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </button>
 
-                <AnimatePresence>
-                  {isMenuOpen && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`absolute mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 ${lang === 'ar' ? 'left-0' : 'right-0'}`}>
-                      <div className="px-4 py-3 border-b border-slate-100 mb-2 bg-slate-50/50">
-                        <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                      </div>
-                      
-                      <button onClick={() => { setShowProfileModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
-                        <User size={16} /> {lang === 'ar' ? 'الملف الشخصي' : 'Profile'}
-                      </button>
-                      
-                      <button onClick={() => { setShowSettingsModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
-                        <Settings size={16} /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}
-                      </button>
-                    
-                      <div className="border-t border-slate-100 mt-2 pt-2">
-                        <button onClick={handleLogout} className="w-full text-start px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
-                          <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
+                  <AnimatePresence>
+                    {isMenuOpen && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`absolute mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 ${lang === 'ar' ? 'left-0' : 'right-0'}`}>
+                        <div className="px-4 py-3 border-b border-slate-100 mb-2 bg-slate-50/50">
+                          <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
+                          <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        </div>
+                        
+                        <button onClick={() => { setShowProfileModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
+                          <User size={16} /> {lang === 'ar' ? 'الملف الشخصي' : 'Profile'}
                         </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        
+                        <button onClick={() => { setShowSettingsModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
+                          <Settings size={16} /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}
+                        </button>
+
+                        <div className="border-t border-slate-100 mt-2 pt-2">
+                          <button onClick={handleLogout} className="w-full text-start px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
+                            <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             ) : (<button onClick={() => setView('login')} className="bg-blue-600 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-blue-700 transition-colors shadow-md">{t.staffLogin}</button>)}
           </div>
@@ -185,7 +196,6 @@ export default function App() {
       <main className="flex-1">
         {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} defaultAddress={defaultAddress} />}
         {view === 'login' && <Auth onLogin={handleLogin} t={t} lang={lang} />}
-        {/* 🟢 تمرير دالة onGoToPublic لمكون الداشبورد لكي يعمل الزر الأخضر هناك */}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} lang={lang} t={t} />}
         
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
