@@ -24,7 +24,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
   };
 
   return (
-    {/* 🟢 زر الرجوع للرئيسية (أضفه في أعلى تصميمك) */}
+    <>{/* 🟢 زر الرجوع للرئيسية (أضفه في أعلى تصميمك) */}
       <div className="w-full max-w-md mx-auto mb-4 pt-4">
         <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors">
           <ArrowRight className={lang === 'en' ? 'rotate-180' : ''} size={20} />
@@ -45,5 +45,6 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
         <div className="mt-6 text-center border-t border-slate-100 pt-6"><p className="text-sm text-slate-600">{isLogin ? (lang === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?") : (lang === 'ar' ? 'لديك حساب بالفعل؟' : 'Already have an account?')}<button type="button" onClick={() => {setIsLogin(!isLogin); setError(''); setSuccessMsg('');}} className="text-blue-600 font-bold hover:underline mx-2">{isLogin ? (lang === 'ar' ? 'إنشاء حساب' : 'Sign Up') : (lang === 'ar' ? 'تسجيل الدخول' : 'Login')}</button></p></div>
       </motion.div>
     </div>
+    </>
   );
 };
