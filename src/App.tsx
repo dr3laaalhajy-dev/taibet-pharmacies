@@ -194,8 +194,8 @@ export default function App() {
       )}
 
       <main className="flex-1">
-        {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} defaultAddress={defaultAddress} />}
-        {view === 'login' && <Auth onLogin={handleLogin} t={t} lang={lang} />}
+        {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} defaultAddress={defaultAddress} footerData={footerData} />}
+        {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} lang={lang} t={t} />}
         
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />

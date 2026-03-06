@@ -326,14 +326,38 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
               </div>
             </motion.div>
           )}
-        {activeTab === 'settings' && isSuperAdmin && (
-            <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-2xl">
-              <h2 className="text-2xl font-bold text-slate-900 mb-6">{lang === 'ar' ? 'إعدادات الفوتر' : 'Footer Settings'}</h2>
-              <form onSubmit={handleSaveFooter} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-                <input type="text" placeholder={lang === 'ar' ? 'حقوق النشر' : 'Copyright'} className="w-full p-3 border rounded-xl" value={footerForm.copyright} onChange={e => setFooterForm({...footerForm, copyright: e.target.value})} />
-                <input type="text" placeholder={lang === 'ar' ? 'رقم التواصل' : 'Contact Phone'} className="w-full p-3 border rounded-xl" value={footerForm.contact_phone} onChange={e => setFooterForm({...footerForm, contact_phone: e.target.value})} />
-                <textarea placeholder={lang === 'ar' ? 'الوصف' : 'Description'} className="w-full p-3 border rounded-xl" value={footerForm.description} onChange={e => setFooterForm({...footerForm, description: e.target.value})} />
-                <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">{lang === 'ar' ? 'حفظ الإعدادات' : 'Save Settings'}</button>
+        {/* 🟢 إعدادات الفوتر (للسوبر آدمن) */}
+          {activeTab === 'settings' && isSuperAdmin && (
+            <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{lang === 'ar' ? 'إعدادات الفوتر والتطبيق' : 'Footer Settings'}</h2>
+              <form onSubmit={handleSaveFooter} className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div><label className="block text-sm font-bold mb-2 text-slate-700">{lang === 'ar' ? 'اسم التطبيق / الشعار النصي' : 'App Name'}</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" value={footerForm.appName || ''} onChange={e => setFooterForm({...footerForm, appName: e.target.value})} placeholder="Taibet Health" /></div>
+                  <div><label className="block text-sm font-bold mb-2 text-slate-700">{lang === 'ar' ? 'رابط (من نحن)' : 'About Us Link'}</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.aboutLink || ''} onChange={e => setFooterForm({...footerForm, aboutLink: e.target.value})} /></div>
+                  <div><label className="block text-sm font-bold mb-2 text-slate-700">{lang === 'ar' ? 'رابط (فريق العمل)' : 'Team Link'}</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.teamLink || ''} onChange={e => setFooterForm({...footerForm, teamLink: e.target.value})} /></div>
+                  <div><label className="block text-sm font-bold mb-2 text-slate-700">{lang === 'ar' ? 'رابط (وظائف)' : 'Careers Link'}</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.careersLink || ''} onChange={e => setFooterForm({...footerForm, careersLink: e.target.value})} /></div>
+                  <div className="md:col-span-2"><label className="block text-sm font-bold mb-2 text-slate-700">{lang === 'ar' ? 'رابط (انضم إلى الأطباء)' : 'Join Doctors Link'}</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.doctorJoinLink || ''} onChange={e => setFooterForm({...footerForm, doctorJoinLink: e.target.value})} /></div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6">
+                  <h3 className="font-bold text-lg mb-4 text-blue-600">{lang === 'ar' ? 'روابط التطبيقات (App Stores)' : 'App Links'}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div><label className="block text-sm font-bold mb-2 text-slate-700">Google Play Link</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.androidLink || ''} onChange={e => setFooterForm({...footerForm, androidLink: e.target.value})} /></div>
+                    <div><label className="block text-sm font-bold mb-2 text-slate-700">App Store Link (iOS)</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.iosLink || ''} onChange={e => setFooterForm({...footerForm, iosLink: e.target.value})} /></div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6">
+                  <h3 className="font-bold text-lg mb-4 text-blue-600">{lang === 'ar' ? 'مواقع التواصل الاجتماعي' : 'Social Media'}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div><label className="block text-sm font-bold mb-2 text-slate-700">Facebook</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.facebook || ''} onChange={e => setFooterForm({...footerForm, facebook: e.target.value})} /></div>
+                    <div><label className="block text-sm font-bold mb-2 text-slate-700">Instagram</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.instagram || ''} onChange={e => setFooterForm({...footerForm, instagram: e.target.value})} /></div>
+                    <div><label className="block text-sm font-bold mb-2 text-slate-700">X (Twitter)</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.twitter || ''} onChange={e => setFooterForm({...footerForm, twitter: e.target.value})} /></div>
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md mt-4">{lang === 'ar' ? 'حفظ إعدادات الفوتر' : 'Save Footer Settings'}</button>
               </form>
             </motion.div>
           )}
