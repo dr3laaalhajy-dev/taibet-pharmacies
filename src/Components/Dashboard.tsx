@@ -143,7 +143,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
           <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
              {/* 🟢 الزر الأخضر تم نقله للأعلى هنا */}
              <button onClick={onGoToPublic} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-200">
-               <LayoutDashboard size={16} /> {lang === 'ar' ? 'تصفح المتجر' : 'Public Site'}
+               <LayoutDashboard size={16} /> {lang === 'ar' ? 'الصفحة الرئيسية' : 'homepage'}
              </button>
              <button onClick={onLogout} className="md:hidden p-2 rounded-lg bg-red-50 text-red-600"><LogOut size={18} /></button>
           </div>
