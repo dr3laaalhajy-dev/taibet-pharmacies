@@ -37,22 +37,48 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. الاتصال بالسيرفر (Socket.io)
+  // 1. الاتصال بالسيرفر (Socket.io) - (كخيار احتياطي إذا تم تغيير الاستضافة لاحقاً)
   useEffect(() => {
-    const newSocket = io(BACKEND_URL, { withCredentials: true });
+    const newSocket = io(BACKEND_URL, { withCredentials: true, transports: ['polling', 'websocket'] });
     setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      newSocket.emit('register', user.id);
-    });
-
+    newSocket.on('connect', () => { newSocket.emit('register', user.id); });
     return () => { newSocket.close(); };
   }, [user.id]);
 
-  // 2. الفتح الفوري للمحادثة المستهدفة (بدون انتظار السيرفر) 🚀
+  // 🟢 2. نظام النبض الذكي (Smart Polling) - يحل مشكلة Vercel ويُظهر الرسائل تلقائياً
+  useEffect(() => {
+    // تحديث قائمة المحادثات (الجانبية) كل 5 ثواني بصمت
+    const convInterval = setInterval(() => {
+      api.get('/api/chat/conversations').then(data => {
+        setConversations(data);
+      }).catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(convInterval);
+  }, []);
+
+  useEffect(() => {
+    // تحديث المحادثة المفتوحة حالياً كل 3 ثواني بصمت لظهور الرسائل فوراً
+    if (!activeChat) return;
+
+    const msgInterval = setInterval(() => {
+      api.get(`/api/chat/messages/${activeChat.other_user_id}`).then(res => {
+        setMessages(prev => {
+          // إذا كان هناك رسائل جديدة، نحدث القائمة وننزل للأسفل
+          if (prev.length !== (res.messages?.length || 0)) {
+            setTimeout(scrollToBottom, 100);
+          }
+          return res.messages || [];
+        });
+      }).catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(msgInterval);
+  }, [activeChat]);
+
+  // 3. الفتح الفوري للمحادثة المستهدفة (من زر تواصل معي)
   useEffect(() => {
     if (targetUserId) {
-      // إجبار واجهة الكتابة على الظهور فوراً
       setActiveChat({
         conversation_id: 0,
         other_user_id: targetUserId,
@@ -65,13 +91,11 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
       });
       setMessages([]);
 
-      // جلب الرسائل السابقة مع هذا الشخص
       api.get(`/api/chat/messages/${targetUserId}`).then(res => {
         setMessages(res.messages || []);
         scrollToBottom();
       }).catch(console.error);
 
-      // جلب بيانات الطبيب لتحديث الاسم والصورة
       api.get(`/api/public/doctors/${targetUserId}`).then((res: any) => {
         setActiveChat(prev => prev ? {
           ...prev,
@@ -103,22 +127,6 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
     } catch (err) { console.error(err); }
   };
 
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleReceiveMessage = (msg: Message) => {
-      if (activeChat && Number(msg.sender_id) === Number(activeChat.other_user_id)) {
-        setMessages(prev => [...prev, msg]);
-        scrollToBottom();
-        api.get(`/api/chat/messages/${activeChat.other_user_id}`).catch(() => {});
-      }
-      fetchConversations();
-    };
-
-    socket.on('receive_message', handleReceiveMessage);
-    return () => { socket.off('receive_message', handleReceiveMessage); };
-  }, [socket, activeChat]);
-
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
@@ -126,6 +134,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
     const tempMsg = newMessage;
     setNewMessage('');
 
+    // الإضافة الفورية الوهمية للشعور بالسرعة
     const optimisticMsg: Message = {
       id: Date.now(),
       sender_id: user.id,
@@ -141,6 +150,10 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
         receiver_id: activeChat.other_user_id,
         content: tempMsg
       });
+      
+      // تحديث صامت فوري بعد الإرسال لتأكيد وصولها وجلب الأيدي الحقيقي للرسالة
+      const res = await api.get(`/api/chat/messages/${activeChat.other_user_id}`);
+      setMessages(res.messages || []);
       fetchConversations(); 
     } catch (err) {
       toast.error(lang === 'ar' ? 'فشل إرسال الرسالة' : 'Failed to send message');
@@ -159,7 +172,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
   return (
     <div className="flex h-[85vh] md:h-[650px] w-full bg-slate-50 rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
       
-      {/* 🟢 القائمة الجانبية (المحادثات) */}
+      {/* القائمة الجانبية */}
       <div className={`w-full md:w-1/3 bg-white border-r border-slate-200 flex flex-col transition-all z-20 ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
           <h2 className="text-xl font-black text-slate-800 flex items-center gap-2"><MessageSquare className="text-blue-600"/> {lang === 'ar' ? 'الرسائل' : 'Messages'}</h2>
@@ -201,15 +214,13 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
         </div>
       </div>
 
-      {/* 🟢 نافذة الدردشة المباشرة */}
+      {/* نافذة الدردشة المباشرة */}
       <div className={`w-full md:w-2/3 bg-slate-50 flex flex-col transition-all relative z-10 ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         
-        {/* خلفية الشات */}
         <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}></div>
 
         {activeChat ? (
           <>
-            {/* Header */}
             <div className="p-4 bg-white border-b border-slate-200 flex items-center gap-4 z-10 shadow-sm">
               <button onClick={() => setActiveChat(null)} className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full"><ArrowRight size={24} className={lang === 'ar' ? '' : 'rotate-180'} /></button>
               
@@ -224,7 +235,6 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
               </div>
             </div>
 
-            {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 z-10 scrollbar-hide">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
@@ -253,7 +263,6 @@ export const Chat = ({ user, lang, onClose, targetUserId = null }: { user: UserT
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
             <div className="p-4 md:p-6 bg-white border-t border-slate-200 z-10">
               <form onSubmit={sendMessage} className="flex items-center gap-3">
                 <input type="text" placeholder={lang === 'ar' ? "اكتب رسالتك هنا..." : "Type a message..."} className="flex-1 bg-slate-100 border border-slate-200 px-6 py-4 rounded-full outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-base" value={newMessage} onChange={e => setNewMessage(e.target.value)} />
