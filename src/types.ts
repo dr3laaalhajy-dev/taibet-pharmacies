@@ -1,4 +1,26 @@
-export interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; wallet_balance?: string; }
+export interface UserType { id: number; email: string; role: 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient'; name: string; phone?: string; notes?: string; pharmacy_limit?: number; is_active?: boolean; wallet_balance?: string;
+    // أضف هذا النوع الجديد في أي مكان فارغ (مثلاً في آخر الملف)
+export interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+// ابحث عن UserType وأضف له السطور الجديدة (التي تبدأ بعلامة الاستفهام ?)
+export interface UserType {
+  id: number;
+  name: string;
+  email: string;
+  role: 'super_admin' | 'admin' | 'doctor' | 'pharmacy' | 'patient';
+  profile_picture?: string;
+  wallet_balance?: string;
+  
+  // 🟢 انسخ هذه السطور الأربعة والصقها هنا قبل إغلاق القوس
+  specialty?: string;
+  consultation_price?: number;
+  about?: string;
+  faqs?: FAQ[];
+} }
 export interface WorkingHours { isOpen: boolean; start: string; end: string; }
 export interface Facility { id: number; name: string; type: 'pharmacy' | 'clinic' | 'dental_clinic'; address: string; phone: string; latitude: number; longitude: number; doctor_id?: number; pharmacist_name?: string; whatsapp_phone?: string; image_url?: string; specialty?: string; services?: string; consultation_fee?: string; waiting_time?: string; working_hours: Record<string, WorkingHours>; manual_status?: 'open' | 'closed' | 'auto'; is_ecommerce_enabled?: boolean; }
 export interface Product { id: number; pharmacy_id: number; name: string; price: string; quantity: number; max_per_user?: number; image_url?: string; pharmacy_name?: string; whatsapp_phone?: string; }

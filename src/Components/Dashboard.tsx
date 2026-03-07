@@ -17,17 +17,49 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
   return ( <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center max-h-[90vh] overflow-y-auto"><div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div><h3 className="text-2xl font-bold text-slate-900 mb-2">{title}</h3><p className="text-slate-500 mb-8">{body}</p><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">{t.cancel}</button><button onClick={() => { onConfirm(); onClose(); }} className="flex-1 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">{t.deleteBtn}</button></div></motion.div></div> );
 };
 
-// 🟢 تمت إضافة onGoToPublic للـ Props
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any }) => {
-  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings'>('facilities');
-  const [facilities, setFacilities] = useState<Facility[]>([]); const [users, setUsers] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile'>('facilities');
+  const [facilities, setFacilities] = useState<Facility[]>([]); 
+  const [users, setUsers] = useState<any[]>([]);
   
-  // 🟢 حالات غرفة السوبر آدمن
+  // حالات غرفة السوبر آدمن
   const [superAdmins, setSuperAdmins] = useState<string[]>([]);
   const [newSuperAdmin, setNewSuperAdmin] = useState('');
   const [loadingSuperAdmins, setLoadingSuperAdmins] = useState(false);
 
-  // 🟢 جلب إيميلات السوبر آدمنز من السيرفر عند الدخول للوحة لمعرفة الصلاحيات بدقة
+  // 🟢 حالات إدارة ملف الطبيب
+  const [doctorForm, setDoctorForm] = useState({
+    specialty: user?.specialty || '',
+    consultation_price: user?.consultation_price || 0,
+    about: user?.about || '',
+    faqs: user?.faqs || []
+  });
+
+  const addFaq = () => {
+    setDoctorForm({ ...doctorForm, faqs: [...doctorForm.faqs, { id: Date.now().toString(), question: '', answer: '' }] });
+  };
+
+  const updateFaq = (id: string, field: 'question' | 'answer', value: string) => {
+    setDoctorForm({
+      ...doctorForm,
+      faqs: doctorForm.faqs.map(faq => faq.id === id ? { ...faq, [field]: value } : faq)
+    });
+  };
+
+  const removeFaq = (id: string) => {
+    setDoctorForm({ ...doctorForm, faqs: doctorForm.faqs.filter(faq => faq.id !== id) });
+  };
+
+  const handleSaveDoctorProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/api/doctor/update-profile', doctorForm);
+      toast.success(lang === 'ar' ? 'تم حفظ الملف الشخصي بنجاح' : 'Profile saved successfully');
+    } catch (err: any) {
+      toast.error(err.error || 'حدث خطأ أثناء الحفظ');
+    }
+  };
+
   useEffect(() => {
     api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => {});
   }, []);
@@ -42,7 +74,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
   const [footerForm, setFooterForm] = useState<FooterSettings>({ copyright: '', description: '', facebook: '', instagram: '', contact_phone: '', complaints_phone: '' });
   const defaultWorkingHours: Record<string, WorkingHours> = {}; for(let i=0; i<7; i++) defaultWorkingHours[i.toString()] = { isOpen: true, start: "08:00", end: "22:00" };
   const [showModal, setShowModal] = useState(false); const [editingData, setEditingData] = useState<Facility | null>(null); const [form, setForm] = useState<any>({ name: '', address: '', phone: '', type: user.role === 'dentist' ? 'dental_clinic' : (user.role === 'doctor' ? 'clinic' : 'pharmacy'), latitude: 35.25, longitude: 36.7, whatsapp_phone: '', pharmacist_name: '', specialty: '', services: '', consultation_fee: 0, waiting_time: '15 دقيقة', image_url: '', doctor_id: 0, working_hours: defaultWorkingHours });
-  const [showUserModal, setShowUserModal] = useState(false); const [editingUser, setEditingUser] = useState<UserType | null>(null); const [userForm, setUserForm] = useState({ email: '', password: '', role: 'pharmacist' as any, name: '', pharmacy_limit: 10, phone: '', notes: '' });
+  const [showUserModal, setShowUserModal] = useState(false); const [editingUser, setEditingUser] = useState<UserType | null>(null); const [userForm, setUserForm] = useState({ email: '', password: '', role: 'pharmacist' as any, name: '', pharmacy_limit: 10, phone: '', notes: '', wallet_balance: 0, is_active: false });
   const [doctorFilter, setDoctorFilter] = useState<number>(0);
   const [confirmData, setConfirmData] = useState<{ isOpen: boolean, onConfirm: () => void, title: string, body: string }>({ isOpen: false, onConfirm: () => {}, title: '', body: '' });
   const openConfirm = (title: string, body: string, onConfirm: () => void) => setConfirmData({ isOpen: true, onConfirm, title, body });
@@ -60,11 +92,11 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
     if (activeTab === 'facilities' || activeTab === 'services') api.get('/api/pharmacies').then(setFacilities); 
     if (activeTab === 'users' && user.role === 'admin') api.get('/api/admin/users').then(setUsers); 
     if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); 
-    if (activeTab === 'super_settings' && isSuperAdmin) fetchSuperAdmins(); // تحميل المديرين عند فتح الغرفة
+    if (activeTab === 'super_settings' && isSuperAdmin) fetchSuperAdmins();
   };
+  
   useEffect(() => { loadData(); }, [activeTab]);
 
-  // 🟢 دوال التحكم الخاصة بالسوبر آدمن
   const fetchSuperAdmins = async () => {
     setLoadingSuperAdmins(true);
     try { const data = await api.get('/api/admin/super-admins'); setSuperAdmins(data); } 
@@ -129,7 +161,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
       setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
-      console.error("🔥 التفاصيل التقنية للخطأ:", err.response?.data || err.message || err);
       toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
     }
   };
@@ -141,7 +172,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
           <h1 className="text-xl font-bold text-slate-900 hidden lg:flex items-center gap-2">Taiba Health</h1>
           
           <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
-             {/* 🟢 الزر الأخضر تم نقله للأعلى هنا */}
              <button onClick={onGoToPublic} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors shadow-sm border border-emerald-200">
                <LayoutDashboard size={16} /> {lang === 'ar' ? 'الصفحة الرئيسية' : 'homepage'}
              </button>
@@ -165,6 +195,15 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide mt-2">
           {user.role !== 'patient' && <button onClick={() => setActiveTab('facilities')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'facilities' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><MapPin size={18} /> {dashboardTitle}</button>}
           {(user.role === 'admin' || user.role === 'doctor' || user.role === 'dentist') && (<button onClick={() => setActiveTab('services')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'services' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Activity size={18} /> {lang === 'ar' ? 'الخدمات التي أقدمها' : 'My Services'}</button>)}
+          
+          {/* 🟢 زر ملف الطبيب (يظهر للأطباء فقط) 🟢 */}
+          {(user?.role === 'doctor' || user?.role === 'dentist') && (
+            <button onClick={() => setActiveTab('doctor_profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'doctor_profile' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>
+              <User size={18} />
+              {lang === 'ar' ? 'ملف الطبيب الشخصي' : 'Doctor Profile'}
+            </button>
+          )}
+
           {(user.role === 'admin' || hasEcommerce) && (<><button onClick={() => setActiveTab('products')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'products' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Package size={18} /> {lang === 'ar' ? 'إدارة المنتجات' : 'Products Manager'}</button><button onClick={() => setActiveTab('orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><FileText size={18} /> {lang === 'ar' ? 'طلبات الزبائن' : 'Customer Orders'}</button></>)}
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><User size={18} /> {t.userManagement}</button>}
           {isSuperAdmin && <button onClick={() => setActiveTab('wallet_requests')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'wallet_requests' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}><Banknote size={18} /> {lang === 'ar' ? 'طلبات المحفظة' : 'Wallet Requests'}</button>}
@@ -258,7 +297,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center font-bold text-lg">{email[0].toUpperCase()}</div>
                           <span className="font-bold text-slate-700 text-base md:text-lg tracking-wide" dir="ltr">{email}</span>
-                          {email === 'alaa@taiba.pharma.sy' && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold mx-2">{lang === 'ar' ? 'المؤسس' : 'Founder'}</span>}
                         </div>
                         <button onClick={() => handleRemoveSuperAdmin(email)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={20} /></button>
                       </div>
@@ -271,7 +309,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
           {activeTab === 'users' && user.role === 'admin' && (
             <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2></div><div className="flex flex-wrap gap-3 w-full sm:w-auto">{isSuperAdmin && <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">توليد مفتاح تفعيل</button>}<button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '' }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><Plus size={20} /> {t.createUser}</button></div></div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8"><div><h2 className="text-2xl md:text-3xl font-bold text-slate-900">{t.userManagement}</h2></div><div className="flex flex-wrap gap-3 w-full sm:w-auto">{isSuperAdmin && <button onClick={generateActivationKey} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-colors">توليد مفتاح تفعيل</button>}<button onClick={() => { setEditingUser(null); setUserForm({ email: '', password: '', role: 'pharmacist', name: '', pharmacy_limit: 10, phone: '', notes: '', wallet_balance: 0, is_active: false }); setShowUserModal(true); }} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><Plus size={20} /> {t.createUser}</button></div></div>
               
               {generatedKey && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 md:p-6 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
@@ -314,7 +352,8 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                             phone: u.phone || '', 
                             notes: u.notes || '',
                             wallet_balance: u.wallet_balance || 0,
-                            is_active: u.is_active || false
+                            is_active: u.is_active || false,
+                            pharmacy_limit: 10
                           }); 
                           setShowUserModal(true); 
                         }} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center"><Edit2 size={16} /></button>}
@@ -326,7 +365,8 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
               </div>
             </motion.div>
           )}
-        {/* 🟢 إعدادات الفوتر والتطبيق (للسوبر آدمن) */}
+          
+          {/* 🟢 إعدادات الفوتر والتطبيق (للسوبر آدمن) */}
           {activeTab === 'settings' && isSuperAdmin && (
             <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto pb-12">
               <div className="flex items-center gap-3 mb-6">
@@ -378,10 +418,85 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
               </form>
             </motion.div>
           )}
+
+          {/* 🟢 واجهة إدارة ملف الطبيب (الملف، السعر، الأسئلة الشائعة) 🟢 */}
+          {activeTab === 'doctor_profile' && (user?.role === 'doctor' || user?.role === 'dentist') && (
+            <motion.div key="doctor_profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto pb-12">
+              <div className="flex items-center gap-3 mb-8">
+                <Stethoscope size={32} className="text-blue-600" />
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">{lang === 'ar' ? 'إدارة الملف الشخصي للطبيب' : 'Manage Doctor Profile'}</h2>
+                  <p className="text-slate-500 text-sm mt-1">{lang === 'ar' ? 'قم بتحديث تخصصك، سعر الكشف، والأسئلة الشائعة للمرضى.' : 'Update your specialty, consultation fee, and FAQs.'}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveDoctorProfile} className="space-y-8">
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                  <h3 className="text-lg font-bold text-slate-800 border-b pb-3">{lang === 'ar' ? 'البيانات الأساسية' : 'Basic Info'}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'التخصص الطبي' : 'Specialty'}</label>
+                      <select className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" value={doctorForm.specialty} onChange={e => setDoctorForm({...doctorForm, specialty: e.target.value})}>
+                        <option value="">{lang === 'ar' ? 'اختر التخصص...' : 'Select Specialty...'}</option>
+                        {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'سعر الكشفية (ل.س)' : 'Consultation Fee'}</label>
+                      <input type="number" min="0" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" value={doctorForm.consultation_price} onChange={e => setDoctorForm({...doctorForm, consultation_price: Number(e.target.value)})} />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'نبذة عن الطبيب' : 'About Doctor'}</label>
+                      <textarea rows={4} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 resize-none" placeholder={lang === 'ar' ? 'اكتب نبذة عن خبراتك وشهاداتك...' : 'Write about your experience...'} value={doctorForm.about} onChange={e => setDoctorForm({...doctorForm, about: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="text-lg font-bold text-slate-800">{lang === 'ar' ? 'الأسئلة الطبية الشائعة (FAQ)' : 'Medical FAQs'}</h3>
+                    <button type="button" onClick={addFaq} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
+                      <Plus size={16} /> {lang === 'ar' ? 'إضافة سؤال' : 'Add Question'}
+                    </button>
+                  </div>
+                  
+                  {doctorForm.faqs.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 font-medium">
+                      {lang === 'ar' ? 'لم تقم بإضافة أي أسئلة بعد. أضف أسئلة لتظهر في ملفك للمرضى.' : 'No FAQs added yet.'}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {doctorForm.faqs.map((faq, index) => (
+                        <div key={faq.id} className="p-4 border border-slate-200 rounded-2xl bg-slate-50 relative group">
+                          <button type="button" onClick={() => removeFaq(faq.id)} className="absolute top-4 rtl:left-4 ltr:right-4 text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+                            <Trash2 size={18} />
+                          </button>
+                          <div className="mb-3 pr-10">
+                            <label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? `السؤال ${index + 1}` : `Question ${index + 1}`}</label>
+                            <input type="text" className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" placeholder={lang === 'ar' ? 'مثال: متى يجب زيارة طبيب الأسنان؟' : 'e.g. When to visit a dentist?'} value={faq.question} onChange={e => updateFaq(faq.id, 'question', e.target.value)} required />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'الإجابة' : 'Answer'}</label>
+                            <textarea rows={2} className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white resize-none" placeholder={lang === 'ar' ? 'اكتب الإجابة هنا لتظهر للمريض...' : 'Write the answer here...'} value={faq.answer} onChange={e => updateFaq(faq.id, 'answer', e.target.value)} required />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-colors">
+                  {lang === 'ar' ? 'حفظ ونشر التعديلات' : 'Save & Publish Changes'}
+                </button>
+              </form>
+            </motion.div>
+          )}
+
           {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t.profileSettings}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6"><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} /></div><button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">{t.saveChanges}</button></form></motion.div>)}
         </AnimatePresence>
       </div>
 
+      {/* باقي الكود الخاص بالمودال (Modal) موجود بالكامل أدناه */}
       <AnimatePresence>
         {showWalletModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -556,7 +671,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رصيد المحفظة (ل.س)' : 'Wallet Balance'}</label>
-                    <input type="number" step="0.01" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.wallet_balance || ''} onChange={e => setUserForm({...userForm, wallet_balance: e.target.value})} />
+                    <input type="number" step="0.01" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.wallet_balance || ''} onChange={e => setUserForm({...userForm, wallet_balance: Number(e.target.value)})} />
                   </div>
                 </div>
 
