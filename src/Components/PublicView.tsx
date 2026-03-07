@@ -359,7 +359,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
               {/* أزرار التطبيقات */}
               {(footerData?.androidLink || footerData?.iosLink) && (
                 <div className="flex flex-col sm:flex-row gap-3 mb-6 w-full justify-center lg:justify-start">
-                  {footerData?.androidLink && <a href={footerData.androidLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-10 object-contain" /></a>}
+                  {footerData?.androidLink && <a href={footerData.androidLink} download="Taiba-Health.apk" target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Download APK" className="h-10 object-contain" /></a>}
                   {footerData?.iosLink && <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-10 object-contain" /></a>}
                 </div>
               )}

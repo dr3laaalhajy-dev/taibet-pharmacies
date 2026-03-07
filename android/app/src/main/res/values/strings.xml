@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">طيبة الامام الصحية</string>
+    <string name="title_activity_main">طيبة الامام الصحية</string>
+    <string name="package_name">com.taiba.health</string>
+    <string name="custom_url_scheme">com.taiba.health</string>
+</resources>
