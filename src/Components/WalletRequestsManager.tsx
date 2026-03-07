@@ -48,7 +48,7 @@ export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: 'a
   const currentList = tab === 'pending' ? pendingRequests : historyRequests;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-900">{lang === 'ar' ? 'طلبات المحفظة' : 'Wallet Requests'}</h2>
         <div className="flex bg-slate-200 p-1 rounded-xl">
@@ -68,6 +68,7 @@ export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: 'a
                 <p className="text-sm font-bold mt-2">
                   <span className={req.type === 'deposit' ? 'text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md' : 'text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md'}>{req.type === 'deposit' ? 'إيداع' : 'سحب'}</span>
                   <span className="mx-3 text-slate-300">|</span><span dir="ltr">{(Number(req.amount) / 100).toLocaleString()} ل.س جديدة</span>
+                </p> {/* 🟢 تم إضافة قوس الإغلاق هنا بنجاح! */}
               </div>
               
               {tab === 'pending' ? (
