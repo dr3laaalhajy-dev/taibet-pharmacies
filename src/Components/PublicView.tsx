@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users } from 'lucide-react';
+import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -25,7 +25,7 @@ const StarRating = ({ rating, size = 16, className = "" }: { rating: number, siz
 };
 
 // ⭐ نافذة الملف الشخصي والحجز المدمج
-const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new', currentUser: UserType | null }) => {
+const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser, openChatWithUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new', currentUser: UserType | null, openChatWithUser?: (id: number) => void }) => {
   const [doctor, setDoctor] = useState<any | null>(null); 
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
@@ -94,6 +94,18 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
     }
   };
 
+  // 💬 دالة فتح الشات
+  const handleOpenChat = () => {
+    if (!currentUser) {
+      toast.error(lang === 'ar' ? 'يجب تسجيل الدخول أولاً للتواصل مع الطبيب.' : 'Please login to chat with the doctor.');
+      return;
+    }
+    if (openChatWithUser) {
+      openChatWithUser(doctorId);
+      onClose(); // إغلاق نافذة الملف الشخصي بعد فتح الشات
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-slate-50 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
@@ -110,8 +122,16 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                   {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-extrabold text-slate-900 mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
-                  <p className="text-blue-600 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-extrabold text-slate-900 mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
+                      <p className="text-blue-600 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
+                    </div>
+                    {/* 💬 زر الشات المباشر مع الطبيب */}
+                    <button onClick={handleOpenChat} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm">
+                      <MessageSquare size={16} /> <span className="hidden sm:inline">{lang === 'ar' ? 'تواصل معي' : 'Chat'}</span>
+                    </button>
+                  </div>
                   
                   <div className="flex items-center gap-2 mb-4">
                     <StarRating rating={Number(doctor.average_rating)} size={18} />
@@ -275,7 +295,7 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   );
 };
 
-const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurrency, currentUser }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist', currency: 'old'|'new', setCurrency: (c:'old'|'new')=>void, currentUser: UserType | null }) => {
+const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurrency, currentUser, openChatWithUser }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist', currency: 'old'|'new', setCurrency: (c:'old'|'new')=>void, currentUser: UserType | null, openChatWithUser?: (id: number) => void }) => {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
@@ -379,7 +399,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
         </div>
       )}
       <AnimatePresence>
-        {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} currentUser={currentUser} />}
+        {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} currentUser={currentUser} openChatWithUser={openChatWithUser} />}
       </AnimatePresence>
     </div>
   );
@@ -511,7 +531,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string, footerData?: any }) => {
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
   const [facilities, setFacilities] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [selectedFacilityId, setSelectedFacilityId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false); 
@@ -525,7 +545,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
-  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} />;
+  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} openChatWithUser={openChatWithUser} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -571,7 +591,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
         </header>
 
         <AnimatePresence>
-          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => {setSelectedDoctorId(null); setSelectedFacilityId(null);}} t={t} lang={lang} currency={currency} currentUser={user} />}
+          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => {setSelectedDoctorId(null); setSelectedFacilityId(null);}} t={t} lang={lang} currency={currency} currentUser={user} openChatWithUser={openChatWithUser} />}
         </AnimatePresence>
 
         <div className="flex flex-col gap-12 md:gap-16 mb-16">

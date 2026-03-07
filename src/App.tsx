@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell } from 'lucide-react';
+import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -11,6 +11,7 @@ import { api } from './api-client';
 import { PublicView } from './Components/PublicView';
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
+import { Chat } from './Components/Chat'; // 🟢 استيراد واجهة الدردشة الجديدة
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -67,6 +68,10 @@ export default function App() {
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
+  // 💬 حالات نظام الدردشة
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatTargetUserId, setChatTargetUserId] = useState<number | null>(null);
+
   const t = translations[lang] || translations['ar'];
 
   useEffect(() => { document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = lang; }, [lang]);
@@ -78,32 +83,36 @@ export default function App() {
       const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${data.user.id}`) || '[]');
       const savedDefault = localStorage.getItem(`defAddr_${data.user.id}`) || savedAddresses[0] || '';
       setAddresses(savedAddresses); setDefaultAddress(savedDefault);
-      fetchNotifications(); // جلب الإشعارات فور تسجيل الدخول
+      fetchNotifications(); 
     }).catch(() => setView('public')).finally(() => setLoading(false));
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
-  // 🔔 دالة جلب الإشعارات
   const fetchNotifications = () => {
     api.get('/api/notifications').then(setNotifications).catch(() => {});
   };
 
-  // 🔔 تحديث الإشعارات كل 30 ثانية
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
-  // 🔔 دالة فتح قائمة الإشعارات وتحويلها لمقروءة
   const handleOpenNotifications = () => {
     setIsNotifMenuOpen(!isNotifMenuOpen);
-    setIsMenuOpen(false); // إغلاق قائمة المستخدم إذا كانت مفتوحة
+    setIsMenuOpen(false); 
     if (!isNotifMenuOpen && unreadCount > 0) {
       api.patch('/api/notifications/read').then(() => {
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       }).catch(console.error);
     }
+  };
+
+  // 💬 دالة فتح الشات من أي مكان في التطبيق
+  const openChatWithUser = (targetId: number | null = null) => {
+    setChatTargetUserId(targetId);
+    setShowChatModal(true);
+    setIsMenuOpen(false);
   };
 
   const handleCurrencyChange = (newCurr: 'old' | 'new') => {
@@ -124,7 +133,7 @@ export default function App() {
 
   const handleLogout = async () => { 
     await api.post('/api/auth/logout', {}); 
-    setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]);
+    setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false);
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
@@ -187,7 +196,7 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50">
+    <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50 relative">
       <Toaster position="top-center" reverseOrder={false} />
       
       {view !== 'dashboard' && (
@@ -207,11 +216,16 @@ export default function App() {
             {user ? (
               <div className="flex items-center gap-2 md:gap-3">
                 {user.role !== 'patient' && (
-                  <button onClick={() => setView('dashboard')} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-md">
+                  <button onClick={() => setView('dashboard')} className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-md">
                     <LayoutDashboard size={16} />
-                    <span className="hidden sm:inline">{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+                    <span>{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
                   </button>
                 )}
+
+                {/* 💬 أيقونة الشات الجديدة */}
+                <button onClick={() => openChatWithUser()} className="relative p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors bg-blue-50/50">
+                  <MessageSquare size={22} />
+                </button>
 
                 {/* 🔔 أيقونة الإشعارات */}
                 <div className="relative">
@@ -274,6 +288,12 @@ export default function App() {
                           </div>
                         </div>
                         
+                        {user.role !== 'patient' && (
+                          <button onClick={() => { setView('dashboard'); setIsMenuOpen(false); }} className="w-full lg:hidden text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
+                            <LayoutDashboard size={16} /> {lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
+                          </button>
+                        )}
+
                         <button onClick={() => { setShowProfileModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">
                           <User size={16} /> {lang === 'ar' ? 'الملف الشخصي' : 'Profile'}
                         </button>
@@ -308,13 +328,25 @@ export default function App() {
             setCurrency={handleCurrencyChange} 
             defaultAddress={defaultAddress} 
             footerData={footerData} 
+            openChatWithUser={openChatWithUser} // 💬 تمرير دالة فتح الشات للواجهة العامة
           />
         )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
-        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} lang={lang} t={t} />}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} openChatWithUser={openChatWithUser} lang={lang} t={t} />}
         
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
       </main>
+
+      {/* 💬 نافذة الشات المدمجة المنبثقة */}
+      <AnimatePresence>
+        {showChatModal && user && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[90]">
+            <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }} className="w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden relative">
+              <Chat user={user} lang={lang} onClose={() => setShowChatModal(false)} targetUserId={chatTargetUserId} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showProfileModal && (
