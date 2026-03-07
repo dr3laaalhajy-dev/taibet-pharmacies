@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar } from 'lucide-react';
+import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -14,7 +14,6 @@ const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'ne
   </div>
 );
 
-// 🟢 مكون عرض النجوم
 const StarRating = ({ rating, size = 16, className = "" }: { rating: number, size?: number, className?: string }) => {
   return (
     <div className={`flex items-center gap-1 ${className}`}>
@@ -25,17 +24,21 @@ const StarRating = ({ rating, size = 16, className = "" }: { rating: number, siz
   );
 };
 
-// ⭐ نافذة الملف الشخصي والتقييم
-const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser }: { doctorId: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new', currentUser: UserType | null }) => {
+// ⭐ نافذة الملف الشخصي والحجز المدمج
+const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new', currentUser: UserType | null }) => {
   const [doctor, setDoctor] = useState<any | null>(null); 
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
 
-  // حالة التقييم
   const [userRating, setUserRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [userComment, setUserComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+
+  // 📅 حالات نظام الحجز المدمج
+  const [bookingDate, setBookingDate] = useState('');
+  const [isBooking, setIsBooking] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(false);
 
   const fetchDoctorData = () => {
     api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false));
@@ -47,6 +50,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
   const fee = doctor?.consultation_price || doctor?.facilities[0]?.consultation_fee || 0;
   const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
   const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
+  const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : doctor?.facilities[0];
 
   const submitReview = async () => {
     if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لتقييم الطبيب' : 'Please login to submit a review');
@@ -56,12 +60,37 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
     try {
       await api.post(`/api/public/doctors/${doctorId}/review`, { rating: userRating, comment: userComment });
       toast.success(lang === 'ar' ? 'شكراً لتقييمك! تم الحفظ بنجاح' : 'Thank you! Review saved');
-      fetchDoctorData(); // تحديث بيانات الطبيب ليعرض التقييم الجديد
+      fetchDoctorData(); 
       setUserRating(0); setUserComment('');
     } catch(err: any) {
       toast.error(err.error || 'حدث خطأ');
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  // 📅 دالة تأكيد الحجز
+  const submitBooking = async () => {
+    if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول للحجز' : 'Please login to book');
+    if (!bookingDate) return toast.error(lang === 'ar' ? 'الرجاء اختيار تاريخ الحجز' : 'Please select a date');
+
+    const selectedDayIdx = new Date(bookingDate).getDay().toString();
+    const facilitySchedule = primaryFacility?.working_hours?.[selectedDayIdx];
+    
+    if (!facilitySchedule?.isOpen) {
+      return toast.error(lang === 'ar' ? 'العيادة مغلقة في هذا اليوم حسب الجدول الأسبوعي.' : 'Clinic is closed on this day.');
+    }
+
+    setIsBooking(true);
+    try {
+      await api.post('/api/appointments/book', { doctor_id: doctorId, facility_id: primaryFacility.id, appointment_date: bookingDate });
+      toast.success(lang === 'ar' ? 'تم تأكيد حجزك بنجاح! ننتظرك في العيادة.' : 'Booking confirmed! See you at the clinic.');
+      setShowBookingForm(false);
+      setBookingDate('');
+    } catch(err: any) {
+      toast.error(err.error || (lang === 'ar' ? 'حدث خطأ أثناء الحجز' : 'Booking failed'));
+    } finally {
+      setIsBooking(false);
     }
   };
 
@@ -78,13 +107,12 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6 items-start">
                 <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm overflow-hidden border-2 border-white outline outline-1 outline-slate-200">
-                  {doctor.profile_picture || doctor.facilities[0]?.image_url ? <img src={doctor.profile_picture || doctor.facilities[0]?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
+                  {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-extrabold text-slate-900 mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
-                  <p className="text-blue-600 font-bold mb-3">{doctor.specialty || doctor.facilities[0]?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
+                  <p className="text-blue-600 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
                   
-                  {/* ⭐ عرض التقييم الحالي للطبيب */}
                   <div className="flex items-center gap-2 mb-4">
                     <StarRating rating={Number(doctor.average_rating)} size={18} />
                     <span className="text-sm font-bold text-slate-700">{Number(doctor.average_rating).toFixed(1)}</span>
@@ -100,8 +128,8 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
                 
                 <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><Stethoscope className="text-blue-500"/> {lang === 'ar' ? 'الأعراض والخدمات' : 'Services & Symptoms'}</h4>
                 <div className="flex flex-wrap gap-2">
-                  {doctor.facilities[0]?.services ? (
-                    doctor.facilities[0].services.split(/[\n,]+/).map((s: string, i: number) => s.trim() && <span key={i} className="px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg border border-blue-100">{s.trim()}</span>)
+                  {primaryFacility?.services ? (
+                    primaryFacility.services.split(/[\n,]+/).map((s: string, i: number) => s.trim() && <span key={i} className="px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg border border-blue-100">{s.trim()}</span>)
                   ) : (
                     <span className="text-sm text-slate-400">{lang === 'ar' ? 'لم يقم الطبيب بإضافة الخدمات بعد.' : 'No services listed.'}</span>
                   )}
@@ -139,7 +167,6 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
                 )}
               </div>
               
-              {/* ⭐ قسم التقييم الجديد للمرضى */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100 shadow-sm">
                 <h4 className="text-lg font-bold text-slate-900 mb-2">{lang === 'ar' ? 'ما رأيك في تجربتك مع الطبيب؟' : 'Rate your experience'}</h4>
                 <p className="text-sm text-slate-500 mb-4">{lang === 'ar' ? 'تقييمك يساعد المرضى الآخرين في اتخاذ القرار الصحيح.' : 'Your review helps others make better choices.'}</p>
@@ -190,28 +217,52 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser 
                   <div className="flex justify-between items-center text-center border-b border-slate-100 pb-4 mb-4">
                     <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800">{displayFee.toLocaleString()} {currencyLabel}</span></div>
                     <div className="border-r border-slate-100 h-10"></div>
-                    <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.waiting_time || '15 دقيقة'}</span></div>
+                    <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800">{primaryFacility?.waiting_time || '15 دقيقة'}</span></div>
                   </div>
                   
                   <div className="mb-6">
                     <p className="text-sm text-slate-700 flex items-start gap-2 leading-tight">
                       <MapPin className="text-red-500 shrink-0 mt-1" size={18}/>
-                      <span><span className="font-bold block mb-1">{doctor.facilities[0]?.name}</span>{doctor.facilities[0]?.address}</span>
+                      <span><span className="font-bold block mb-1">{primaryFacility?.name}</span>{primaryFacility?.address}</span>
                     </p>
                   </div>
 
                   <h5 className="text-center font-bold text-slate-900 mb-3">{lang === 'ar' ? 'مواعيد العمل:' : 'Working Hours:'}</h5>
                   <div className="bg-slate-50 rounded-xl p-3 mb-6 space-y-2 max-h-[150px] overflow-y-auto text-sm text-center">
                     {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => {
-                      const daySchedule = doctor.facilities[0]?.working_hours?.[idx.toString()];
+                      const daySchedule = primaryFacility?.working_hours?.[idx.toString()];
                       if(!daySchedule?.isOpen) return null;
                       return <div key={idx} className="flex justify-between border-b last:border-0 pb-1"><span className="font-bold">{day}</span><span dir="ltr" className="text-blue-700">{formatTime12h(daySchedule.start, lang)} - {formatTime12h(daySchedule.end, lang)}</span></div>
                     })}
                   </div>
 
-                  <a href={`https://wa.me/${doctor.facilities[0]?.whatsapp_phone}?text=مرحباً، أريد حجز موعد في العيادة.`} target="_blank" className="block w-full bg-red-600 text-white text-center py-4 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-md">
-                    {lang === 'ar' ? 'احجز الآن عبر الواتساب' : 'Book via WhatsApp'}
-                  </a>
+                  {/* 📅 نظام الحجز الجديد المدمج */}
+                  {showBookingForm ? (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">
+                      <label className="block text-sm font-bold text-blue-900 mb-2">{lang === 'ar' ? 'اختر تاريخ الحجز:' : 'Select Date:'}</label>
+                      <input 
+                        type="date" 
+                        min={new Date().toISOString().split('T')[0]} 
+                        className="w-full p-3 rounded-lg border border-blue-300 outline-none focus:border-blue-600 mb-4 font-bold text-slate-700"
+                        value={bookingDate}
+                        onChange={e => setBookingDate(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={submitBooking} disabled={isBooking || !bookingDate} className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">{lang === 'ar' ? 'تأكيد' : 'Confirm'}</button>
+                        <button onClick={() => setShowBookingForm(false)} className="px-4 py-2.5 bg-white text-slate-600 rounded-lg font-bold hover:bg-slate-100 transition-colors">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <button onClick={() => {
+                        if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول كـ مريض للحجز' : 'Please login to book');
+                        setShowBookingForm(true);
+                      }} 
+                      className="block w-full bg-blue-600 text-white text-center py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                    >
+                      <Calendar size={20} /> {lang === 'ar' ? 'حجز موعد في العيادة' : 'Book Appointment'}
+                    </button>
+                  )}
+                  
                   <p className="text-center text-[10px] text-slate-400 mt-3">{lang === 'ar' ? 'الحجز مسبقاً والدخول بأسبقية الحضور' : 'Pre-booking required. First come first serve.'}</p>
                 </div>
               </div>
@@ -300,12 +351,9 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
             const fee = doctor.consultation_price || 0;
             return (
             <div key={doctor.id} onClick={() => setSelectedDoctorId(doctor.id)} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center group flex flex-col h-full relative overflow-hidden">
-              
-              {/* ⭐ شارة التقييم فوق صورة الطبيب */}
               <div className="absolute top-4 right-4 bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
                 <Star size={12} className="fill-current" /> {Number(doctor.average_rating).toFixed(1)}
               </div>
-
               <div className="w-24 h-24 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50">
                 {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
               </div>
@@ -464,16 +512,19 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
 };
 
 export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string, footerData?: any }) => {
-  const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
+  const [facilities, setFacilities] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [selectedFacilityId, setSelectedFacilityId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false); 
 
-  useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
+  useEffect(() => { 
+    setLoading(true); 
+    api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); 
+    if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } 
+  }, []);
+  
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
-  
-  // تمرير الـ user الحالي إلى دليل الأطباء لكي يستخدمه في التقييم
   if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
@@ -519,25 +570,40 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
           </div>
         </header>
 
-        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} currentUser={user} />}</AnimatePresence>
+        <AnimatePresence>
+          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => {setSelectedDoctorId(null); setSelectedFacilityId(null);}} t={t} lang={lang} currency={currency} currentUser={user} />}
+        </AnimatePresence>
 
         <div className="flex flex-col gap-12 md:gap-16 mb-16">
           <div className="w-full">
             <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
-                <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                <div key={`open-${f.id}`} className="bg-white p-6 rounded-3xl border-2 border-emerald-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all flex flex-col h-full">
                   <div className="absolute top-4 left-4 bg-emerald-50 text-emerald-600 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
                   <div className="flex items-center gap-4 mb-4 mt-2">
                     {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <Smile size={24} /> : <Activity size={24} />)}</div>}
                     <div><h3 className="text-xl font-bold text-slate-900 line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
                   </div>
                   <p className="text-slate-500 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
-                  <div className="flex gap-2">
+                  
+                  <div className="mt-auto">
+                    {/* ⏳ عداد الانتظار المباشر */}
                     {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
-                      <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="flex-1 bg-blue-50 text-blue-700 border border-blue-100 text-center py-2.5 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors">{lang === 'ar' ? 'احجز موعد' : 'Book Appt'}</button>
+                      <div className="flex items-center justify-center gap-2 bg-orange-50 text-orange-700 p-2.5 rounded-xl text-sm font-bold mb-3 border border-orange-100">
+                        <Users size={16} />
+                        {lang === 'ar' ? 'في الانتظار حالياً:' : 'Waiting Now:'} 
+                        <span className="bg-orange-600 text-white px-2 py-0.5 rounded-md mx-1">{f.waiting_patients || 0}</span>
+                        {lang === 'ar' ? 'مرضى' : 'patients'}
+                      </div>
                     )}
-                    <a href={`tel:${f.phone}`} className="flex-1 bg-slate-900 text-white text-center py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
+
+                    <div className="flex gap-2">
+                      {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
+                        <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="flex-1 bg-blue-600 text-white border border-blue-600 text-center py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">{lang === 'ar' ? 'احجز موعدك' : 'Book Appt'}</button>
+                      )}
+                      <a href={`tel:${f.phone}`} className="flex-1 bg-slate-100 text-slate-700 text-center py-3 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
+                    </div>
                   </div>
                 </div>
               )) : (<div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border border-slate-100 text-slate-500"><Clock className="mx-auto text-slate-300 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
@@ -557,7 +623,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                         <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 transition-colors group">
                           <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
                           {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 ${isToday ? 'bg-blue-50/30' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
-                          <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => setSelectedDoctorId(f.doctor_id!)} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 text-xs">---</span>}</td>
+                          <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 text-xs">---</span>}</td>
                         </motion.tr>
                       );
                     })}
