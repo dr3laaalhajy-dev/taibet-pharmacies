@@ -3,12 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN } from '../types';
+import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
 import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 
 const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
-  const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); const [loading, setLoading] = useState(true);
+  const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); 
+  const [loading, setLoading] = useState(true);
+  const [expandedFaq, setExpandedFaq] = useState<string | null>(null); // 🟢 حالة الـ Accordion للأسئلة
+
   useEffect(() => { api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false)); }, [doctorId]);
   if (!doctorId) return null;
 
@@ -24,12 +27,12 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
           <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6 items-start">
-                <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm">
-                  {doctor.facilities[0]?.image_url ? <img src={doctor.facilities[0].image_url} className="w-full h-full rounded-full object-cover"/> : doctor.name[0]}
+                <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm overflow-hidden border-2 border-white outline outline-1 outline-slate-200">
+                  {doctor.profile_picture || doctor.facilities[0]?.image_url ? <img src={doctor.profile_picture || doctor.facilities[0]?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-extrabold text-slate-900 mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
-                  <p className="text-blue-600 font-bold mb-3">{doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : (doctor.facilities[0]?.specialty || t.doctor)}</p>
+                  <p className="text-blue-600 font-bold mb-3">{doctor.specialty || doctor.facilities[0]?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
                   
                   <div className="flex items-center gap-1 text-yellow-400 mb-4">
                     <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/>
@@ -45,7 +48,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
 
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
                 <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><User className="text-blue-500"/> {lang === 'ar' ? 'معلومات عن الطبيب' : 'About Doctor'}</h4>
-                <p className="text-slate-600 leading-relaxed mb-6">{doctor.notes || (lang === 'ar' ? 'لا توجد نبذة تعريفية حالياً.' : 'No bio available.')}</p>
+                <p className="text-slate-600 leading-relaxed mb-6 whitespace-pre-line">{doctor.about || doctor.notes || (lang === 'ar' ? 'لا توجد نبذة تعريفية حالياً.' : 'No bio available.')}</p>
                 
                 <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><Stethoscope className="text-blue-500"/> {lang === 'ar' ? 'الأعراض والخدمات' : 'Services & Symptoms'}</h4>
                 <div className="flex flex-wrap gap-2">
@@ -55,6 +58,38 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
                     <span className="text-sm text-slate-400">{lang === 'ar' ? 'لم يقم الطبيب بإضافة الخدمات بعد.' : 'No services listed.'}</span>
                   )}
                 </div>
+
+                {/* 🟢 قسم الأسئلة الشائعة للطبيب (Accordion) */}
+                {doctor.faqs && doctor.faqs.length > 0 && (
+                  <div className="mt-8 border-t border-slate-100 pt-6">
+                    <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <MessageCircle className="text-emerald-500" /> 
+                      {lang === 'ar' ? 'أسئلة طبية شائعة يطرحها المرضى' : 'Medical FAQs'}
+                    </h4>
+                    <div className="space-y-3">
+                      {doctor.faqs.map((faq, idx) => (
+                        <div key={faq.id || idx} className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden transition-all">
+                          <button 
+                            onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)} 
+                            className="w-full text-left px-4 py-4 font-bold text-slate-800 flex justify-between items-center hover:bg-slate-100 transition-colors"
+                          >
+                            <span className={lang === 'ar' ? 'text-right' : 'text-left'}>{faq.question}</span>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${expandedFaq === faq.id ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                              {expandedFaq === faq.id ? <Minus size={14} /> : <Plus size={14} />}
+                            </div>
+                          </button>
+                          <AnimatePresence>
+                            {expandedFaq === faq.id && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pb-4 text-slate-600 text-sm leading-relaxed border-t border-slate-200 pt-3">
+                                {faq.answer}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -63,7 +98,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
                 <div className="bg-blue-600 text-white text-center py-3 font-bold">{lang === 'ar' ? 'معلومات الحجز' : 'Booking Info'}</div>
                 <div className="p-5">
                   <div className="flex justify-between items-center text-center border-b border-slate-100 pb-4 mb-4">
-                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الكشف' : 'Fees'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.consultation_fee || 0} {lang==='ar'?'ل.س':'L.S'}</span></div>
+                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800">{doctor.consultation_price || doctor.facilities[0]?.consultation_fee || 0} {lang==='ar'?'ل.س':'L.S'}</span></div>
                     <div className="border-r border-slate-100 h-10"></div>
                     <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.waiting_time || '15 دقيقة'}</span></div>
                   </div>
@@ -99,7 +134,103 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
   );
 };
 
-// 🟢 مكون المتجر بعد تصحيح العملية الحسابية (القسمة على 100)
+// 🟢 مكون دليل الأطباء الجديد (المرحلة الثانية)
+const DoctorsDirectoryView = ({ onBack, lang, t }: { onBack: () => void, lang: string, t: any }) => {
+  const [doctors, setDoctors] = useState<UserType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchName, setSearchName] = useState('');
+  const [searchSpecialty, setSearchSpecialty] = useState('');
+  const [maxPrice, setMaxPrice] = useState<number>(200000); // الحد الأقصى الافتراضي للسعر
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+
+  useEffect(() => {
+    // جلب جميع الأطباء من الخادم
+    api.get('/api/public/doctors').then(setDoctors).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const filteredDoctors = doctors.filter(d => {
+    const matchName = d.name.toLowerCase().includes(searchName.toLowerCase());
+    const matchSpecialty = searchSpecialty ? (d.specialty === searchSpecialty || (d.role === 'dentist' && searchSpecialty === 'طب أسنان')) : true;
+    const matchPrice = d.consultation_price ? d.consultation_price <= maxPrice : true;
+    return matchName && matchSpecialty && matchPrice;
+  });
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 min-h-[80vh]">
+      <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors"><ArrowRight size={20}/> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+
+      <div className="text-center mb-12">
+        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-blue-100"><Stethoscope size={40}/></div>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">{lang === 'ar' ? <>دليل <span className="text-blue-600">الأطباء</span> المعتمدين</> : <>Certified <span className="text-blue-600">Doctors</span> Directory</>}</h1>
+        <p className="text-slate-500 max-w-xl mx-auto">{lang === 'ar' ? 'تصفح قائمة الأطباء، ابحث بالتخصص، وقارن أسعار الكشفية لتحجز موعدك بسهولة.' : 'Browse doctors, filter by specialty, and compare fees.'}</p>
+      </div>
+
+      {/* 🟢 الفلاتر (اسم، تخصص، سعر) */}
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm mb-12 grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'البحث بالاسم' : 'Search by Name'}</label>
+          <div className="relative">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+            <input type="text" className="w-full pr-12 pl-4 py-3.5 rounded-xl border-2 border-slate-100 focus:border-blue-500 outline-none transition-colors" placeholder={lang === 'ar' ? 'اسم الطبيب...' : 'Doctor name...'} value={searchName} onChange={e => setSearchName(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'التخصص الطبي' : 'Specialty'}</label>
+          <select className="w-full px-4 py-3.5 rounded-xl border-2 border-slate-100 focus:border-blue-500 outline-none transition-colors bg-white cursor-pointer" value={searchSpecialty} onChange={e => setSearchSpecialty(e.target.value)}>
+            <option value="">{lang === 'ar' ? 'جميع التخصصات' : 'All Specialties'}</option>
+            <option value="طب أسنان">{lang === 'ar' ? 'طب أسنان' : 'Dentistry'}</option>
+            {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-2 flex justify-between">
+            <span>{lang === 'ar' ? 'سعر الكشف (الحد الأقصى)' : 'Max Consultation Fee'}</span>
+            <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{maxPrice.toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'}</span>
+          </label>
+          <input type="range" min="0" max="300000" step="5000" className="w-full mt-3 accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" value={maxPrice} onChange={e => setMaxPrice(Number(e.target.value))} />
+          <div className="flex justify-between text-xs text-slate-400 mt-2">
+            <span>0</span>
+            <span>300,000+</span>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+          <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredDoctors.map(doctor => (
+            <div key={doctor.id} onClick={() => setSelectedDoctorId(doctor.id)} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center group flex flex-col h-full">
+              <div className="w-24 h-24 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50">
+                {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doctor.name}</h3>
+              <p className="text-sm font-bold text-blue-600 mb-4">{doctor.specialty || (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
+              
+              <div className="mt-auto pt-4 border-t border-slate-100">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs text-slate-500 font-bold">{lang === 'ar' ? 'سعر الكشف' : 'Fee'}</span>
+                  <span className="text-sm font-extrabold text-slate-800 bg-slate-50 px-2 py-1 rounded-lg">{doctor.consultation_price?.toLocaleString() || 0} {lang === 'ar' ? 'ل.س' : 'L.S'}</span>
+                </div>
+                <button className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">{lang === 'ar' ? 'عرض الملف والحجز' : 'View Profile & Book'}</button>
+              </div>
+            </div>
+          ))}
+          {filteredDoctors.length === 0 && (
+            <div className="col-span-full py-20 text-center text-slate-500 flex flex-col items-center">
+              <Search size={48} className="text-slate-300 mb-4" />
+              <h3 className="text-xl font-bold text-slate-700 mb-2">{lang === 'ar' ? 'لا يوجد أطباء يطابقون بحثك' : 'No doctors match your search'}</h3>
+              <p>{lang === 'ar' ? 'حاول تغيير شروط البحث لتشمل نتائج أكثر.' : 'Try adjusting your filters.'}</p>
+            </div>
+          )}
+        </div>
+      )}
+      <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
+    </div>
+  );
+};
+
+// مكون المتجر العام 
 const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
@@ -163,7 +294,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                     {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                      {/* 🟢 تعديل 1: القسمة على 100 في سلة المشتريات */}
                       <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</p>
                       <div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div>
                     </div>
@@ -174,7 +304,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
               <div className="p-6 border-t bg-slate-50">
                 <div className="flex justify-between items-center mb-4 text-lg font-bold">
                   <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
-                  {/* 🟢 تعديل 2: القسمة على 100 في المجموع الكلي */}
                   <span dir="ltr" className="text-emerald-600">{(cartTotal / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 </div>
                 
@@ -194,7 +323,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                   <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
                     <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
                     <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
-                    {/* 🟢 تعديل 3: القسمة على 100 في رصيد المحفظة هنا */}
                     {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>}
                   </label>
                 </div>
@@ -214,7 +342,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
             <h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
             {p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
             <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-              {/* 🟢 تعديل 4: القسمة على 100 في بطاقة المنتج */}
               <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
             </div>
             {!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}
@@ -225,13 +352,19 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   );
 };
 
-// 🟢 مكون الواجهة العامة الرئيسي (تم تحديثه لاستقبال props العملة والعنوان)
+// 🟢 مكون الواجهة العامة الرئيسي
 export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddress, footerData }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', defaultAddress: string, footerData?: any }) => {
-  const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; const [showShop, setShowShop] = useState(false);
+  const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
+  const [showShop, setShowShop] = useState(false);
+  const [showDoctors, setShowDoctors] = useState(false); // 🟢 حالة إظهار دليل الأطباء
+
   useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} defaultAddress={defaultAddress} />;
+  
+  // 🟢 إذا تم الضغط على "اطلع على الأطباء"، يتم عرض الواجهة الجديدة
+  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -240,19 +373,30 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
 
   return (
     <div className="w-full flex flex-col min-h-[85vh]">
-      {/* 🟢 حاوية المحتوى الأساسي (محددة العرض) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden flex-1">
         <header className="mb-16 text-center">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 uppercase bg-blue-50 rounded-full border border-blue-100">{t.communityHealth}</motion.div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">{lang === 'ar' ? <>منصة <span className="text-blue-600">طيبة الإمام</span> الصحية</> : <>Taibet El-Imam <span className="text-blue-600">Health Platform</span></>}</h1>
           <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
           <div className="max-w-xl mx-auto relative group"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} /><input type="text" placeholder={t.searchPlaceholder} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-blue-600 outline-none shadow-sm text-lg transition-colors" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          
           <div className="flex justify-center gap-3 mt-10 flex-wrap">
             <button onClick={() => setActiveTab('pharmacy')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><BriefcaseMedical size={18} /> {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}</button>
             <button onClick={() => setActiveTab('clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'clinic' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Stethoscope size={18} /> {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}</button>
             <button onClick={() => setActiveTab('dental_clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Smile size={18} /> {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}</button>
           </div>
-          {activeTab === 'pharmacy' && (<div className="mt-6 flex justify-center"><button onClick={() => setShowShop(true)} className="px-8 py-3.5 rounded-2xl font-bold transition-all shadow-md flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 animate-pulse"><ShoppingCart size={18} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}</button></div>)}
+
+          {/* 🟢 الأزرار الرئيسية المضافة حديثاً (اطلع على الأطباء + التسوق) */}
+          <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+            <button onClick={() => setShowDoctors(true)} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1">
+              <User size={20} /> {lang === 'ar' ? 'اطلع على دليل الأطباء واحجز موعدك' : 'Browse Doctors Directory'}
+            </button>
+            {activeTab === 'pharmacy' && (
+              <button onClick={() => setShowShop(true)} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-md flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 animate-pulse hover:-translate-y-1">
+                <ShoppingCart size={20} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}
+              </button>
+            )}
+          </div>
         </header>
 
         <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
@@ -304,14 +448,13 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
             </div>
           </div>
         </div>
-      </div> {/* 🟢 أغلقنا حاوية المحتوى هنا، ليتمكن الفوتر من التمدد بحرية */}
+      </div>
 
-      {/* 🟢 الفوتر الاحترافي (عرض الشاشة بالكامل ومتحكم به برمجياً) */}
+      {/* 🟢 الفوتر */}
       <footer className="w-full bg-[#0c5bc6] text-white pt-12 pb-10 mt-auto border-t-[5px] border-blue-400">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center lg:text-start">
             
-            {/* العمود الأول: الشعار والروابط */}
             {(footerData?.appName || footerData?.aboutLink || footerData?.teamLink || footerData?.careersLink) && (
               <div className="flex flex-col items-center lg:items-start">
                 {footerData?.appName && <h3 className="text-3xl font-extrabold mb-5 font-mono tracking-wider">{footerData.appName}</h3>}
@@ -323,16 +466,14 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
               </div>
             )}
 
-            {/* العمود الثاني: ابحث عن طريق (أساسي) */}
             <div className="flex flex-col items-center lg:items-start sm:border-r border-blue-500/30 lg:border-0 sm:pr-8 pt-8 sm:pt-0">
               <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
               <ul className="space-y-3 font-medium text-blue-100">
-                <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص' : 'Specialty'}</button></li>
+                <li><button onClick={() => { setShowDoctors(true); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص' : 'Specialty'}</button></li>
                 <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-white transition-colors">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
               </ul>
             </div>
 
-            {/* العمود الثالث: للأطباء (يختفي إذا كان الرابط فارغاً) */}
             {footerData?.doctorJoinLink && (
               <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 sm:border-0 pt-8 sm:pt-0">
                 <h3 className="text-xl font-bold mb-5 text-blue-50">{lang === 'ar' ? 'هل أنت طبيب ؟' : 'Are you a doctor?'}</h3>
@@ -342,7 +483,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
               </div>
             )}
 
-            {/* العمود الرابع: المساعدة والتطبيقات */}
             <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 lg:border-0 pt-8 lg:pt-0">
               {(footerData?.libraryLink || footerData?.contactLink || footerData?.termsLink || footerData?.privacyLink) && (
                 <>
@@ -356,7 +496,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
                 </>
               )}
 
-              {/* أزرار التطبيقات */}
               {(footerData?.androidLink || footerData?.iosLink) && (
                 <div className="flex flex-col sm:flex-row gap-3 mb-6 w-full justify-center lg:justify-start">
                   {footerData?.androidLink && <a href={footerData.androidLink} download="Taiba-Health.apk" target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Download APK" className="h-10 object-contain" /></a>}
@@ -364,14 +503,12 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
                 </div>
               )}
 
-              {/* السوشيال ميديا */}
               <div className="flex items-center justify-center lg:justify-start gap-6 text-blue-100 w-full mt-2">
                 {footerData?.twitter && <a href={footerData.twitter} target="_blank" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
                 {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
                 {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
               </div>
             </div>
-
           </div>
         </div>
       </footer>
