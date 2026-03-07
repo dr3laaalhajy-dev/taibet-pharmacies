@@ -22,6 +22,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
   const [facilities, setFacilities] = useState<Facility[]>([]); 
   const [users, setUsers] = useState<any[]>([]);
   
+  // 🟢 حالات التحميل لمنع Double Submit
+  const [isSubmittingFacility, setIsSubmittingFacility] = useState(false);
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  const [isSubmittingWalletRequest, setIsSubmittingWalletRequest] = useState(false);
+  const [isSubmittingAdminWallet, setIsSubmittingAdminWallet] = useState(false);
+  const [isSubmittingSuperAdmin, setIsSubmittingSuperAdmin] = useState(false);
+  const [isSubmittingSettings, setIsSubmittingSettings] = useState(false);
+  const [isSubmittingDoctorProfile, setIsSubmittingDoctorProfile] = useState(false);
+  const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
+
   const [superAdmins, setSuperAdmins] = useState<string[]>([]);
   const [newSuperAdmin, setNewSuperAdmin] = useState('');
   const [loadingSuperAdmins, setLoadingSuperAdmins] = useState(false);
@@ -45,13 +55,15 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
   const handleSaveDoctorProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetDoctorId) return toast.error(lang === 'ar' ? 'الرجاء اختيار طبيب' : 'Select a doctor');
+    if (!targetDoctorId || isSubmittingDoctorProfile) return toast.error(lang === 'ar' ? 'الرجاء اختيار طبيب' : 'Select a doctor');
+    setIsSubmittingDoctorProfile(true);
     try {
       if (isSuperAdmin && targetDoctorId !== user.id) await api.put(`/api/admin/users/${targetDoctorId}`, doctorForm);
       else await api.post('/api/doctor/update-profile', { ...doctorForm, user_id: targetDoctorId });
       toast.success(lang === 'ar' ? 'تم حفظ الملف الشخصي بنجاح' : 'Profile saved successfully');
       loadData(); 
     } catch (err: any) { toast.error(err.response?.data?.error || err.error || 'حدث خطأ.'); }
+    finally { setIsSubmittingDoctorProfile(false); }
   };
 
   useEffect(() => { api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => {}); }, []);
@@ -77,8 +89,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
   const [adminWalletModal, setAdminWalletModal] = useState<{isOpen: boolean, userId: number | null}>({isOpen: false, userId: null});
   const [adminWalletAmount, setAdminWalletAmount] = useState('');
-  
-  // 🟢 حالة خاصة لتحديد نوع العملية للسوبر آدمن (إيداع أو سحب)
   const [adminWalletAction, setAdminWalletAction] = useState<'deposit' | 'withdrawal'>('deposit');
 
   const loadData = async () => { 
@@ -100,9 +110,11 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
   const handleAddSuperAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSuperAdmin.trim() || !newSuperAdmin.includes('@')) return toast.error(lang === 'ar' ? 'إيميل غير صالح' : 'Invalid email');
+    if (!newSuperAdmin.trim() || !newSuperAdmin.includes('@') || isSubmittingSuperAdmin) return toast.error(lang === 'ar' ? 'إيميل غير صالح' : 'Invalid email');
+    setIsSubmittingSuperAdmin(true);
     try { await api.post('/api/admin/super-admins', { email: newSuperAdmin.trim() }); toast.success(lang === 'ar' ? 'تمت الإضافة بنجاح' : 'Super Admin added'); setNewSuperAdmin(''); fetchSuperAdmins(); } 
     catch (err: any) { toast.error(err.error || 'حدث خطأ'); }
+    finally { setIsSubmittingSuperAdmin(false); }
   };
 
   const handleRemoveSuperAdmin = async (emailToRemove: string) => {
@@ -112,19 +124,53 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true); try { const url = await uploadImageToImgBB(file); setForm({ ...form, image_url: url }); toast.success(lang === 'ar' ? 'تم رفع الصورة بنجاح' : 'Image uploaded'); } catch (err: any) { toast.error(err.message || (lang === 'ar' ? 'خطأ في الرفع' : 'Upload error')); } finally { setUploadingImage(false); } };
-  const handleSaveFacility = async (e: React.FormEvent) => { e.preventDefault(); const payload = { ...form }; if (user.role !== 'admin') delete payload.doctor_id; try { if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload); else await api.post('/api/pharmacies', payload); setShowModal(false); loadData(); toast.success(lang === 'ar' ? 'تم حفظ البيانات بنجاح' : 'Saved successfully'); } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'خطأ في الحفظ!' : 'Save error!')); } };
+  
+  const handleSaveFacility = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (isSubmittingFacility) return;
+    setIsSubmittingFacility(true);
+    const payload = { ...form }; if (user.role !== 'admin') delete payload.doctor_id; 
+    try { if (editingData) await api.put(`/api/pharmacies/${editingData.id}`, payload); else await api.post('/api/pharmacies', payload); setShowModal(false); loadData(); toast.success(lang === 'ar' ? 'تم حفظ البيانات بنجاح' : 'Saved successfully'); } 
+    catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'خطأ في الحفظ!' : 'Save error!')); }
+    finally { setIsSubmittingFacility(false); }
+  };
+
   const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); toast.success(lang === 'ar' ? 'تم تحديث حالة الدوام' : 'Status updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } };
   const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل حالة المتجر' : 'Store updated'); } catch(err: any) { toast.error(lang === 'ar' ? 'ممنوع' : 'Forbidden'); } };
   const generateActivationKey = async () => { setGeneratedKey(null); try { const res = await api.post('/api/admin/generate-key', {}); setTimeout(() => setGeneratedKey(res.key), 100); toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); } catch (err: any) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
   const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); toast.success(lang === 'ar' ? 'تم تفعيل المستخدم' : 'User approved'); } catch (err) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
-  const handleSaveUser = async (e: React.FormEvent) => { e.preventDefault(); try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); toast.success(lang === 'ar' ? 'تم حفظ بيانات المستخدم' : 'User saved'); } catch (err: any) { toast.error(err.error); } };
-  const handleUpdateProfile = async (e: React.FormEvent) => { e.preventDefault(); try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } catch (err: any) { toast.error(err.error); } };
-  const handleSaveFooter = async (e: React.FormEvent) => { e.preventDefault(); try { await api.put('/api/admin/settings', footerForm); toast.success(lang === 'ar' ? 'تم حفظ إعدادات الفوتر بنجاح' : 'Footer settings saved'); } catch(err: any) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Save failed'); } };
+  
+  const handleSaveUser = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (isSubmittingUser) return;
+    setIsSubmittingUser(true);
+    try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); toast.success(lang === 'ar' ? 'تم حفظ بيانات المستخدم' : 'User saved'); } 
+    catch (err: any) { toast.error(err.error); }
+    finally { setIsSubmittingUser(false); }
+  };
 
-  // 🟢 تعديل السوبر آدمن (إيداع وسحب بشكل أوتوماتيكي ومضروب بـ 100)
+  const handleUpdateProfile = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (isSubmittingProfile) return;
+    setIsSubmittingProfile(true);
+    try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); } 
+    catch (err: any) { toast.error(err.error); }
+    finally { setIsSubmittingProfile(false); }
+  };
+
+  const handleSaveFooter = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (isSubmittingSettings) return;
+    setIsSubmittingSettings(true);
+    try { await api.put('/api/admin/settings', footerForm); toast.success(lang === 'ar' ? 'تم حفظ إعدادات الفوتر بنجاح' : 'Footer settings saved'); } 
+    catch(err: any) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Save failed'); }
+    finally { setIsSubmittingSettings(false); }
+  };
+
   const submitAdminWallet = async (e: React.FormEvent) => {
     e.preventDefault();
-    if(!adminWalletModal.userId || !adminWalletAmount) return;
+    if(!adminWalletModal.userId || !adminWalletAmount || isSubmittingAdminWallet) return;
+    setIsSubmittingAdminWallet(true);
     try { 
       const finalAmount = adminWalletAction === 'deposit' ? parseFloat(adminWalletAmount) * 100 : -parseFloat(adminWalletAmount) * 100;
       await api.post(`/api/admin/wallet/${adminWalletModal.userId}`, { amount: finalAmount }); 
@@ -134,17 +180,20 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
       setAdminWalletAmount('');
       setAdminWalletAction('deposit');
     } catch(err) { toast.error(lang === 'ar' ? 'خطأ في العملية' : 'Error'); }
+    finally { setIsSubmittingAdminWallet(false); }
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingWalletRequest) return;
+    setIsSubmittingWalletRequest(true);
     try {
       await api.post('/api/wallet/request', { type: walletActionType, amount: parseFloat(walletAmount) * 100 });
       setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
       toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
-    }
+    } finally { setIsSubmittingWalletRequest(false); }
   };
 
   return (
@@ -260,8 +309,11 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
               <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
                 <form onSubmit={handleAddSuperAdmin} className="flex flex-col sm:flex-row gap-3 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <input type="email" placeholder={lang === 'ar' ? "أدخل إيميل المدير الجديد (مثل: admin@mail.com)" : "New Super Admin Email..."} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-left" dir="ltr" value={newSuperAdmin} onChange={e => setNewSuperAdmin(e.target.value)} required />
-                  <button type="submit" className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"><Plus size={20}/> {lang === 'ar' ? 'ترقية لمدير خارق' : 'Promote'}</button>
+                  <input type="email" placeholder={lang === 'ar' ? "أدخل إيميل المدير الجديد (مثل: admin@mail.com)" : "New Super Admin Email..."} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-500 text-left" dir="ltr" value={newSuperAdmin} onChange={e => setNewSuperAdmin(e.target.value)} required disabled={isSubmittingSuperAdmin} />
+                  <button type="submit" disabled={isSubmittingSuperAdmin} className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSubmittingSuperAdmin ? <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></span> : <Plus size={20}/>} 
+                    {lang === 'ar' ? 'ترقية لمدير خارق' : 'Promote'}
+                  </button>
                 </form>
 
                 <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><User size={20} className="text-purple-600"/> {lang === 'ar' ? 'المديرون الخارقون الحاليون' : 'Current Super Admins'}</h3>
@@ -357,7 +409,10 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                     <div className="md:col-span-2"><label className="block text-xs font-bold mb-1 text-slate-500">X (Twitter) Link</label><input type="text" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={footerForm.twitter || ''} onChange={e => setFooterForm({...footerForm, twitter: e.target.value})} /></div>
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg mt-4 text-lg">{lang === 'ar' ? 'حفظ إعدادات الفوتر والتطبيق' : 'Save All Settings'}</button>
+                <button type="submit" disabled={isSubmittingSettings} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg mt-4 text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isSubmittingSettings ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
+                  {lang === 'ar' ? 'حفظ إعدادات الفوتر والتطبيق' : 'Save All Settings'}
+                </button>
               </form>
             </motion.div>
           )}
@@ -438,7 +493,10 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                       </div>
                     )}
                   </div>
-                  <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-colors">{lang === 'ar' ? 'حفظ ونشر التعديلات' : 'Save & Publish Changes'}</button>
+                  <button type="submit" disabled={isSubmittingDoctorProfile} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSubmittingDoctorProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
+                    {lang === 'ar' ? 'حفظ ونشر التعديلات' : 'Save & Publish Changes'}
+                  </button>
                 </form>
               ) : (
                 <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm"><User className="mx-auto mb-4 text-slate-300" size={48} /><p className="text-slate-500 font-bold">{lang === 'ar' ? 'الرجاء اختيار طبيب من القائمة أعلاه للبدء بالتعديل.' : 'Please select a doctor to edit.'}</p></div>
@@ -446,7 +504,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
             </motion.div>
           )}
 
-          {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t.profileSettings}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6"><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} /></div><button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">{t.saveChanges}</button></form></motion.div>)}
+          {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t.profileSettings}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6"><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.fullName}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.email}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.phone}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.notes}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t.newPassword}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} disabled={isSubmittingProfile} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t.currentPassword}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} disabled={isSubmittingProfile} /></div><button type="submit" disabled={isSubmittingProfile} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">{isSubmittingProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}{t.saveChanges}</button></form></motion.div>)}
         </AnimatePresence>
       </div>
 
@@ -461,7 +519,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
               <form onSubmit={submitWalletRequest}>
                 <div className="mb-6">
                   <label className="block text-sm font-bold text-slate-700 mb-2 text-center">{lang === 'ar' ? 'أدخل المبلغ بـ (ل.س جديدة)' : 'Amount in (New L.S)'}</label>
-                  <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center text-3xl font-extrabold text-blue-600 focus:border-blue-500 transition-colors" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} />
+                  <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center text-3xl font-extrabold text-blue-600 focus:border-blue-500 transition-colors" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} disabled={isSubmittingWalletRequest} />
                   {walletAmount && !isNaN(Number(walletAmount)) && Number(walletAmount) > 0 && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
                       <p className="text-xs text-slate-500 font-bold mb-1">{lang === 'ar' ? 'يعادل بالليرة السورية القديمة:' : 'Equals to old Syrian Lira:'}</p>
@@ -469,7 +527,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                     </motion.div>
                   )}
                 </div>
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-colors">{lang === 'ar' ? 'إرسال الطلب' : 'Submit Request'}</button>
+                <button type="submit" disabled={isSubmittingWalletRequest} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isSubmittingWalletRequest ? <><span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> {lang === 'ar' ? 'جاري الإرسال...' : 'Sending...'}</> : (lang === 'ar' ? 'إرسال الطلب' : 'Submit Request')}
+                </button>
               </form>
             </motion.div>
           </div>
@@ -486,21 +546,130 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
               <form onSubmit={submitAdminWallet}>
                 <div className="flex gap-2 mb-6">
                   <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${adminWalletAction === 'deposit' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                    <input type="radio" className="hidden" checked={adminWalletAction === 'deposit'} onChange={() => setAdminWalletAction('deposit')} />
+                    <input type="radio" className="hidden" checked={adminWalletAction === 'deposit'} onChange={() => setAdminWalletAction('deposit')} disabled={isSubmittingAdminWallet} />
                     <Plus size={16} /> {lang === 'ar' ? 'إيداع' : 'Deposit'}
                   </label>
                   <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${adminWalletAction === 'withdrawal' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
-                    <input type="radio" className="hidden" checked={adminWalletAction === 'withdrawal'} onChange={() => setAdminWalletAction('withdrawal')} />
+                    <input type="radio" className="hidden" checked={adminWalletAction === 'withdrawal'} onChange={() => setAdminWalletAction('withdrawal')} disabled={isSubmittingAdminWallet} />
                     <Minus size={16} /> {lang === 'ar' ? 'سحب' : 'Withdraw'}
                   </label>
                 </div>
 
                 <label className="block text-sm font-bold text-slate-700 mb-2 text-center">{lang === 'ar' ? 'المبلغ بـ (ل.س جديدة)' : 'Amount in New L.S'}</label>
-                <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 mb-6 text-center text-3xl font-extrabold text-slate-800 transition-colors" placeholder="0" value={adminWalletAmount} onChange={e => setAdminWalletAmount(e.target.value)} />
+                <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-slate-200 rounded-2xl outline-none focus:border-blue-500 mb-6 text-center text-3xl font-extrabold text-slate-800 transition-colors" placeholder="0" value={adminWalletAmount} onChange={e => setAdminWalletAmount(e.target.value)} disabled={isSubmittingAdminWallet} />
                 
-                <button type="submit" className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-colors ${adminWalletAction === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                <button type="submit" disabled={isSubmittingAdminWallet} className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${adminWalletAction === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                  {isSubmittingAdminWallet ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
                   {lang === 'ar' ? 'تنفيذ العملية' : 'Execute'}
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl md:text-2xl font-bold">{editingData ? (lang === 'ar' ? 'تعديل البيانات' : 'Edit') : addButtonText}</h3>
+                <button type="button" onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"><X size={24} /></button>
+              </div>
+              <form onSubmit={handleSaveFacility} className="space-y-4">
+                {user.role === 'admin' && (<div><label className="block text-sm font-bold mb-2">نوع المنشأة</label><select className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.type} onChange={e => setForm({...form, type: e.target.value})} disabled={isSubmittingFacility}><option value="pharmacy">صيدلية</option><option value="clinic">عيادة طبية</option><option value="dental_clinic">عيادة أسنان</option></select></div>)}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'الاسم' : 'Name'}</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.name} onChange={e => setForm({...form, name: e.target.value})} disabled={isSubmittingFacility} /></div>
+                  
+                  {form.type === 'clinic' && (
+                    <div className="col-span-1 md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'تخصص العيادة' : 'Specialty'}</label>
+                      <select className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 mb-2" value={form.specialty === '' ? '' : SPECIALTIES.includes(form.specialty) ? form.specialty : 'other'} onChange={e => { if (e.target.value === 'other') setForm({...form, specialty: 'تخصص آخر'}); else setForm({...form, specialty: e.target.value}); }} disabled={isSubmittingFacility}>
+                        <option value="">{lang === 'ar' ? 'اختر التخصص...' : 'Select...'}</option>{SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}<option value="other">{lang === 'ar' ? 'أخرى (كتابة يدوية)' : 'Other'}</option>
+                      </select>
+                      {(form.specialty && !SPECIALTIES.includes(form.specialty)) && (
+                         <input required placeholder={lang === 'ar' ? "اكتب التخصص هنا..." : "Type here..."} className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.specialty === 'تخصص آخر' ? '' : form.specialty} onChange={e => setForm({...form, specialty: e.target.value})} disabled={isSubmittingFacility} />
+                      )}
+                    </div>
+                  )}
+
+                  {(form.type === 'clinic' || form.type === 'dental_clinic') && (
+                    <>
+                      <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'سعر الكشف (ل.س)' : 'Consultation Fee'}</label><input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.consultation_fee} onChange={e => setForm({...form, consultation_fee: e.target.value})} disabled={isSubmittingFacility} /></div>
+                      <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'مدة الانتظار التقريبية' : 'Wait Time'}</label><input required placeholder="مثال: 15 دقيقة" className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.waiting_time} onChange={e => setForm({...form, waiting_time: e.target.value})} disabled={isSubmittingFacility} /></div>
+                    </>
+                  )}
+
+                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'العنوان' : 'Address'}</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.address} onChange={e => setForm({...form, address: e.target.value})} disabled={isSubmittingFacility} /></div>
+                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'الهاتف' : 'Phone'}</label><input required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} disabled={isSubmittingFacility} /></div>
+                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'الواتساب (اختياري)' : 'WhatsApp'}</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.whatsapp_phone} onChange={e => setForm({...form, whatsapp_phone: e.target.value})} disabled={isSubmittingFacility} /></div>
+                  <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'اسم المسؤول' : 'In Charge'}</label><input className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.pharmacist_name} onChange={e => setForm({...form, pharmacist_name: e.target.value})} disabled={isSubmittingFacility} /></div>
+                  
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'صورة/شعار' : 'Logo/Image'}</label>
+                    <div className="flex items-center gap-3">
+                      <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${uploadingImage ? 'bg-slate-50 border-slate-300 text-slate-400' : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+                        {uploadingImage ? <span className="animate-spin h-5 w-5 border-2 border-blue-600 rounded-full border-t-transparent"></span> : <UploadCloud size={20} />}
+                        <span className="font-bold text-sm">{uploadingImage ? (lang === 'ar' ? 'جاري الرفع...' : 'Uploading...') : (lang === 'ar' ? 'اضغط لرفع صورة' : 'Click to Upload')}</span>
+                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage || isSubmittingFacility} />
+                      </label>
+                      {form.image_url && <img src={form.image_url} alt="preview" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm" />}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-[150px] md:h-[200px] rounded-2xl overflow-hidden border border-slate-200 z-0 relative mt-4">
+                  <MapContainer center={[form.latitude || 35.25, form.longitude || 36.7]} zoom={13} style={{ height: '100%', width: '100%', zIndex: 0 }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <LocationPicker onLocationSelect={(lat: number, lng: number) => setForm({...form, latitude: lat, longitude: lng})} initialPosition={form.latitude && form.longitude ? [form.latitude, form.longitude] : undefined} />
+                    {editingData && <RecenterMap position={[form.latitude || 35.25, form.longitude || 36.7]} />}
+                  </MapContainer>
+                </div>
+                
+                <div className="border-t border-slate-200 pt-6 mt-6">
+                  <h4 className="font-bold text-lg mb-4 flex items-center gap-2"><Calendar className="text-blue-500"/> أوقات الدوام الأسبوعي</h4>
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => { 
+                      const dayHours = form.working_hours[idx.toString()] || { isOpen: false, start: '00:00', end: '00:00' }; 
+                      return (
+                        <div key={idx} className={`flex flex-col sm:flex-row items-center gap-4 bg-white p-3 rounded-xl border ${dayHours.isOpen ? 'border-blue-200 shadow-sm' : 'border-slate-200'} transition-all`}>
+                          <div className="flex items-center gap-3 w-full sm:w-1/3">
+                            <input type="checkbox" className="w-5 h-5 accent-blue-600 rounded cursor-pointer" checked={dayHours.isOpen} onChange={e => setForm({...form, working_hours: {...form.working_hours, [idx]: {...dayHours, isOpen: e.target.checked}}})} disabled={isSubmittingFacility} />
+                            <span className={`font-bold w-20 ${dayHours.isOpen ? 'text-slate-900' : 'text-slate-400'}`}>{day}</span>
+                          </div>
+                          {dayHours.isOpen ? (
+                            <div className="flex items-center gap-2 w-full sm:w-2/3" dir="ltr">
+                              <span className="text-xs font-bold text-slate-400">{lang === 'ar' ? 'من' : 'From'}</span>
+                              <input type="time" className="border border-slate-200 px-3 py-2 rounded-lg font-mono text-sm w-full outline-none focus:ring-2 focus:ring-blue-500" value={dayHours.start} onChange={e => setForm({...form, working_hours: {...form.working_hours, [idx]: {...dayHours, start: e.target.value}}})} disabled={isSubmittingFacility} />
+                              <span className="text-xs font-bold text-slate-400 px-1">{lang === 'ar' ? 'إلى' : 'To'}</span>
+                              <input type="time" className="border border-slate-200 px-3 py-2 rounded-lg font-mono text-sm w-full outline-none focus:ring-2 focus:ring-blue-500" value={dayHours.end} onChange={e => setForm({...form, working_hours: {...form.working_hours, [idx]: {...dayHours, end: e.target.value}}})} disabled={isSubmittingFacility} />
+                            </div>
+                          ) : (
+                            <div className="w-full sm:w-2/3 text-red-500 font-bold px-4 flex items-center justify-center bg-red-50 py-2 rounded-lg">{lang === 'ar' ? 'عطلة - مغلق' : 'Day Off'}</div>
+                          )}
+                        </div>
+                      ); 
+                    })}
+                  </div>
+                </div>
+
+                {user.role === 'admin' && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <label className="block text-sm font-medium mb-1">ربط المنشأة بكادر طبي</label>
+                    <select className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" value={form.doctor_id} onChange={e => setForm({...form, doctor_id: parseInt(e.target.value)})} disabled={isSubmittingFacility}> 
+                      <option value="0">بدون مالك</option>
+                      {users.filter(u => u.role !== 'admin' && u.role !== 'patient').map(d => <option key={d.id} value={d.id}>{d.name} ({d.role === 'dentist' ? 'طبيب أسنان' : (d.role === 'doctor' ? 'طبيب' : 'صيدلي')})</option>)}
+                    </select>
+                  </div>
+                )}
+                
+                <div className="flex gap-3 pt-6 border-t border-slate-200">
+                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors" disabled={isSubmittingFacility}>{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                  <button type="submit" disabled={uploadingImage || isSubmittingFacility} className="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSubmittingFacility ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
+                    {lang === 'ar' ? 'حفظ' : 'Save'}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
@@ -520,23 +689,23 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'الاسم الكامل' : 'Full Name'}</label>
-                    <input required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+                    <input required className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} disabled={isSubmittingUser} />
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
-                    <input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                    <input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} disabled={isSubmittingUser} />
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'كلمة المرور' : 'Password'} {editingUser && <span className="text-xs text-slate-400">({lang === 'ar' ? 'اتركه فارغاً لعدم التغيير' : 'Leave blank to keep'})</span>}</label>
-                    <input type={editingUser ? "password" : "text"} required={!editingUser} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" placeholder={editingUser ? "***" : ""} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
+                    <input type={editingUser ? "password" : "text"} required={!editingUser} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" placeholder={editingUser ? "***" : ""} value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} disabled={isSubmittingUser} />
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رقم الهاتف' : 'Phone'}</label>
-                    <input className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
+                    <input className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} disabled={isSubmittingUser} />
                   </div>
                   <div>
                     <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'نوع الحساب (الصلاحية)' : 'Role'}</label>
-                    <select className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})}>
+                    <select className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value as any})} disabled={isSubmittingUser}>
                       <option value="patient">{lang === 'ar' ? 'مريض / مستخدم عادي' : 'Patient'}</option>
                       <option value="pharmacist">{lang === 'ar' ? 'صيدلي' : 'Pharmacist'}</option>
                       <option value="doctor">{lang === 'ar' ? 'طبيب بشري' : 'Doctor'}</option>
@@ -545,8 +714,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                     </select>
                   </div>
                   
-                  
-               {/* 🟢 تم إخفاء هذا الحقل عن المدير العادي، يظهر للسوبر آدمن فقط (بالليرة الجديدة) */}
                   {isSuperAdmin && (
                     <div>
                       <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رصيد المحفظة (ل.س جديدة)' : 'Wallet Balance (New L.S)'}</label>
@@ -554,10 +721,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                         type="number" 
                         step="0.01" 
                         className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" 
-                        // 🟢 للظهور: نقسم على 100
                         value={userForm.wallet_balance ? (Number(userForm.wallet_balance) / 100) : ''} 
-                        // 🟢 للحفظ: نضرب بـ 100
                         onChange={e => setUserForm({...userForm, wallet_balance: Number(e.target.value) * 100})} 
+                        disabled={isSubmittingUser}
                       />
                     </div>
                   )}
@@ -565,19 +731,22 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
                 <div>
                   <label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'ملاحظات / نبذة (تظهر في الملف الشخصي للطبيب)' : 'Notes / Bio'}</label>
-                  <textarea rows={3} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})}></textarea>
+                  <textarea rows={3} className="w-full px-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={userForm.notes} onChange={e => setUserForm({...userForm, notes: e.target.value})} disabled={isSubmittingUser}></textarea>
                 </div>
 
                 <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl mt-2">
-                  <input type="checkbox" id="isActiveCheck" className="w-5 h-5 accent-emerald-500 cursor-pointer" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} />
+                  <input type="checkbox" id="isActiveCheck" className="w-5 h-5 accent-emerald-500 cursor-pointer" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} disabled={isSubmittingUser} />
                   <label htmlFor="isActiveCheck" className="font-bold text-slate-700 cursor-pointer select-none">
                     {lang === 'ar' ? 'الحساب مفعل (يمكنه الدخول واستخدام النظام)' : 'Account is Active'}
                   </label>
                 </div>
 
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-4 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
-                  <button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors">{lang === 'ar' ? 'حفظ التعديلات' : 'Save Changes'}</button>
+                  <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-4 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors" disabled={isSubmittingUser}>{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                  <button type="submit" disabled={isSubmittingUser} className="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSubmittingUser ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
+                    {lang === 'ar' ? 'حفظ التعديلات' : 'Save Changes'}
+                  </button>
                 </div>
               </form>
             </motion.div>

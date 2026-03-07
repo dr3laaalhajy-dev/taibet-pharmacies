@@ -21,7 +21,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' 
 });
 
-// 🔴 دالة رفع الصور
 const uploadImageToImgBB = async (file: File) => { 
   const base64 = await new Promise<string>((resolve, reject) => { 
     const reader = new FileReader(); reader.readAsDataURL(file); 
@@ -41,6 +40,11 @@ export default function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   
+  // 🟢 حالات التحميل لمنع Double Submit
+  const [isSubmittingWallet, setIsSubmittingWallet] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -50,7 +54,6 @@ export default function App() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
 
-  // 🟢 استبدال سطر العملة وجعلها تحفظ في المتصفح وتكون "الجديدة" هي الافتراضية
   const [currency, setCurrency] = useState<'old' | 'new'>((localStorage.getItem('currency') as 'old' | 'new') || 'new');
 
   const handleCurrencyChange = (newCurr: 'old' | 'new') => {
@@ -90,29 +93,37 @@ export default function App() {
   };
   const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); setIsMenuOpen(false); };
 
+  // 🟢 منع Double Submit في طلب المحفظة
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingWallet) return;
+    setIsSubmittingWallet(true);
+
     try {
-      // 🟢 التعديل هنا: نضرب المبلغ بـ 100 قبل إرساله للسيرفر
-      const actionType = typeof walletActionType !== 'undefined' ? walletActionType : 'deposit'; // ليتوافق مع كلا الملفين
-      await api.post('/api/wallet/request', { type: actionType, amount: parseFloat(walletAmount) * 100 });
-      
-      setShowWalletModal(false); 
-      setWalletAmount('');
-      if (typeof setShowSuccess !== 'undefined') setShowSuccess(true);
-      if (typeof setSuccessModalData !== 'undefined') setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم بنجاح' : 'Success', message: 'تم إرسال الطلب' });
+      await api.post('/api/wallet/request', { type: 'deposit', amount: parseFloat(walletAmount) * 100 });
+      setShowSuccess(true); setShowWalletModal(false); setWalletAmount('');
     } catch(err: any) { 
       toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); 
+    } finally {
+      setIsSubmittingWallet(false);
     }
   };
 
+  // 🟢 منع Double Submit في تحديث الملف
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUpdatingProfile) return;
+    setIsUpdatingProfile(true);
+
     try {
       await api.post('/api/auth/update-profile', { email: profileForm.email, name: profileForm.name, newPassword: profileForm.password, profile_picture: profileForm.profile_picture });
       toast.success(lang === 'ar' ? 'تم تحديث الملف الشخصي بنجاح' : 'Profile updated');
       refreshUser(); setShowProfileModal(false);
-    } catch(err: any) { toast.error(err.error || 'خطأ في التحديث'); }
+    } catch(err: any) { 
+      toast.error(err.error || 'خطأ في التحديث'); 
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,12 +132,19 @@ export default function App() {
     catch (err: any) { toast.error('فشل الرفع'); } finally { setUploadingImage(false); }
   };
 
-  const addAddress = () => {
-    if(!newAddress.trim()) return;
-    const updated = [...addresses, newAddress.trim()];
-    setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
-    if(!defaultAddress) { setDefaultAddress(newAddress.trim()); localStorage.setItem(`defAddr_${user?.id}`, newAddress.trim()); }
-    setNewAddress(''); toast.success(lang === 'ar' ? 'تمت الإضافة' : 'Added');
+  // 🟢 منع Double Submit في إضافة العنوان
+  const addAddress = async () => {
+    if(!newAddress.trim() || isAddingAddress) return;
+    setIsAddingAddress(true);
+
+    try {
+      const updated = [...addresses, newAddress.trim()];
+      setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
+      if(!defaultAddress) { setDefaultAddress(newAddress.trim()); localStorage.setItem(`defAddr_${user?.id}`, newAddress.trim()); }
+      setNewAddress(''); toast.success(lang === 'ar' ? 'تمت الإضافة' : 'Added');
+    } finally {
+      setIsAddingAddress(false);
+    }
   };
 
   const removeAddress = (addr: string) => {
@@ -157,8 +175,6 @@ export default function App() {
             
             {user ? (
               <div className="flex items-center gap-2 md:gap-3">
-                
-                {/* 🟢 زر لوحة التحكم السريع بجانب الصورة (للإدارة والموظفين فقط) */}
                 {user.role !== 'patient' && (
                   <button onClick={() => setView('dashboard')} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-md">
                     <LayoutDashboard size={16} />
@@ -238,14 +254,16 @@ export default function App() {
                     {profileForm.profile_picture ? <img src={profileForm.profile_picture} className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 shadow-md" /> : <div className="w-24 h-24 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-3xl font-bold border-4 border-white shadow-md">{profileForm.name?.charAt(0)}</div>}
                     <label className="absolute inset-0 bg-black/50 text-white rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       {uploadingImage ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <Camera size={24} />}
-                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage || isUpdatingProfile} />
                     </label>
                   </div>
                 </div>
-                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'الاسم' : 'Name'}</label><input required className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} /></div>
-                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label><input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} dir="ltr"/></div>
-                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'تغيير كلمة المرور (اختياري)' : 'New Password (Optional)'}</label><input type="password" placeholder="***" className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} dir="ltr"/></div>
-                <button type="submit" disabled={uploadingImage} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 disabled:opacity-50 mt-2">{lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes'}</button>
+                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'الاسم' : 'Name'}</label><input required className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} disabled={isUpdatingProfile} /></div>
+                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label><input required type="email" className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} dir="ltr" disabled={isUpdatingProfile} /></div>
+                <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'تغيير كلمة المرور (اختياري)' : 'New Password (Optional)'}</label><input type="password" placeholder="***" className="w-full px-4 py-3 border rounded-xl outline-none" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} dir="ltr" disabled={isUpdatingProfile} /></div>
+                <button type="submit" disabled={uploadingImage || isUpdatingProfile} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 disabled:opacity-50 mt-2 flex items-center justify-center gap-2">
+                  {isUpdatingProfile ? <><span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> {lang === 'ar' ? 'جاري الحفظ...' : 'Saving...'}</> : (lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes')}
+                </button>
               </form>
             </motion.div>
           </div>
@@ -286,8 +304,10 @@ export default function App() {
                   <div className="animate-in fade-in">
                     <h4 className="text-lg font-bold mb-4">{lang === 'ar' ? 'عناوين التوصيل الخاصة بي' : 'My Delivery Addresses'}</h4>
                     <div className="flex gap-2 mb-6">
-                      <input placeholder={lang === 'ar' ? 'مثال: حي الصفا، الشارع الرئيسي، بناء السلام' : 'Add new address...'} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={newAddress} onChange={e => setNewAddress(e.target.value)} />
-                      <button onClick={addAddress} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors">{lang === 'ar' ? 'إضافة' : 'Add'}</button>
+                      <input placeholder={lang === 'ar' ? 'مثال: حي الصفا، الشارع الرئيسي، بناء السلام' : 'Add new address...'} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={newAddress} onChange={e => setNewAddress(e.target.value)} disabled={isAddingAddress} />
+                      <button onClick={addAddress} disabled={isAddingAddress} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors disabled:opacity-50">
+                        {isAddingAddress ? '...' : (lang === 'ar' ? 'إضافة' : 'Add')}
+                      </button>
                     </div>
                     <div className="space-y-3">
                       {addresses.length === 0 ? (<div className="text-center py-10 text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">{lang === 'ar' ? 'لا توجد عناوين مضافة بعد.' : 'No addresses added.'}</div>) : 
@@ -316,41 +336,22 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-sm">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold">
-                  {typeof walletActionType !== 'undefined' && walletActionType === 'withdrawal' ? (lang === 'ar' ? 'طلب سحب كاش' : 'Withdrawal') : (lang === 'ar' ? 'شحن المحفظة' : 'Deposit')}
-                </h3>
+                <h3 className="text-xl font-bold">{lang === 'ar' ? 'شحن المحفظة' : 'Deposit'}</h3>
                 <button type="button" onClick={() => setShowWalletModal(false)} className="p-1 hover:bg-slate-100 rounded-full"><X size={20}/></button>
               </div>
-              
               <form onSubmit={submitWalletRequest}>
                 <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-2 text-center">
-                    {lang === 'ar' ? 'أدخل المبلغ بـ (ل.س جديدة)' : 'Amount in (New L.S)'}
-                  </label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    step="0.01"
-                    required 
-                    className="w-full px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center text-3xl font-extrabold text-blue-600 focus:border-blue-500 transition-colors" 
-                    placeholder="0" 
-                    value={walletAmount} 
-                    onChange={e => setWalletAmount(e.target.value)} 
-                  />
-                  
-                  {/* 🟢 شريط يظهر تلقائياً ليحسب القيمة بالعملة القديمة */}
+                  <label className="block text-sm font-bold text-slate-700 mb-2 text-center">{lang === 'ar' ? 'أدخل المبلغ بـ (ل.س جديدة)' : 'Amount in (New L.S)'}</label>
+                  <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center text-3xl font-extrabold text-blue-600 focus:border-blue-500 transition-colors" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} disabled={isSubmittingWallet} />
                   {walletAmount && !isNaN(Number(walletAmount)) && Number(walletAmount) > 0 && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
                       <p className="text-xs text-slate-500 font-bold mb-1">{lang === 'ar' ? 'يعادل بالليرة السورية القديمة:' : 'Equals to old Syrian Lira:'}</p>
-                      <p className="text-lg font-extrabold text-slate-800" dir="ltr">
-                        {(Number(walletAmount) * 100).toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'}
-                      </p>
+                      <p className="text-lg font-extrabold text-slate-800" dir="ltr">{(Number(walletAmount) * 100).toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'}</p>
                     </motion.div>
                   )}
                 </div>
-
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-colors">
-                  {lang === 'ar' ? 'إرسال الطلب' : 'Submit Request'}
+                <button type="submit" disabled={isSubmittingWallet} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isSubmittingWallet ? <><span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> {lang === 'ar' ? 'جاري الإرسال...' : 'Sending...'}</> : (lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Deposit')}
                 </button>
               </form>
             </motion.div>
