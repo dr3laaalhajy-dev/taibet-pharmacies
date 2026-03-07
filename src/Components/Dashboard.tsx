@@ -3,19 +3,31 @@ import toast from 'react-hot-toast';
 import { SuccessModal } from './SuccessModal';
 import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+// 🟢 أضفنا استيراد Marker و useMapEvents هنا مباشرة
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
 import { api, uploadImageToImgBB } from '../api-client'; 
-import { checkIsOpenNow, LocationPicker, RecenterMap } from '../helpers';
+// 🟢 أزلنا استيراد LocationPicker و RecenterMap من هنا لمنع الخطأ
+import { checkIsOpenNow } from '../helpers';
 import { ProductsManager } from './ProductsManager';
 import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 
-// 🟢 ضمان عدم الانهيار إذا كانت الثوابت غير موجودة في ملف types
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SAFE_SPECIALTIES = SPECIALTIES || ['عام', 'أطفال', 'أسنان', 'نسائية', 'قلبية', 'عظمية', 'باطنية', 'عينية', 'أذن أنف حنجرة'];
+
+// 🟢 مكون الخريطة السحري المدمج (لضمان عدم فقدان الـ Context أبداً)
+const MapClickHandler = ({ lat, lng, onChange }: { lat: number, lng: number, onChange: (lat: number, lng: number) => void }) => {
+  const map = useMapEvents({
+    click(e) {
+      onChange(e.latlng.lat, e.latlng.lng);
+      map.flyTo(e.latlng, map.getZoom());
+    }
+  });
+  return <Marker position={[lat, lng]} />;
+};
 
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, title: string, body: string, t: any }) => {
   if (!isOpen) return null;
@@ -91,7 +103,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
   const [profileEmail, setProfileEmail] = useState(user.email); const [profileName, setProfileName] = useState(user.name); const [profilePhone, setProfilePhone] = useState(user.phone || ''); const [profileNotes, setProfileNotes] = useState(user.notes || ''); const [profileCurrentPassword, setProfileCurrentPassword] = useState(''); const [profileNewPassword, setProfileNewPassword] = useState('');
   const [footerForm, setFooterForm] = useState<FooterSettings>({ copyright: '', description: '', facebook: '', instagram: '', contact_phone: '', complaints_phone: '' });
   
-  // تهيئة آمنة لأوقات الدوام الافتراضية
   const defaultWorkingHours: Record<string, WorkingHours> = {}; 
   for(let i=0; i<7; i++) defaultWorkingHours[i.toString()] = { isOpen: true, start: "08:00", end: "22:00" };
   
@@ -555,6 +566,106 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
             </motion.div>
           )}
 
+          {activeTab === 'doctor_profile' && (user?.role === 'doctor' || user?.role === 'dentist' || isSuperAdmin) && (
+            <motion.div key="doctor_profile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto pb-12">
+              <div className="flex items-center gap-3 mb-8">
+                <Stethoscope size={32} className="text-blue-600" />
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">{lang === 'ar' ? 'إدارة الملف الشخصي للطبيب' : 'Manage Doctor Profile'}</h2>
+                  <p className="text-slate-500 text-sm mt-1">{lang === 'ar' ? 'تعديل التخصص، سعر الكشف، الحد اليومي للمرضى، والأسئلة الشائعة.' : 'Update specialty, consultation fee, daily limit, and FAQs.'}</p>
+                </div>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-8">
+                   <h3 className="font-bold text-slate-800 mb-4">{lang === 'ar' ? 'البحث عن طبيب للتعديل عليه (صلاحيات الآدمن)' : 'Search Doctor to Edit'}</h3>
+                   <div className="relative mb-4">
+                     <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                     <input type="text" className="w-full pr-12 pl-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" placeholder={lang === 'ar' ? 'ابحث عن اسم الطبيب...' : 'Search doctor name...'} value={doctorSearch} onChange={e => setDoctorSearch(e.target.value)} />
+                   </div>
+                   <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                     {users.filter(u => (u.role === 'doctor' || u.role === 'dentist') && u.name.includes(doctorSearch)).map(doc => (
+                        <button key={doc.id} type="button" onClick={() => setTargetDoctorId(doc.id)} className={`w-full text-right p-3 rounded-xl border flex items-center gap-3 transition-colors ${targetDoctorId === doc.id ? 'bg-blue-50 border-blue-200 text-blue-700 font-bold' : 'bg-slate-50 border-slate-100 hover:bg-slate-100 text-slate-700'}`}>
+                           <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold">{doc.name[0]}</div>
+                           <div><span className="block font-bold">{doc.name}</span><span className="text-xs font-normal text-slate-500">{doc.role === 'dentist' ? 'طبيب أسنان' : 'طبيب بشري'}</span></div>
+                        </button>
+                     ))}
+                   </div>
+                </div>
+              )}
+
+              {targetDoctorId ? (
+                <form onSubmit={handleSaveDoctorProfile} className="space-y-8">
+                  <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <h3 className="text-lg font-bold text-slate-800 border-b pb-3">{lang === 'ar' ? 'البيانات الأساسية' : 'Basic Info'}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'التخصص الطبي' : 'Specialty'}</label>
+                        <select className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" value={doctorForm.specialty} onChange={e => setDoctorForm({...doctorForm, specialty: e.target.value})} disabled={isSubmittingDoctorProfile}>
+                          <option value="">{lang === 'ar' ? 'اختر التخصص...' : 'Select Specialty...'}</option>
+                          {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'سعر الكشفية (ل.س جديدة)' : 'Consultation Fee (New L.S)'}</label>
+                        <input type="number" min="0" step="0.01" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" value={doctorForm.consultation_price} onChange={e => setDoctorForm({...doctorForm, consultation_price: Number(e.target.value)})} disabled={isSubmittingDoctorProfile} />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'الحد الأقصى للمرضى في اليوم (للحجوزات)' : 'Daily Appointments Limit'}</label>
+                        <input type="number" min="1" max="100" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500" value={doctorForm.daily_limit} onChange={e => setDoctorForm({...doctorForm, daily_limit: Number(e.target.value)})} disabled={isSubmittingDoctorProfile} />
+                        <p className="text-xs text-slate-500 mt-1">{lang === 'ar' ? 'بمجرد وصول عدد الحجوزات لهذا الرقم في يوم ما، سيتم إغلاق الحجز لذلك اليوم.' : 'Once reached, bookings will close for that day.'}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-bold mb-2">{lang === 'ar' ? 'نبذة عن الطبيب' : 'About Doctor'}</label>
+                        <textarea rows={4} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-blue-500 resize-none" placeholder={lang === 'ar' ? 'اكتب نبذة عن خبراتك وشهاداتك...' : 'Write about your experience...'} value={doctorForm.about} onChange={e => setDoctorForm({...doctorForm, about: e.target.value})} disabled={isSubmittingDoctorProfile} />
+                      </div>
+                      
+                      <div className="md:col-span-2 flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 mt-2">
+                        <input type="checkbox" id="showDirCheck" className="w-5 h-5 accent-blue-600 cursor-pointer" checked={doctorForm.show_in_directory} onChange={e => setDoctorForm({...doctorForm, show_in_directory: e.target.checked})} disabled={isSubmittingDoctorProfile} />
+                        <label htmlFor="showDirCheck" className="font-bold text-slate-700 cursor-pointer select-none">
+                          {lang === 'ar' ? 'إظهار هذا الطبيب في دليل الأطباء للمرضى' : 'Show this doctor in patients directory'}
+                        </label>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div className="flex justify-between items-center border-b pb-3">
+                      <h3 className="text-lg font-bold text-slate-800">{lang === 'ar' ? 'الأسئلة الطبية الشائعة (FAQ)' : 'Medical FAQs'}</h3>
+                      <button type="button" onClick={addFaq} disabled={isSubmittingDoctorProfile} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"><Plus size={16} /> {lang === 'ar' ? 'إضافة سؤال' : 'Add Question'}</button>
+                    </div>
+                    {doctorForm.faqs.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 font-medium">{lang === 'ar' ? 'لم تقم بإضافة أي أسئلة بعد.' : 'No FAQs added yet.'}</div>
+                    ) : (
+                      <div className="space-y-4">
+                        {doctorForm.faqs.map((faq, index) => (
+                          <div key={faq.id} className="p-4 border border-slate-200 rounded-2xl bg-slate-50 relative group">
+                            <button type="button" onClick={() => removeFaq(faq.id)} disabled={isSubmittingDoctorProfile} className="absolute top-4 rtl:left-4 ltr:right-4 text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            <div className="mb-3 pr-10">
+                              <label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? `السؤال ${index + 1}` : `Question ${index + 1}`}</label>
+                              <input type="text" className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white" value={faq.question} onChange={e => updateFaq(faq.id, 'question', e.target.value)} required disabled={isSubmittingDoctorProfile} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'الإجابة' : 'Answer'}</label>
+                              <textarea rows={2} className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white resize-none" value={faq.answer} onChange={e => updateFaq(faq.id, 'answer', e.target.value)} required disabled={isSubmittingDoctorProfile} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button type="submit" disabled={isSubmittingDoctorProfile} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSubmittingDoctorProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}
+                    {lang === 'ar' ? 'حفظ ونشر التعديلات' : 'Save & Publish Changes'}
+                  </button>
+                </form>
+              ) : (
+                <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-sm"><User className="mx-auto mb-4 text-slate-300" size={48} /><p className="text-slate-500 font-bold">{lang === 'ar' ? 'الرجاء اختيار طبيب من القائمة أعلاه للبدء بالتعديل.' : 'Please select a doctor to edit.'}</p></div>
+              )}
+            </motion.div>
+          )}
+
           {activeTab === 'profile' && (<motion.div key="profile" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="max-w-2xl"><h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">{t?.profileSettings || 'إعدادات الحساب'}</h2><form onSubmit={handleUpdateProfile} className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5 md:space-y-6"><div><label className="block text-sm font-medium text-slate-700 mb-2">{t?.fullName || 'الاسم الكامل'}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t?.email || 'البريد الإلكتروني'}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t?.phone || 'رقم الهاتف'}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t?.notes || 'ملاحظات'}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} disabled={isSubmittingProfile} /></div><div><label className="block text-sm font-medium text-slate-700 mb-2">{t?.newPassword || 'كلمة المرور الجديدة'}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} disabled={isSubmittingProfile} /></div><div className="pt-4 border-t border-slate-100"><label className="block text-sm font-medium text-slate-700 mb-2">{t?.currentPassword || 'كلمة المرور الحالية'}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} disabled={isSubmittingProfile} /></div><button type="submit" disabled={isSubmittingProfile} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">{isSubmittingProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}{t?.saveChanges || 'حفظ التعديلات'}</button></form></motion.div>)}
         </AnimatePresence>
       </div>
@@ -589,9 +700,15 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
                     <div><label className="block text-sm font-bold mb-1">{lang === 'ar' ? 'رقم الواتساب للحجز/التواصل' : 'WhatsApp'}</label><input className="w-full p-3 border rounded-xl outline-none focus:border-blue-500 text-left" dir="ltr" placeholder="مثال: +9639..." value={form.whatsapp_phone || ''} onChange={e => setForm({...form, whatsapp_phone: e.target.value})} disabled={isSubmittingFacility} /></div>
                   </div>
 
+                  {/* 🟢 الحل السحري لمشكلة الخريطة (تم إضافة التغليف هنا) */}
                   <div className="mt-6 border-t pt-4">
                     <h4 className="font-bold mb-2 text-slate-800">{t?.selectLocation || 'تحديد الموقع'}</h4>
-                    <LocationPicker lat={form.latitude || 35.25} lng={form.longitude || 36.7} onChange={(lat, lng) => setForm({...form, latitude: lat, longitude: lng})} />
+                    <div className="h-[300px] w-full rounded-xl overflow-hidden border border-slate-200 z-10 relative">
+                      <MapContainer center={[form.latitude || 35.25, form.longitude || 36.7]} zoom={13} style={{ height: '100%', width: '100%' }}>
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        <MapClickHandler lat={form.latitude || 35.25} lng={form.longitude || 36.7} onChange={(lat: number, lng: number) => setForm({...form, latitude: lat, longitude: lng})} />
+                      </MapContainer>
+                    </div>
                   </div>
 
                   <div className="mt-6 border-t pt-4">
