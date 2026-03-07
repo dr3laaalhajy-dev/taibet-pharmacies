@@ -7,13 +7,25 @@ import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN
 import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 
-const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, onClose: () => void, t: any, lang: string }) => {
+// 🟢 مكون زر تبديل العملة (يظهر للزوار والمستخدمين)
+const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, lang: string }) => (
+  <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-full p-1 flex items-center border border-slate-200 w-fit">
+    <button onClick={() => setCurrency('new')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'new' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}</button>
+    <button onClick={() => setCurrency('old')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'old' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{lang === 'ar' ? 'ل.س قديمة' : 'Old L.S'}</button>
+  </div>
+);
+
+const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new' }) => {
   const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); 
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
 
   useEffect(() => { api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false)); }, [doctorId]);
   if (!doctorId) return null;
+
+  const fee = doctor?.consultation_price || doctor?.facilities[0]?.consultation_fee || 0;
+  const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
+  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
@@ -97,7 +109,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
                 <div className="bg-blue-600 text-white text-center py-3 font-bold">{lang === 'ar' ? 'معلومات الحجز' : 'Booking Info'}</div>
                 <div className="p-5">
                   <div className="flex justify-between items-center text-center border-b border-slate-100 pb-4 mb-4">
-                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800">{doctor.consultation_price || doctor.facilities[0]?.consultation_fee || 0} {lang==='ar'?'ل.س':'L.S'}</span></div>
+                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800">{displayFee.toLocaleString()} {currencyLabel}</span></div>
                     <div className="border-r border-slate-100 h-10"></div>
                     <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800">{doctor.facilities[0]?.waiting_time || '15 دقيقة'}</span></div>
                   </div>
@@ -133,20 +145,16 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang }: { doctorId: number, 
   );
 };
 
-// 🟢 مكون دليل الأطباء (مفصول ديناميكياً)
-const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist' }) => {
+const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurrency }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist', currency: 'old'|'new', setCurrency: (c:'old'|'new')=>void }) => {
   const [doctors, setDoctors] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
   const [searchSpecialty, setSearchSpecialty] = useState('');
-  const [maxPrice, setMaxPrice] = useState<number>(200000); 
+  const [maxPrice, setMaxPrice] = useState<number>(300000); 
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
 
-  useEffect(() => {
-    api.get('/api/public/doctors').then(setDoctors).catch(console.error).finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { api.get('/api/public/doctors').then(setDoctors).catch(console.error).finally(() => setLoading(false)); }, []);
 
-  // 🟢 فلترة الأطباء حسب الدور (طبيب بشري أو طبيب أسنان) ثم بالبحث والسعر
   const filteredDoctors = doctors.filter(d => {
     const roleMatch = d.role === filterRole;
     const matchName = d.name.toLowerCase().includes(searchName.toLowerCase());
@@ -155,13 +163,15 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
     return roleMatch && matchName && matchSpecialty && matchPrice;
   });
 
-  const directoryTitle = filterRole === 'dentist' 
-    ? (lang === 'ar' ? 'دليل أطباء الأسنان' : 'Dentists Directory') 
-    : (lang === 'ar' ? 'دليل الأطباء البشريين' : 'Medical Doctors Directory');
+  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
+  const directoryTitle = filterRole === 'dentist' ? (lang === 'ar' ? 'دليل أطباء الأسنان' : 'Dentists Directory') : (lang === 'ar' ? 'دليل الأطباء البشريين' : 'Medical Doctors Directory');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 min-h-[80vh]">
-      <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors"><ArrowRight size={20}/> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors"><ArrowRight size={20}/> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+        <CurrencyToggle currency={currency} setCurrency={setCurrency} lang={lang} />
+      </div>
 
       <div className="text-center mb-12">
         <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border ${filterRole === 'dentist' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
@@ -180,7 +190,6 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
           </div>
         </div>
         
-        {/* 🟢 إخفاء فلتر التخصص في حال كان الدليل لأطباء الأسنان فقط */}
         {filterRole === 'doctor' && (
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">{lang === 'ar' ? 'التخصص الطبي' : 'Specialty'}</label>
@@ -194,12 +203,12 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-2 flex justify-between">
             <span>{lang === 'ar' ? 'سعر الكشف (الحد الأقصى)' : 'Max Consultation Fee'}</span>
-            <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{maxPrice.toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'}</span>
+            <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{(currency === 'new' ? maxPrice / 100 : maxPrice).toLocaleString()} {currencyLabel}</span>
           </label>
           <input type="range" min="0" max="300000" step="5000" className="w-full mt-3 accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" value={maxPrice} onChange={e => setMaxPrice(Number(e.target.value))} />
           <div className="flex justify-between text-xs text-slate-400 mt-2">
             <span>0</span>
-            <span>300,000+</span>
+            <span>{currency === 'new' ? '3,000+' : '300,000+'}</span>
           </div>
         </div>
       </div>
@@ -208,7 +217,9 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
           <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredDoctors.map(doctor => (
+          {filteredDoctors.map(doctor => {
+            const fee = doctor.consultation_price || 0;
+            return (
             <div key={doctor.id} onClick={() => setSelectedDoctorId(doctor.id)} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center group flex flex-col h-full">
               <div className="w-24 h-24 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50">
                 {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
@@ -219,12 +230,12 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
               <div className="mt-auto pt-4 border-t border-slate-100">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs text-slate-500 font-bold">{lang === 'ar' ? 'سعر الكشف' : 'Fee'}</span>
-                  <span className="text-sm font-extrabold text-slate-800 bg-slate-50 px-2 py-1 rounded-lg">{doctor.consultation_price?.toLocaleString() || 0} {lang === 'ar' ? 'ل.س' : 'L.S'}</span>
+                  <span className="text-sm font-extrabold text-slate-800 bg-slate-50 px-2 py-1 rounded-lg">{(currency === 'new' ? fee / 100 : fee).toLocaleString()} {currencyLabel}</span>
                 </div>
                 <button className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">{lang === 'ar' ? 'عرض الملف والحجز' : 'View Profile & Book'}</button>
               </div>
             </div>
-          ))}
+          )})}
           {filteredDoctors.length === 0 && (
             <div className="col-span-full py-20 text-center text-slate-500 flex flex-col items-center">
               <Search size={48} className="text-slate-300 mb-4" />
@@ -234,12 +245,12 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole }: { onBack: () => v
           )}
         </div>
       )}
-      <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
+      <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} />}</AnimatePresence>
     </div>
   );
 };
 
-const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', defaultAddress: string }) => {
+const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
 
@@ -253,7 +264,8 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   const updateQty = (id: number, delta: number, maxAllowed: number, totalStock: number) => { setCart(prev => prev.map(item => { if (item.product_id === id) { const newQty = item.qty + delta; if (newQty > 0 && newQty <= Math.min(maxAllowed || totalStock, totalStock)) return { ...item, qty: newQty }; } return item; })); };
   
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
-  
+  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
+
   const submitOrder = async (e: React.FormEvent) => { 
     e.preventDefault(); 
     if(cart.length === 0) return; 
@@ -288,8 +300,12 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 relative min-h-[80vh]">
-      <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold transition-colors"><ArrowRight size={20}/> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 min-h-[80vh]">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold transition-colors"><ArrowRight size={20}/> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+        <CurrencyToggle currency={currency} setCurrency={setCurrency} lang={lang} />
+      </div>
+
       {selectedPharmacyId && cart.length > 0 && !showCart && (<button onClick={() => setShowCart(true)} className="fixed bottom-8 left-8 bg-slate-900 text-white p-4 rounded-full shadow-2xl z-50 flex items-center justify-center animate-bounce hover:bg-slate-800"><ShoppingCart size={24} /><span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">{cart.length}</span></button>)}
       <AnimatePresence>
         {showCart && (
@@ -302,7 +318,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                     {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center"><Package size={20}/></div>}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm line-clamp-1">{item.name}</h4>
-                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</p>
+                      <p className="text-emerald-600 font-bold text-sm" dir="ltr">{(parseFloat(item.price) / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</p>
                       <div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div>
                     </div>
                     <button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
@@ -312,7 +328,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
               <div className="p-6 border-t bg-slate-50">
                 <div className="flex justify-between items-center mb-4 text-lg font-bold">
                   <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
-                  <span dir="ltr" className="text-emerald-600">{(cartTotal / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                  <span dir="ltr" className="text-emerald-600">{(cartTotal / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>
                 </div>
                 
                 <div className="mb-4 bg-white p-3 border border-slate-200 rounded-xl shadow-sm">
@@ -331,7 +347,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                   <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
                     <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
                     <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
-                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>}
+                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>}
                   </label>
                 </div>
                 
@@ -350,7 +366,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
             <h3 className="font-bold text-slate-900 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
             {p.max_per_user && <span className="text-[10px] text-red-500 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
             <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+              <span className="font-extrabold text-lg text-slate-900" dir="ltr">{(parseFloat(p.price) / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>
             </div>
             {!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}
           </div>
@@ -360,20 +376,16 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddress, footerData }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', defaultAddress: string, footerData?: any }) => {
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string, footerData?: any }) => {
   const [facilities, setFacilities] = useState<Facility[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
   const [showShop, setShowShop] = useState(false);
-  
-  // 🟢 حالة إظهار دليل الأطباء أصبحت تحدد نوع الطبيب ('doctor' أو 'dentist' أو false)
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false); 
 
   useEffect(() => { setLoading(true); api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } }, []);
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
-  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} defaultAddress={defaultAddress} />;
-  
-  // 🟢 إذا تم الضغط على الدليل، يتم تمرير النوع (طبيب بشري أو أسنان)
-  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} />;
+  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
+  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -381,8 +393,12 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-blue-600"></div></div>;
 
   return (
-    <div className="w-full flex flex-col min-h-[85vh]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden flex-1">
+    <div className="w-full flex flex-col min-h-[85vh] relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden flex-1 relative">
+        <div className="flex justify-end mb-4">
+           <CurrencyToggle currency={currency} setCurrency={setCurrency} lang={lang} />
+        </div>
+
         <header className="mb-16 text-center">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 uppercase bg-blue-50 rounded-full border border-blue-100">{t.communityHealth}</motion.div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6 leading-tight">{lang === 'ar' ? <>منصة <span className="text-blue-600">طيبة الإمام</span> الصحية</> : <>Taibet El-Imam <span className="text-blue-600">Health Platform</span></>}</h1>
@@ -395,20 +411,17 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
             <button onClick={() => setActiveTab('dental_clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Smile size={18} /> {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}</button>
           </div>
 
-          {/* 🟢 الأزرار تتغير ديناميكياً حسب القسم المختار */}
           <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
             {activeTab === 'clinic' && (
               <button onClick={() => setShowDoctors('doctor')} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1">
                 <User size={20} /> {lang === 'ar' ? 'دليل الأطباء البشريين المعتمدين' : 'Medical Doctors Directory'}
               </button>
             )}
-            
             {activeTab === 'dental_clinic' && (
               <button onClick={() => setShowDoctors('dentist')} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-indigo-500 text-white hover:bg-indigo-600 hover:-translate-y-1">
                 <Smile size={20} /> {lang === 'ar' ? 'دليل أطباء الأسنان المعتمدين' : 'Dentists Directory'}
               </button>
             )}
-
             {activeTab === 'pharmacy' && (
               <button onClick={() => setShowShop(true)} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-md flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 animate-pulse hover:-translate-y-1">
                 <ShoppingCart size={20} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}
@@ -417,7 +430,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
           </div>
         </header>
 
-        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} />}</AnimatePresence>
+        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} />}</AnimatePresence>
 
         <div className="flex flex-col gap-12 md:gap-16 mb-16">
           <div className="w-full">
@@ -523,7 +536,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, defaultAddres
               <div className="flex items-center justify-center lg:justify-start gap-6 text-blue-100 w-full mt-2">
                 {footerData?.twitter && <a href={footerData.twitter} target="_blank" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
                 {footerData?.instagram && <a href={footerData.instagram} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
-                {footerData?.facebook && <a href={footerData.facebook} target="_blank" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
               </div>
             </div>
           </div>

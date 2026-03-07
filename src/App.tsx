@@ -50,7 +50,14 @@ export default function App() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
 
-  const [currency, setCurrency] = useState<'old' | 'new'>('old');
+  // 🟢 استبدال سطر العملة وجعلها تحفظ في المتصفح وتكون "الجديدة" هي الافتراضية
+  const [currency, setCurrency] = useState<'old' | 'new'>((localStorage.getItem('currency') as 'old' | 'new') || 'new');
+
+  const handleCurrencyChange = (newCurr: 'old' | 'new') => {
+    setCurrency(newCurr);
+    localStorage.setItem('currency', newCurr);
+  };
+
   const [addresses, setAddresses] = useState<string[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<string>('');
   const [newAddress, setNewAddress] = useState('');
@@ -194,7 +201,18 @@ export default function App() {
       )}
 
       <main className="flex-1">
-        {view === 'public' && <PublicView user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} defaultAddress={defaultAddress} footerData={footerData} />}
+        {view === 'public' && (
+          <PublicView 
+            user={user} 
+            refreshUser={refreshUser} 
+            lang={lang} 
+            t={t} 
+            currency={currency} 
+            setCurrency={handleCurrencyChange} 
+            defaultAddress={defaultAddress} 
+            footerData={footerData} 
+          />
+        )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} lang={lang} t={t} />}
         
@@ -246,10 +264,10 @@ export default function App() {
                     <p className="text-sm text-slate-500 mb-6">{lang === 'ar' ? 'ملاحظة: 100 ل.س = 1 ل.س جديدة' : 'Note: 100 L.S = 1 New L.S'}</p>
                     <div className="space-y-3">
                       <label className={`flex items-center justify-between p-4 border-2 rounded-2xl cursor-pointer transition-colors ${currency === 'old' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}>
-                        <div className="flex items-center gap-3"><input type="radio" checked={currency === 'old'} onChange={() => setCurrency('old')} className="w-5 h-5 accent-blue-600" /> <span className="font-bold text-lg">الليرة السورية (ل.س)</span></div>
+                        <div className="flex items-center gap-3"><input type="radio" checked={currency === 'old'} onChange={() => handleCurrencyChange('old')} className="w-5 h-5 accent-blue-600" /> <span className="font-bold text-lg">الليرة السورية (ل.س)</span></div>
                       </label>
                       <label className={`flex items-center justify-between p-4 border-2 rounded-2xl cursor-pointer transition-colors ${currency === 'new' ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}>
-                        <div className="flex items-center gap-3"><input type="radio" checked={currency === 'new'} onChange={() => setCurrency('new')} className="w-5 h-5 accent-emerald-600" /> <span className="font-bold text-lg">الليرة الجديدة (ل.س جديدة)</span></div>
+                        <div className="flex items-center gap-3"><input type="radio" checked={currency === 'new'} onChange={() => handleCurrencyChange('new')} className="w-5 h-5 accent-emerald-600" /> <span className="font-bold text-lg">الليرة الجديدة (ل.س جديدة)</span></div>
                         <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">÷ 100</span>
                       </label>
                     </div>
