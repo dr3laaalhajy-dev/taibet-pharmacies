@@ -58,11 +58,14 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
     if (!targetDoctorId || isSubmittingDoctorProfile) return toast.error(lang === 'ar' ? 'الرجاء اختيار طبيب' : 'Select a doctor');
     setIsSubmittingDoctorProfile(true);
     try {
-      if (isSuperAdmin && targetDoctorId !== user.id) await api.put(`/api/admin/users/${targetDoctorId}`, doctorForm);
-      else await api.post('/api/doctor/update-profile', { ...doctorForm, user_id: targetDoctorId });
+      // 🟢 التعديل هنا: توحيد المسار للجميع، لأن السيرفر الخاص بك مبرمج للتعرف على السوبر آدمن تلقائياً!
+      await api.post('/api/doctor/update-profile', { ...doctorForm, user_id: targetDoctorId });
+      
       toast.success(lang === 'ar' ? 'تم حفظ الملف الشخصي بنجاح' : 'Profile saved successfully');
       loadData(); 
-    } catch (err: any) { toast.error(err.response?.data?.error || err.error || 'حدث خطأ.'); }
+    } catch (err: any) { 
+      toast.error(err.response?.data?.error || err.error || 'حدث خطأ.'); 
+    }
     finally { setIsSubmittingDoctorProfile(false); }
   };
 
