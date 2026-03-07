@@ -164,7 +164,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
   });
 
   const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
-  const directoryTitle = filterRole === 'dentist' ? (lang === 'ar' ? 'دليل أطباء الأسنان' : 'Dentists Directory') : (lang === 'ar' ? 'دليل الأطباء البشريين' : 'Medical Doctors Directory');
+  const directoryTitle = filterRole === 'dentist' ? (lang === 'ar' ? 'دليل أطباء الأسنان' : 'Dentists Directory') : (lang === 'ar' ? 'دليل الأطباء البشري' : 'Medical Doctors Directory');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full animate-in fade-in duration-500 min-h-[80vh]">
@@ -414,7 +414,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
           <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
             {activeTab === 'clinic' && (
               <button onClick={() => setShowDoctors('doctor')} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1">
-                <User size={20} /> {lang === 'ar' ? 'دليل الأطباء البشريين المعتمدين' : 'Medical Doctors Directory'}
+                <User size={20} /> {lang === 'ar' ? 'دليل الأطباء البشري المعتمدين' : 'Medical Doctors Directory'}
               </button>
             )}
             {activeTab === 'dental_clinic' && (

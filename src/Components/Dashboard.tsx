@@ -554,7 +554,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t }: { user: Use
 
                   {(form.type === 'clinic' || form.type === 'dental_clinic') && (
                     <>
-                      <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'سعر الكشف (ل.س)' : 'Consultation Fee'}</label><input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.consultation_fee} onChange={e => setForm({...form, consultation_fee: e.target.value})} /></div>
+                      <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'سعر الكشف (ل.س جديدة)' : 'Consultation Fee'}</label><input type="number" required className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.consultation_fee} onChange={e => setForm({...form, consultation_fee: e.target.value})} /></div>
                       <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">{lang === 'ar' ? 'مدة الانتظار التقريبية' : 'Wait Time'}</label><input required placeholder="مثال: 15 دقيقة" className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.waiting_time} onChange={e => setForm({...form, waiting_time: e.target.value})} /></div>
                     </>
                   )}

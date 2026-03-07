@@ -17,14 +17,14 @@ app.use(express.json()); app.use(cookieParser()); app.use(cors({ origin: true, c
 const initDB = async () => {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS super_admins (email VARCHAR(255) PRIMARY KEY)`);
-    // إدخال الإيميلات المؤسسة لحمايتها من الضياع
     await pool.query(`INSERT INTO super_admins (email) VALUES ('alaa@taiba.pharma.sy'), ('admin@pharmaduty.com'), ('alaa3@taiba.dental.sy') ON CONFLICT DO NOTHING`);
     
-    // 🟢 تحديث جدول المستخدمين ليقبل بيانات الطبيب (إن لم تكن موجودة)
+    // 🟢 التحديثات التلقائية لجداول قاعدة البيانات
     try { await pool.query(`ALTER TABLE users ADD COLUMN specialty VARCHAR(255);`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN consultation_price DECIMAL(10, 2) DEFAULT 0;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN about TEXT;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN faqs JSONB DEFAULT '[]';`); } catch(e){}
+    try { await pool.query(`ALTER TABLE users ADD COLUMN profile_picture TEXT;`); } catch(e){} // 🟢 أضفنا هذا السطر لحل المشكلة!
     
   } catch (e) {
     console.error("خطأ في تهيئة قاعدة البيانات:", e);
