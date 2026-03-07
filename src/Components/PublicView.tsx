@@ -7,7 +7,6 @@ import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN
 import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 
-// 🟢 مكون زر تبديل العملة (يظهر للزوار والمستخدمين)
 const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, lang: string }) => (
   <div className="bg-white/80 backdrop-blur-md shadow-sm rounded-full p-1 flex items-center border border-slate-200 w-fit">
     <button onClick={() => setCurrency('new')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'new' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}</button>
@@ -15,17 +14,56 @@ const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'ne
   </div>
 );
 
-const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new' }) => {
-  const [doctor, setDoctor] = useState<(UserType & { facilities: Facility[] }) | null>(null); 
+// 🟢 مكون عرض النجوم
+const StarRating = ({ rating, size = 16, className = "" }: { rating: number, size?: number, className?: string }) => {
+  return (
+    <div className={`flex items-center gap-1 ${className}`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star key={star} size={size} className={star <= Math.round(rating) ? "text-yellow-400 fill-current" : "text-slate-300"} />
+      ))}
+    </div>
+  );
+};
+
+// ⭐ نافذة الملف الشخصي والتقييم
+const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency, currentUser }: { doctorId: number, onClose: () => void, t: any, lang: string, currency: 'old'|'new', currentUser: UserType | null }) => {
+  const [doctor, setDoctor] = useState<any | null>(null); 
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
 
-  useEffect(() => { api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false)); }, [doctorId]);
+  // حالة التقييم
+  const [userRating, setUserRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [userComment, setUserComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  const fetchDoctorData = () => {
+    api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchDoctorData(); }, [doctorId]);
   if (!doctorId) return null;
 
   const fee = doctor?.consultation_price || doctor?.facilities[0]?.consultation_fee || 0;
   const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
   const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
+
+  const submitReview = async () => {
+    if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لتقييم الطبيب' : 'Please login to submit a review');
+    if (userRating === 0) return toast.error(lang === 'ar' ? 'الرجاء اختيار عدد النجوم' : 'Please select stars');
+    
+    setSubmittingReview(true);
+    try {
+      await api.post(`/api/public/doctors/${doctorId}/review`, { rating: userRating, comment: userComment });
+      toast.success(lang === 'ar' ? 'شكراً لتقييمك! تم الحفظ بنجاح' : 'Thank you! Review saved');
+      fetchDoctorData(); // تحديث بيانات الطبيب ليعرض التقييم الجديد
+      setUserRating(0); setUserComment('');
+    } catch(err: any) {
+      toast.error(err.error || 'حدث خطأ');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
@@ -46,15 +84,13 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId
                   <h2 className="text-2xl font-extrabold text-slate-900 mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
                   <p className="text-blue-600 font-bold mb-3">{doctor.specialty || doctor.facilities[0]?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
                   
-                  <div className="flex items-center gap-1 text-yellow-400 mb-4">
-                    <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/> <Star size={16} fill="currentColor"/>
-                    <span className="text-xs text-slate-400 ml-2">{lang === 'ar' ? 'تقييم ممتاز' : 'Excellent'}</span>
+                  {/* ⭐ عرض التقييم الحالي للطبيب */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <StarRating rating={Number(doctor.average_rating)} size={18} />
+                    <span className="text-sm font-bold text-slate-700">{Number(doctor.average_rating).toFixed(1)}</span>
+                    <span className="text-xs text-slate-400">({doctor.reviews_count} {lang === 'ar' ? 'تقييمات' : 'reviews'})</span>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative">
-                    <MessageCircle className="absolute top-3 right-3 text-slate-200" size={30}/>
-                    <p className="text-slate-600 font-medium italic z-10 relative">"{lang === 'ar' ? 'طبيب متفهم ومستمع جيد، تشخيص دقيق وعلاج فعال.' : 'Great listener and provides accurate diagnosis.'}"</p>
-                  </div>
                 </div>
               </div>
 
@@ -65,7 +101,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId
                 <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><Stethoscope className="text-blue-500"/> {lang === 'ar' ? 'الأعراض والخدمات' : 'Services & Symptoms'}</h4>
                 <div className="flex flex-wrap gap-2">
                   {doctor.facilities[0]?.services ? (
-                    doctor.facilities[0].services.split(/[\n,]+/).map((s, i) => s.trim() && <span key={i} className="px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg border border-blue-100">{s.trim()}</span>)
+                    doctor.facilities[0].services.split(/[\n,]+/).map((s: string, i: number) => s.trim() && <span key={i} className="px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg border border-blue-100">{s.trim()}</span>)
                   ) : (
                     <span className="text-sm text-slate-400">{lang === 'ar' ? 'لم يقم الطبيب بإضافة الخدمات بعد.' : 'No services listed.'}</span>
                   )}
@@ -78,7 +114,7 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId
                       {lang === 'ar' ? 'أسئلة طبية شائعة يطرحها المرضى' : 'Medical FAQs'}
                     </h4>
                     <div className="space-y-3">
-                      {doctor.faqs.map((faq, idx) => (
+                      {doctor.faqs.map((faq: any, idx: number) => (
                         <div key={faq.id || idx} className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden transition-all">
                           <button 
                             onClick={() => setExpandedFaq(expandedFaq === faq.id ? null : faq.id)} 
@@ -102,6 +138,49 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId
                   </div>
                 )}
               </div>
+              
+              {/* ⭐ قسم التقييم الجديد للمرضى */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100 shadow-sm">
+                <h4 className="text-lg font-bold text-slate-900 mb-2">{lang === 'ar' ? 'ما رأيك في تجربتك مع الطبيب؟' : 'Rate your experience'}</h4>
+                <p className="text-sm text-slate-500 mb-4">{lang === 'ar' ? 'تقييمك يساعد المرضى الآخرين في اتخاذ القرار الصحيح.' : 'Your review helps others make better choices.'}</p>
+                
+                {currentUser ? (
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button 
+                          key={star} 
+                          onClick={() => setUserRating(star)}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          className="focus:outline-none transition-transform hover:scale-110"
+                        >
+                          <Star size={32} className={(hoverRating || userRating) >= star ? "text-yellow-400 fill-current" : "text-slate-300"} />
+                        </button>
+                      ))}
+                    </div>
+                    <textarea 
+                      placeholder={lang === 'ar' ? "أضف تعليقاً يصف تجربتك (اختياري)..." : "Write a comment (optional)..."} 
+                      className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:border-blue-500 outline-none resize-none bg-white"
+                      rows={3}
+                      value={userComment}
+                      onChange={e => setUserComment(e.target.value)}
+                    ></textarea>
+                    <button 
+                      onClick={submitReview} 
+                      disabled={submittingReview || userRating === 0} 
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {submittingReview ? '...' : (lang === 'ar' ? 'إرسال التقييم' : 'Submit Review')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-white/60 p-4 rounded-xl text-center border border-white">
+                    <p className="text-sm font-bold text-slate-600">{lang === 'ar' ? 'يجب تسجيل الدخول كـ مريض لتتمكن من التقييم.' : 'Please login to rate.'}</p>
+                  </div>
+                )}
+              </div>
+
             </div>
 
             <div className="lg:col-span-1">
@@ -145,8 +224,8 @@ const DoctorProfileModal = ({ doctorId, onClose, t, lang, currency }: { doctorId
   );
 };
 
-const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurrency }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist', currency: 'old'|'new', setCurrency: (c:'old'|'new')=>void }) => {
-  const [doctors, setDoctors] = useState<UserType[]>([]);
+const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurrency, currentUser }: { onBack: () => void, lang: string, t: any, filterRole: 'doctor' | 'dentist', currency: 'old'|'new', setCurrency: (c:'old'|'new')=>void, currentUser: UserType | null }) => {
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
   const [searchSpecialty, setSearchSpecialty] = useState('');
@@ -220,7 +299,13 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
           {filteredDoctors.map(doctor => {
             const fee = doctor.consultation_price || 0;
             return (
-            <div key={doctor.id} onClick={() => setSelectedDoctorId(doctor.id)} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center group flex flex-col h-full">
+            <div key={doctor.id} onClick={() => setSelectedDoctorId(doctor.id)} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center group flex flex-col h-full relative overflow-hidden">
+              
+              {/* ⭐ شارة التقييم فوق صورة الطبيب */}
+              <div className="absolute top-4 right-4 bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                <Star size={12} className="fill-current" /> {Number(doctor.average_rating).toFixed(1)}
+              </div>
+
               <div className="w-24 h-24 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50">
                 {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
               </div>
@@ -245,7 +330,9 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
           )}
         </div>
       )}
-      <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} />}</AnimatePresence>
+      <AnimatePresence>
+        {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} currentUser={currentUser} />}
+      </AnimatePresence>
     </div>
   );
 };
@@ -385,7 +472,9 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
-  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} />;
+  
+  // تمرير الـ user الحالي إلى دليل الأطباء لكي يستخدمه في التقييم
+  if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} />;
   
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
   const currentlyOpen = processedFacilities.filter(f => f.isOpenNow); const totalOpenPages = Math.ceil(currentlyOpen.length / itemsPerPage); const paginatedOpen = currentlyOpen.slice((openNowPage - 1) * itemsPerPage, openNowPage * itemsPerPage); const totalPages = Math.ceil(processedFacilities.length / itemsPerPage); const paginatedFacilities = processedFacilities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -430,7 +519,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
           </div>
         </header>
 
-        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} />}</AnimatePresence>
+        <AnimatePresence>{selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} onClose={() => setSelectedDoctorId(null)} t={t} lang={lang} currency={currency} currentUser={user} />}</AnimatePresence>
 
         <div className="flex flex-col gap-12 md:gap-16 mb-16">
           <div className="w-full">
@@ -534,13 +623,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               )}
 
               <div className="flex items-center justify-center lg:justify-start gap-6 text-blue-100 w-full mt-2">
-                {/* 🟢 أيقونة تويتر / X */}
                 {footerData?.twitter && <a href={footerData.twitter} target="_blank" rel="noreferrer" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
-                
-                {/* 🟢 أيقونة إنستغرام */}
                 {footerData?.instagram && <a href={footerData.instagram} target="_blank" rel="noreferrer" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 1.77-6.98 6.276-.058 1.28-.072 1.688-.072 4.947s.014 3.667.072 4.947c.2 4.502 2.62 6.074 6.98 6.274 1.28.058 1.688.072 4.947.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-1.771 6.979-6.274.059-1.28.073-1.687.073-4.947s-.014-3.667-.073-4.947c-.197-4.504-2.622-6.076-6.979-6.276-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>}
-                
-                {/* 🟢 أيقونة فيسبوك (الجديدة) */}
                 {footerData?.facebook && <a href={footerData.facebook} target="_blank" rel="noreferrer" className="hover:text-white hover:scale-110 transition-all"><svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z"/></svg></a>}
               </div>
             </div>

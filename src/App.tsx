@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle } from 'lucide-react';
+import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -40,7 +40,6 @@ export default function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   
-  // 🟢 حالات التحميل لمنع Double Submit
   const [isSubmittingWallet, setIsSubmittingWallet] = useState(false);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -56,17 +55,17 @@ export default function App() {
 
   const [currency, setCurrency] = useState<'old' | 'new'>((localStorage.getItem('currency') as 'old' | 'new') || 'new');
 
-  const handleCurrencyChange = (newCurr: 'old' | 'new') => {
-    setCurrency(newCurr);
-    localStorage.setItem('currency', newCurr);
-  };
-
   const [addresses, setAddresses] = useState<string[]>([]);
   const [defaultAddress, setDefaultAddress] = useState<string>('');
   const [newAddress, setNewAddress] = useState('');
 
   const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '', profile_picture: '' });
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // 🔔 حالات نظام الإشعارات
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const t = translations[lang] || translations['ar'];
 
@@ -79,21 +78,55 @@ export default function App() {
       const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${data.user.id}`) || '[]');
       const savedDefault = localStorage.getItem(`defAddr_${data.user.id}`) || savedAddresses[0] || '';
       setAddresses(savedAddresses); setDefaultAddress(savedDefault);
+      fetchNotifications(); // جلب الإشعارات فور تسجيل الدخول
     }).catch(() => setView('public')).finally(() => setLoading(false));
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
+  // 🔔 دالة جلب الإشعارات
+  const fetchNotifications = () => {
+    api.get('/api/notifications').then(setNotifications).catch(() => {});
+  };
+
+  // 🔔 تحديث الإشعارات كل 30 ثانية
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // 🔔 دالة فتح قائمة الإشعارات وتحويلها لمقروءة
+  const handleOpenNotifications = () => {
+    setIsNotifMenuOpen(!isNotifMenuOpen);
+    setIsMenuOpen(false); // إغلاق قائمة المستخدم إذا كانت مفتوحة
+    if (!isNotifMenuOpen && unreadCount > 0) {
+      api.patch('/api/notifications/read').then(() => {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      }).catch(console.error);
+    }
+  };
+
+  const handleCurrencyChange = (newCurr: 'old' | 'new') => {
+    setCurrency(newCurr);
+    localStorage.setItem('currency', newCurr);
+  };
+
   useEffect(() => { if(user) setProfileForm({ name: user.name, email: user.email, password: '', profile_picture: (user as any).profile_picture || '' }); }, [user, showProfileModal]);
 
   const refreshUser = () => { api.get('/api/auth/me').then(data => setUser(data.user)).catch(console.error); };
+  
   const handleLogin = (u: UserType) => { 
     setUser(u); setView(u.role === 'patient' ? 'public' : 'dashboard'); 
     const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${u.id}`) || '[]');
     setAddresses(savedAddresses); setDefaultAddress(localStorage.getItem(`defAddr_${u.id}`) || savedAddresses[0] || '');
+    fetchNotifications();
   };
-  const handleLogout = async () => { await api.post('/api/auth/logout', {}); setUser(null); setView('public'); setIsMenuOpen(false); };
 
-  // 🟢 منع Double Submit في طلب المحفظة
+  const handleLogout = async () => { 
+    await api.post('/api/auth/logout', {}); 
+    setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]);
+  };
+
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingWallet) return;
@@ -109,7 +142,6 @@ export default function App() {
     }
   };
 
-  // 🟢 منع Double Submit في تحديث الملف
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isUpdatingProfile) return;
@@ -132,7 +164,6 @@ export default function App() {
     catch (err: any) { toast.error('فشل الرفع'); } finally { setUploadingImage(false); }
   };
 
-  // 🟢 منع Double Submit في إضافة العنوان
   const addAddress = async () => {
     if(!newAddress.trim() || isAddingAddress) return;
     setIsAddingAddress(true);
@@ -165,7 +196,7 @@ export default function App() {
           
           <div className="flex gap-3 items-center">
             {user && (
-              <button onClick={() => setShowWalletModal(true)} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-bold border border-blue-200 hover:bg-blue-100 transition-colors">
+              <button onClick={() => setShowWalletModal(true)} className="hidden sm:flex bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full items-center gap-2 text-sm font-bold border border-blue-200 hover:bg-blue-100 transition-colors">
                 <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 <Plus size={14} className="bg-blue-600 text-white rounded-full p-0.5 ml-1" />
               </button>
@@ -182,8 +213,44 @@ export default function App() {
                   </button>
                 )}
 
+                {/* 🔔 أيقونة الإشعارات */}
                 <div className="relative">
-                  <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
+                  <button onClick={handleOpenNotifications} className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                    <Bell size={22} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce border-2 border-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {isNotifMenuOpen && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`absolute mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 ${lang === 'ar' ? 'left-0' : 'right-0'}`}>
+                        <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                          <h3 className="font-bold text-slate-900">{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</h3>
+                          {unreadCount === 0 && <CheckCircle size={16} className="text-emerald-500" />}
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <p className="text-center text-slate-400 py-8 text-sm">{lang === 'ar' ? 'لا توجد إشعارات.' : 'No notifications yet.'}</p>
+                          ) : (
+                            notifications.map(notif => (
+                              <div key={notif.id} className={`px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${!notif.is_read ? 'bg-blue-50/30' : ''}`}>
+                                <h4 className="text-sm font-bold text-slate-800 mb-1">{notif.title}</h4>
+                                <p className="text-xs text-slate-600 leading-relaxed mb-1">{notif.message}</p>
+                                <span className="text-[10px] text-slate-400 block text-right" dir="ltr">{new Date(notif.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="relative">
+                  <button onClick={() => {setIsMenuOpen(!isMenuOpen); setIsNotifMenuOpen(false);}} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
                     {(user as any).profile_picture ? (
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm" />
                     ) : (
@@ -199,6 +266,12 @@ export default function App() {
                         <div className="px-4 py-3 border-b border-slate-100 mb-2 bg-slate-50/50">
                           <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
                           <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                          <div className="sm:hidden mt-2 pt-2 border-t border-slate-200">
+                             <p className="text-xs font-bold text-blue-600 flex justify-between">
+                               <span>{lang === 'ar' ? 'المحفظة:' : 'Wallet:'}</span> 
+                               <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                             </p>
+                          </div>
                         </div>
                         
                         <button onClick={() => { setShowProfileModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-colors">

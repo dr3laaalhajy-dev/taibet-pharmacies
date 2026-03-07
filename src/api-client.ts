@@ -1,19 +1,57 @@
-// 🟢 أضفنا الرابط الكامل لمنصتك هنا
+// 🟢 الرابط الكامل لمنصتك
 const BASE_URL = 'https://taibet-pharmacies.vercel.app';
 
-// 🟢 دالة صغيرة للتأكد من إضافة الرابط الأساسي قبل كل طلب
 const getFullUrl = (url: string) => url.startsWith('http') ? url : `${BASE_URL}${url}`;
 
+// 🛡️ دالة ذكية لمعالجة الردود (تمنع انهيار التطبيق إذا كان الرد ليس JSON)
+const handleResponse = async (r: Response) => {
+  if (r.ok) {
+    return r.json();
+  }
+
+  // 🟢 التقاط خطأ الحماية من الـ DDoS (Rate Limit)
+  if (r.status === 429) {
+    return Promise.reject({ error: 'لقد قمت بإرسال طلبات كثيرة جداً. يرجى الانتظار لمدة 15 دقيقة ثم المحاولة مجدداً.' });
+  }
+
+  // محاولة قراءة الخطأ كـ JSON
+  try {
+    const errorData = await r.json();
+    return Promise.reject(errorData);
+  } catch (parseError) {
+    // 🟢 إذا فشل في قراءته كـ JSON (مثل أخطاء Vercel الوهمية)، نعرض خطأ عام وأنيق
+    return Promise.reject({ error: `عذراً، حدث خطأ في الخادم (رمز الخطأ: ${r.status}). يرجى المحاولة لاحقاً.` });
+  }
+};
+
 export const api = {
-  get: (url: string) => fetch(getFullUrl(url), { credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  get: (url: string) => fetch(getFullUrl(url), { credentials: 'include' }).then(handleResponse),
   
-  post: (url: string, body: any) => fetch(getFullUrl(url), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  post: (url: string, body: any) => fetch(getFullUrl(url), { 
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    credentials: 'include', 
+    body: JSON.stringify(body) 
+  }).then(handleResponse),
   
-  put: (url: string, body: any) => fetch(getFullUrl(url), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  put: (url: string, body: any) => fetch(getFullUrl(url), { 
+    method: 'PUT', 
+    headers: { 'Content-Type': 'application/json' }, 
+    credentials: 'include', 
+    body: JSON.stringify(body) 
+  }).then(handleResponse),
   
-  patch: (url: string, body?: any) => fetch(getFullUrl(url), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: body ? JSON.stringify(body) : undefined }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  patch: (url: string, body?: any) => fetch(getFullUrl(url), { 
+    method: 'PATCH', 
+    headers: { 'Content-Type': 'application/json' }, 
+    credentials: 'include', 
+    body: body ? JSON.stringify(body) : undefined 
+  }).then(handleResponse),
   
-  delete: (url: string) => fetch(getFullUrl(url), { method: 'DELETE', credentials: 'include' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  delete: (url: string) => fetch(getFullUrl(url), { 
+    method: 'DELETE', 
+    credentials: 'include' 
+  }).then(handleResponse),
 };
 
 export const uploadImageToImgBB = async (file: File) => {
