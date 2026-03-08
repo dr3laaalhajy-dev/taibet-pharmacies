@@ -29,7 +29,7 @@ const uploadImageToImgBB = async (file: File) => {
     reader.onerror = e => reject(e); 
   }); 
   const f = new FormData(); f.append('image', base64.split(',')[1]); 
-  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
+  const r = await fetch('https://api.imgbb.com/1/upload?key=ba0a89c85f4f7651c6daab7d351989ed', { method: 'POST', body: f }); 
   const d = await r.json(); if (d.success) return d.data.url; 
   throw new Error(d.error?.message || 'فشل الرفع'); 
 };
