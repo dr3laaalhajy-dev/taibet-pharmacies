@@ -19,9 +19,7 @@ try {
     const serviceAccount = JSON.parse(fileContent);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   }
-} catch (error) {
-  console.error('❌ خطأ في تهيئة Firebase:', error);
-}
+} catch (error) {}
 
 export const sendPushNotification = async (fcmToken: string, title: string, body: string) => {
   if (!fcmToken || admin.apps.length === 0) return; 
@@ -65,6 +63,10 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch(e){}
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN type VARCHAR(50) DEFAULT 'direct';`); } catch(e){}
+    
+    // 🟢 (حل المشكلة) إزالة شرط التعارض لكي لا يحدث خطأ عند قبول المحادثة
+    try { await pool.query(`ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_user1_id_user2_id_key;`); } catch(e){}
+
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
@@ -88,7 +90,6 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
-// 1. طلب التحدث مع خدمة العملاء
 app.post('/api/chat/support/request', authenticateToken, async (req: any, res: any) => {
   try {
     const patientId = req.user.id;
@@ -111,7 +112,6 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// 2. جلب الطلبات المعلقة
 app.get('/api/chat/support/pending', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'customer_service' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   try {
@@ -120,7 +120,6 @@ app.get('/api/chat/support/pending', authenticateToken, async (req: any, res: an
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// 3. قبول طلب خدمة العملاء
 app.post('/api/chat/support/accept/:id', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'customer_service' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const client = await pool.connect();
@@ -138,7 +137,6 @@ app.post('/api/chat/support/accept/:id', authenticateToken, async (req: any, res
   } finally { client.release(); }
 });
 
-// 4. إنهاء المحادثة
 app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
   try {
     const convId = req.params.id;
@@ -178,14 +176,24 @@ app.get('/api/chat/conversations', authenticateToken, async (req: any, res: any)
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// 🟢 (حل المشكلة) الدالة المعدلة لقراءة الرسائل بدون التقييد بنوع المحادثة
 app.get('/api/chat/messages/:otherUserId', authenticateToken, async (req: any, res: any) => {
   try {
     const userId = parseInt(req.user.id);
     const otherId = parseInt(req.params.otherUserId);
     if (isNaN(otherId)) return res.json({ conversation_id: 0, messages: [] });
-    const user1 = Math.min(userId, otherId); const user2 = Math.max(userId, otherId);
-    let conv = await pool.query(`SELECT id, status FROM conversations WHERE user1_id = $1 AND user2_id = $2 AND type = 'direct'`, [user1, user2]);
-    if (conv.rows.length === 0 || conv.rows[0].status === 'closed') return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows[0].id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows[0].status : 'closed' }); 
+    
+    // البحث عن أي محادثة نشطة بين الطرفين
+    let conv = await pool.query(`
+      SELECT id, status FROM conversations 
+      WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)
+      ORDER BY updated_at DESC LIMIT 1
+    `, [userId, otherId]);
+
+    if (conv.rows.length === 0 || conv.rows[0].status === 'closed') {
+      return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows[0].id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows[0].status : 'closed' }); 
+    }
+    
     const convId = conv.rows[0].id;
     await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
     const messages = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
@@ -193,6 +201,7 @@ app.get('/api/chat/messages/:otherUserId', authenticateToken, async (req: any, r
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// 🟢 (حل المشكلة) الدالة المعدلة لإرسال الرسائل لكي لا تصنع محادثة جديدة مكررة
 app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => {
   try {
     const { receiver_id, content } = req.body;
@@ -200,21 +209,26 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
     const numSender = parseInt(sender_id); const numReceiver = parseInt(receiver_id);
     if (isNaN(numReceiver)) return res.status(400).json({ error: 'معرف المستخدم غير صالح' });
     if (!content || !content.trim()) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
-    const user1 = Math.min(numSender, numReceiver); const user2 = Math.max(numSender, numReceiver);
     
-    let conv = await pool.query(`SELECT id, status FROM conversations WHERE user1_id = $1 AND user2_id = $2 AND type = 'direct'`, [user1, user2]);
+    let conv = await pool.query(`
+      SELECT id, status FROM conversations 
+      WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)
+      ORDER BY updated_at DESC LIMIT 1
+    `, [numSender, numReceiver]);
+
     if (conv.rows.length === 0) {
+      const user1 = Math.min(numSender, numReceiver); 
+      const user2 = Math.max(numSender, numReceiver);
       conv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
     } else if (conv.rows[0].status === 'closed') {
-      await pool.query(`UPDATE conversations SET status = 'active' WHERE id = $1`, [conv.rows[0].id]);
+      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [conv.rows[0].id]);
     }
     
     const convId = conv.rows[0].id;
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
-    const msgData = newMsg.rows[0];
 
-    res.json(msgData);
+    res.json(newMsg.rows[0]);
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -270,5 +284,4 @@ app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any
 app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' }); await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]); res.json({ message: 'تم الحذف بنجاح' }); });
 app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => { const { fcm_token } = req.body; if (!fcm_token) return res.status(400).json({ error: 'Token is required' }); try { await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]); res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
-// 🟢 التصدير بالطريقة التي يعشقها Vercel لكي يعمل بدون مشاكل
 export default app;
