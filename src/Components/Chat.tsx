@@ -432,9 +432,9 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
                 </div>
               ) : (
                 messages.map((msg, index) => {
-                  const isMe = String(msg.sender_id) === String(user.id);
-                  return (
-                    <div key={msg.id || index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+  const isMe = String(msg.sender_id) === String(user.id);
+  return (
+    <div key={msg.id || index} className={`w-full flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className={`max-w-[85%] md:max-w-[70%] px-5 py-3 rounded-2xl text-sm md:text-base relative group shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm'}`}>
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                         <div className={`flex items-center gap-1 justify-end mt-2 text-[10px] ${isMe ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
