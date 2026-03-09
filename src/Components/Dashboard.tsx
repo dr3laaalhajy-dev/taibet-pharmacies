@@ -11,6 +11,7 @@ import { ProductsManager } from './ProductsManager';
 import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
+import { requestForToken, onMessageListener } from '../firebase';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -203,7 +204,36 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     } catch (err: any) { toast.error(err.response?.data?.error || err.error || 'حدث خطأ.'); }
     finally { setIsSubmittingDoctorProfile(false); }
   };
+// 🔔 تفعيل الإشعارات بمجرد دخول المستخدم
+  useEffect(() => {
+    const setupNotifications = async () => {
+      // 1. طلب التوكن من الهاتف
+      const token = await requestForToken();
+      if (token) {
+        // 2. إرسال التوكن للباك إند لحفظه في حساب المستخدم
+        try {
+          await api.post('/api/auth/fcm-token', { fcm_token: token });
+          console.log("✅ تم حفظ توكن الإشعارات بنجاح");
+        } catch (err) {
+          console.error("❌ فشل إرسال التوكن للباك إند", err);
+        }
+      }
+    };
 
+    setupNotifications();
+
+    // 3. الاستماع للإشعارات في حال كان المستخدم فاتحاً للتطبيق
+    onMessageListener().then((payload: any) => {
+      toast.custom((t) => (
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-slate-800 shadow-lg rounded-2xl pointer-events-auto flex ring-1 ring-black ring-opacity-5 p-4 border-l-4 border-blue-500`}>
+          <div className="flex-1 w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{payload?.notification?.title}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{payload?.notification?.body}</p>
+          </div>
+        </div>
+      ));
+    }).catch(err => console.log('فشل استقبال الإشعار: ', err));
+  }, []);
   useEffect(() => { api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => {}); }, []);
 
   const hasEcommerce = facilities.some(f => f.is_ecommerce_enabled);
