@@ -328,6 +328,24 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                 <input type="text" placeholder={lang === 'ar' ? 'ابحث في المحادثات...' : 'Search...'} className="w-full pr-12 pl-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
               </div>
+
+              {/* 🟢 الزر البرتقالي المخصص للظهور على شاشات الهاتف فقط */}
+              {user.role !== 'admin' && user.role !== 'customer_service' && (
+                <button 
+                  onClick={requestSupport}
+                  disabled={isRequestingSupport}
+                  className="md:hidden mt-4 w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl shadow-md active:scale-95 transition-all disabled:opacity-70"
+                >
+                  {isRequestingSupport ? (
+                     <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span>
+                  ) : (
+                    <>
+                      <Headset size={20} />
+                      <span>{lang === 'ar' ? 'التحدث مع خدمة العملاء' : 'Contact Support'}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto">
               {loading ? (
