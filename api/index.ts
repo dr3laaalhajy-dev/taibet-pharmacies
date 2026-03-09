@@ -10,7 +10,42 @@ import { Server } from 'socket.io';
 
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import admin from 'firebase-admin';
+import path from 'path';
+import fs from 'fs';
 
+// تهيئة نظام إشعارات فايربيز (Firebase Admin)
+try {
+  // يبحث عن ملف المفتاح السري في المجلد الرئيسي للمشروع
+  const serviceAccountPath = path.resolve(process.cwd(), 'firebase-key.json');
+  
+  if (fs.existsSync(serviceAccountPath)) {
+    const serviceAccount = require(serviceAccountPath);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('🔥 Firebase Admin Initialized Successfully!');
+  } else {
+    console.warn('⚠️ تنبيه: ملف firebase-key.json غير موجود، الإشعارات المنبثقة لن تعمل.');
+  }
+} catch (error) {
+  console.error('❌ خطأ في تهيئة Firebase:', error);
+}
+
+// 🟢 الدالة السحرية التي سنناديها لاحقاً لإرسال إشعار لأي هاتف
+export const sendPushNotification = async (fcmToken: string, title: string, body: string) => {
+  if (!fcmToken || admin.apps.length === 0) return; // إذا لم يكن هناك توكن أو فايربيز غير مهيأ، نتجاهل الأمر
+  
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: { title, body }
+    });
+    console.log(`🔔 تم إرسال الإشعار بنجاح إلى: ${fcmToken.substring(0, 10)}...`);
+  } catch (error) {
+    console.error('❌ فشل إرسال الإشعار:', error);
+  }
+};
 const { Pool } = pg;
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
@@ -50,6 +85,8 @@ const initDB = async () => {
     await pool.query(`INSERT INTO super_admins (email) VALUES ('alaa@taiba.pharma.sy'), ('admin@pharmaduty.com'), ('alaa3@taiba.dental.sy') ON CONFLICT DO NOTHING`);
     
     // أعمدة المستخدمين الحالية
+    // 🟢 إضافة عمود لحفظ معرف هاتف المستخدم لإرسال الإشعارات
+    try { await pool.query(`ALTER TABLE users ADD COLUMN fcm_token TEXT;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN specialty VARCHAR(255);`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN consultation_price DECIMAL(10, 2) DEFAULT 0;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN about TEXT;`); } catch(e){}
@@ -168,19 +205,53 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
     const { receiver_id, content } = req.body;
     const sender_id = req.user.id;
     const numSender = parseInt(sender_id); const numReceiver = parseInt(receiver_id);
+    
     if (isNaN(numReceiver)) return res.status(400).json({ error: 'معرف المستخدم غير صالح' });
     if (!content || !content.trim()) return res.status(400).json({ error: 'لا يمكن إرسال رسالة فارغة' });
+    
     const user1 = Math.min(numSender, numReceiver); const user2 = Math.max(numSender, numReceiver);
+    
     let conv = await pool.query('SELECT id FROM conversations WHERE user1_id = $1 AND user2_id = $2', [user1, user2]);
     if (conv.rows.length === 0) conv = await pool.query('INSERT INTO conversations (user1_id, user2_id) VALUES ($1, $2) RETURNING id', [user1, user2]);
+    
     const convId = conv.rows[0].id;
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
+    
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
     const msgData = newMsg.rows[0];
+    
     const receiverSocketId = userSockets.get(numReceiver);
     if (receiverSocketId) io.to(receiverSocketId).emit('receive_message', msgData);
+
+    // 🔔================ السحر يبدأ هنا (الإشعارات المنبثقة) ================🔔
+    try {
+      // 1. جلب التوكن الخاص بهاتف المستلم، واسم المرسل
+      const receiverData = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [numReceiver]);
+      const senderData = await pool.query('SELECT name FROM users WHERE id = $1', [numSender]);
+      
+      // 2. التحقق مما إذا كان المستلم يمتلك توكن (مفعل الإشعارات على هاتفه)
+      if (receiverData.rows.length > 0 && receiverData.rows[0].fcm_token) {
+        const senderName = senderData.rows[0]?.name || 'تطبيق طيبة';
+        const fcmToken = receiverData.rows[0].fcm_token;
+        
+        // 3. إرسال الإشعار للهاتف
+        await sendPushNotification(
+          fcmToken, 
+          `رسالة جديدة من ${senderName}`, // عنوان الإشعار
+          content // محتوى الإشعار
+        );
+      }
+    } catch (notifError) {
+      // نضعها داخل try-catch منفصلة حتى لا تتأثر الرسالة الأساسية إذا فشل الإشعار
+      console.error("⚠️ خطأ في إرسال الإشعار المنبثق، لكن الرسالة تم حفظها:", notifError);
+    }
+    // 🔔=======================================================================🔔
+
     res.json(msgData);
-  } catch(err: any) { console.error("❌ خطأ في إرسال الرسالة:", err); res.status(500).json({ error: err.message }); }
+  } catch(err: any) { 
+    console.error("❌ خطأ في إرسال الرسالة:", err); 
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 // 📝 ================= مسارات السجل الطبي والوصفات ================= 📝
@@ -287,7 +358,19 @@ app.post('/api/admin/generate-key', authenticateToken, async (req: any, res: any
 app.get('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); const result = await pool.query('SELECT email FROM super_admins'); res.json(result.rows.map(row => row.email)); });
 app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); await pool.query('INSERT INTO super_admins (email) VALUES ($1) ON CONFLICT DO NOTHING', [req.body.email]); res.json({ message: 'تمت الإضافة بنجاح' }); });
 app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' }); await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]); res.json({ message: 'تم الحذف بنجاح' }); });
+// 📲 مسار لاستقبال وحفظ معرف هاتف المستخدم (FCM Token)
+app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => {
+  const { fcm_token } = req.body;
+  if (!fcm_token) return res.status(400).json({ error: 'Token is required' });
 
+  try {
+    // تحديث حساب المستخدم وربطه بهاتفه الحالي
+    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]);
+    res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 if (process.env.NODE_ENV !== 'production') {
   const PORT = 5000;
   server.listen(PORT, () => {
