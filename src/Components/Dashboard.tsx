@@ -144,7 +144,9 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void }) => {
-  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments'>('facilities');
+ const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support'>(user.role === 'customer_service' ? 'support' : 'facilities');
+  const [supportRequests, setSupportRequests] = useState<any[]>([]);
+  const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]); 
   const [users, setUsers] = useState<any[]>([]);
   
@@ -272,8 +274,22 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     }
     if (activeTab === 'settings' && isSuperAdmin) api.get('/api/public/settings').then(data => setFooterForm(data)); 
     if (activeTab === 'super_settings' && isSuperAdmin) fetchSuperAdmins();
+    if (activeTab === 'support' && (user.role === 'customer_service' || user.role === 'admin')) {
+      setLoadingSupport(true);
+      api.get('/api/chat/support/pending').then(setSupportRequests).finally(() => setLoadingSupport(false));
+    }
   };
-  
+  const acceptSupportRequest = async (conversationId: number) => {
+    try {
+      await api.post(`/api/chat/support/accept/${conversationId}`);
+      toast.success(lang === 'ar' ? 'تم قبول الطلب وبدء المحادثة!' : 'Request accepted!');
+      loadData(); // تحديث القائمة
+      if (openChatWithUser) openChatWithUser(conversationId); // فتح الشات مع المريض
+    } catch(err: any) {
+      toast.error(err.response?.data?.error || err.error || 'حدث خطأ');
+      loadData(); // ربما قبله شخص آخر، نحدث القائمة
+    }
+  };
   useEffect(() => { loadData(); }, [activeTab]);
 
   const fetchAppointments = async () => {
@@ -438,6 +454,12 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
 
           {(user.role === 'admin' || hasEcommerce) && (<><button onClick={() => setActiveTab('products')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'products' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Package size={18} /> {lang === 'ar' ? 'إدارة المنتجات' : 'Products Manager'}</button><button onClick={() => setActiveTab('orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><FileText size={18} /> {lang === 'ar' ? 'طلبات الزبائن' : 'Customer Orders'}</button></>)}
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><User size={18} /> {t?.userManagement || 'إدارة المستخدمين'}</button>}
+          {(user.role === 'customer_service' || user.role === 'admin') && (
+            <button onClick={() => setActiveTab('support')} className={`shrink-0 md:w-full flex items-center justify-between gap-2 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'support' ? 'bg-indigo-600 text-white ring-2 ring-indigo-200 dark:ring-indigo-900' : 'text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
+              <div className="flex items-center gap-2"><MessageSquare size={18} /> {lang === 'ar' ? 'طلبات الدعم الفني' : 'Support Tickets'}</div>
+              {supportRequests.length > 0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">{supportRequests.length}</span>}
+            </button>
+          )}
           {isSuperAdmin && <button onClick={() => setActiveTab('wallet_requests')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'wallet_requests' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Banknote size={18} /> {lang === 'ar' ? 'طلبات المحفظة' : 'Wallet Requests'}</button>}
           {isSuperAdmin && <button onClick={() => setActiveTab('settings')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Layout size={18} /> {lang === 'ar' ? 'إعدادات الفوتر' : 'Footer Settings'}</button>}
           {isSuperAdmin && <button onClick={() => { setActiveTab('super_settings'); fetchSuperAdmins(); }} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'super_settings' ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><ShieldAlert size={18} /> {lang === 'ar' ? 'غرفة السوبر آدمن' : 'Super Admins'}</button>}
@@ -450,6 +472,53 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
       {/* 🟢 محتوى الصفحة الرئيسي (بدون تجميد الحركات) */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 w-full relative">
         
+        {/* 0. طلبات الدعم الفني (Customer Service) */}
+          {activeTab === 'support' && (user.role === 'customer_service' || user.role === 'admin') && (
+            <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <MessageSquare className="text-indigo-600 dark:text-indigo-400"/> {lang === 'ar' ? 'طلبات الدعم الفني المعلقة' : 'Pending Support Tickets'}
+                  </h2>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{lang === 'ar' ? 'المرضى الذين ينتظرون الرد. قم بقبول الطلب لفتح المحادثة.' : 'Patients waiting for a response.'}</p>
+                </div>
+                <button onClick={loadData} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><Activity size={20} /></button>
+              </div>
+
+              {loadingSupport ? (
+                <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-indigo-600"></div></div>
+              ) : supportRequests.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-16 text-center border border-dashed border-slate-300 dark:border-slate-700">
+                  <Smile size={64} className="mx-auto text-emerald-300 dark:text-emerald-600 mb-4" />
+                  <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'لا يوجد طلبات معلقة!' : 'No pending tickets!'}</h3>
+                  <p className="text-slate-500">{lang === 'ar' ? 'عمل رائع، لقد قمت بالرد على الجميع.' : 'Great job, inbox zero.'}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {supportRequests.map(req => (
+                    <div key={req.conversation_id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-indigo-50 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-bl-full flex items-start justify-end p-2 z-0">
+                        <span className="w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+                      </div>
+                      <div className="flex items-center gap-4 mb-6 relative z-10">
+                        <div className="w-14 h-14 bg-indigo-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xl overflow-hidden shadow-sm">
+                          {req.profile_picture ? <img src={req.profile_picture} className="w-full h-full object-cover" /> : req.patient_name[0]}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg text-slate-900 dark:text-white line-clamp-1">{req.patient_name}</h3>
+                          <p className="text-xs text-slate-500 flex items-center gap-1"><Clock size={12}/> {new Date(req.created_at).toLocaleTimeString(lang==='ar'?'ar-EG':'en-US', {hour:'2-digit', minute:'2-digit'})}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => acceptSupportRequest(req.conversation_id)} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 shadow-md">
+                        <CheckCircle size={18} /> {lang === 'ar' ? 'قبول المحادثة' : 'Accept Chat'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
           {/* 1. المواعيد */}
           {activeTab === 'appointments' && (user.role === 'doctor' || user.role === 'dentist') && (
             <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
@@ -1019,6 +1088,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                       <option value="pharmacist">{lang === 'ar' ? 'صيدلي' : 'Pharmacist'}</option>
                       <option value="doctor">{lang === 'ar' ? 'طبيب بشري' : 'Doctor'}</option>
                       <option value="dentist">{lang === 'ar' ? 'طبيب أسنان' : 'Dentist'}</option>
+                      <option value="customer_service">{lang === 'ar' ? 'موظف خدمة عملاء' : 'Customer Service'}</option>
                       {isSuperAdmin && <option value="admin">{lang === 'ar' ? 'مدير (Admin)' : 'Admin'}</option>}
                     </select>
                   </div>

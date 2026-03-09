@@ -9,8 +9,8 @@ export interface FAQ {
 export interface UserType { 
   id: number; 
   email: string; 
-  role: 'super_admin' | 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient' | 'pharmacy'; 
-  name: string; 
+  role: 'super_admin' | 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient' | 'pharmacy' | 'customer_service'; 
+  name: string;
   phone?: string; 
   notes?: string; 
   pharmacy_limit?: number; 

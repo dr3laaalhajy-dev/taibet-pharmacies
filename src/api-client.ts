@@ -1,5 +1,5 @@
 // 🟢 الرابط الكامل لمنصتك
-const BASE_URL = 'https://taibet-pharmacies.vercel.app';
+const BASE_URL = 'http://localhost:5000'; // غيّر هذا الرابط لـ Localhost
 
 const getFullUrl = (url: string) => url.startsWith('http') ? url : `${BASE_URL}${url}`;
 
