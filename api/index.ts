@@ -5,24 +5,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import http from 'http';
-import { Server } from 'socket.io'; 
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import admin from 'firebase-admin';
 import path from 'path';
 import fs from 'fs';
 
-// تهيئة نظام إشعارات فايربيز (Firebase Admin)
+// تهيئة نظام إشعارات فايربيز
 try {
   const serviceAccountPath = path.resolve(process.cwd(), 'firebase-key.json');
   if (fs.existsSync(serviceAccountPath)) {
     const fileContent = fs.readFileSync(serviceAccountPath, 'utf-8');
     const serviceAccount = JSON.parse(fileContent);
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    console.log('🔥 Firebase Admin Initialized Successfully!');
-  } else {
-    console.warn('⚠️ تنبيه: ملف firebase-key.json غير موجود، الإشعارات المنبثقة لن تعمل.');
   }
 } catch (error) {
   console.error('❌ خطأ في تهيئة Firebase:', error);
@@ -32,23 +27,14 @@ export const sendPushNotification = async (fcmToken: string, title: string, body
   if (!fcmToken || admin.apps.length === 0) return; 
   try {
     await admin.messaging().send({ token: fcmToken, notification: { title, body } });
-    console.log(`🔔 تم إرسال الإشعار بنجاح إلى: ${fcmToken.substring(0, 10)}...`);
-  } catch (error) {
-    console.error('❌ فشل إرسال الإشعار:', error);
-  }
+  } catch (error) {}
 };
 
 const { Pool } = pg;
 const app = express();
-
 const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
-// 🟢 هذا هو السطر الذي كان مفقوداً ويسبب انهيار السيرفر!
-const server = http.createServer(app);
 
-// 🟢 1. تفعيل CORS كأول شيء
 app.use(cors({ origin: true, credentials: true }));
-
-// 🟢 2. إيقاف قيود مكتبة Helmet التي تسبب حظر الاتصالات
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, message: { error: 'تم تجاوز الحد المسموح، يرجى المحاولة لاحقاً.' }, standardHeaders: true, legacyHeaders: false });
@@ -56,29 +42,12 @@ app.use('/api', limiter);
 app.use(express.json()); 
 app.use(cookieParser()); 
 
-// 🟢 3. إعدادات الدردشة
-const io = new Server(server, {
-  cors: { origin: true, credentials: true, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }
-});
-
-const userSockets = new Map<number, string>();
-
-io.on('connection', (socket) => {
-  socket.on('register', (userId: number) => { if(userId) userSockets.set(parseInt(userId as any), socket.id); });
-  socket.on('disconnect', () => {
-    for (const [userId, socketId] of userSockets.entries()) {
-      if (socketId === socket.id) { userSockets.delete(userId); break; }
-    }
-  });
-});
-
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 const initDB = async () => {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS super_admins (email VARCHAR(255) PRIMARY KEY)`);
     await pool.query(`INSERT INTO super_admins (email) VALUES ('alaa@taiba.pharma.sy'), ('admin@pharmaduty.com'), ('alaa3@taiba.dental.sy') ON CONFLICT DO NOTHING`);
-
     try { await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN fcm_token TEXT;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN specialty VARCHAR(255);`); } catch(e){}
@@ -93,17 +62,14 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(patient_id, doctor_id, appointment_date));`);
-    
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch(e){}
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN type VARCHAR(50) DEFAULT 'direct';`); } catch(e){}
-
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
-
-  } catch (e) { console.error("خطأ في تهيئة قاعدة البيانات:", e); }
+  } catch (e) {}
 };
 initDB();
 
@@ -127,7 +93,6 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
   try {
     const patientId = req.user.id;
     const existing = await pool.query(`SELECT id, status FROM conversations WHERE user1_id = $1 AND type = 'support' AND status IN ('pending', 'active')`, [patientId]);
-    
     let convId;
     if (existing.rows.length > 0) {
       if (existing.rows[0].status === 'pending') return res.status(400).json({ error: 'لديك طلب دعم فني قيد الانتظار بالفعل.' });
@@ -142,7 +107,6 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
         convId = newConv.rows[0].id;
       }
     }
-    io.emit('new_support_request', { conversation_id: convId, patient_name: req.user.name });
     res.json({ success: true, conversation_id: convId, message: 'تم إرسال طلبك لخدمة العملاء.' });
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -151,11 +115,7 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
 app.get('/api/chat/support/pending', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'customer_service' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   try {
-    const pending = await pool.query(`
-      SELECT c.id as conversation_id, c.updated_at as created_at, u.name as patient_name, u.profile_picture 
-      FROM conversations c JOIN users u ON c.user1_id = u.id 
-      WHERE c.type = 'support' AND c.status = 'pending' ORDER BY c.updated_at ASC
-    `);
+    const pending = await pool.query(`SELECT c.id as conversation_id, c.updated_at as created_at, u.name as patient_name, u.profile_picture FROM conversations c JOIN users u ON c.user1_id = u.id WHERE c.type = 'support' AND c.status = 'pending' ORDER BY c.updated_at ASC`);
     res.json(pending.rows);
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -169,14 +129,8 @@ app.post('/api/chat/support/accept/:id', authenticateToken, async (req: any, res
     const conv = await client.query('SELECT status, user1_id FROM conversations WHERE id = $1 FOR UPDATE', [req.params.id]);
     if (conv.rows.length === 0) throw new Error('الطلب غير موجود.');
     if (conv.rows[0].status !== 'pending') throw new Error('عذراً، تم قبول هذا الطلب مسبقاً من موظف آخر.');
-    
     await client.query(`UPDATE conversations SET user2_id = $1, status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [req.user.id, req.params.id]);
     await client.query('COMMIT');
-    
-    const patientSocket = userSockets.get(Number(conv.rows[0].user1_id));
-    if (patientSocket) io.to(patientSocket).emit('support_accepted', { conversation_id: req.params.id, agent_name: req.user.name });
-    
-    io.emit('support_request_removed', req.params.id);
     res.json({ success: true, conversation_id: req.params.id });
   } catch(err: any) { 
     await client.query('ROLLBACK');
@@ -190,7 +144,6 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
     const convId = req.params.id;
     const conv = await pool.query('SELECT * FROM conversations WHERE id = $1', [convId]);
     if (conv.rows.length === 0) return res.status(400).json({ error: 'المحادثة غير موجودة في قاعدة البيانات!' });
-    
     const { user1_id, user2_id, type } = conv.rows[0];
     const currentUserId = String(req.user.id);
     const u1 = String(user1_id);
@@ -199,19 +152,8 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
     if (currentUserId !== u1 && currentUserId !== u2 && req.user.role !== 'admin') {
       return res.status(400).json({ error: 'مرفوض: أنت لست طرفاً في هذه المحادثة' });
     }
-
     await pool.query('DELETE FROM messages WHERE conversation_id = $1', [convId]);
     await pool.query(`UPDATE conversations SET status = 'closed' WHERE id = $1`, [convId]);
-
-    let patientId = u1; 
-    if (type !== 'support') patientId = req.user.role === 'patient' ? currentUserId : (currentUserId === u1 ? u2 : u1);
-
-    const socket1 = userSockets.get(Number(user1_id));
-    const socket2 = user2_id ? userSockets.get(Number(user2_id)) : null;
-    
-    if (socket1) io.to(socket1).emit('session_ended', { conversation_id: convId, closed_by: req.user.name, is_patient: u1 === patientId });
-    if (socket2) io.to(socket2).emit('session_ended', { conversation_id: convId, closed_by: req.user.name, is_patient: u2 === patientId });
-
     res.json({ success: true, message: 'تم إنهاء المحادثة بنجاح.' });
   } catch(err: any) { 
     res.status(500).json({ error: 'خطأ برمجي: ' + err.message }); 
@@ -271,9 +213,6 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
     const msgData = newMsg.rows[0];
-    
-    const receiverSocketId = userSockets.get(numReceiver);
-    if (receiverSocketId) io.to(receiverSocketId).emit('receive_message', msgData);
 
     res.json(msgData);
   } catch(err: any) { res.status(500).json({ error: err.message }); }
@@ -331,11 +270,5 @@ app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any
 app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' }); await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]); res.json({ message: 'تم الحذف بنجاح' }); });
 app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => { const { fcm_token } = req.body; if (!fcm_token) return res.status(400).json({ error: 'Token is required' }); try { await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]); res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = 5005;
-  server.listen(PORT, () => {
-    console.log(`🚀 Backend Server (with Ticketing) is running on http://localhost:${PORT}`);
-  });
-}
-
-export default server;
+// 🟢 التصدير بالطريقة التي يعشقها Vercel لكي يعمل بدون مشاكل
+export default app;

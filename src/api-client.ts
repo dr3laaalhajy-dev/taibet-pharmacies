@@ -1,6 +1,5 @@
 // 🟢 الرابط الأساسي للباك إند
-const BASE_URL = 'http://localhost:5005'; 
-
+const BASE_URL = ''; // 🟢 اتركه هكذا لكي يعمل على Vercel بدون مشاكل
 export const api = {
   get: async (endpoint: string) => {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
