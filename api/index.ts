@@ -19,51 +19,37 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejec
 
 const server = http.createServer(app);
 
-// 🟢 1. الحل الجذري للدردشة: السماح لجميع الروابط بالاتصال بالـ Socket
+// 🟢 إعدادات الدردشة
 const io = new Server(server, {
-  cors: {
-    origin: function (origin, callback) { callback(null, true); }, 
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
-  }
+  cors: { origin: function (origin, callback) { callback(null, true); }, credentials: true, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }
 });
 
 const userSockets = new Map<number, string>();
 
 io.on('connection', (socket) => {
-  socket.on('register', (userId: number) => {
-    if(userId) userSockets.set(parseInt(userId as any), socket.id);
-  });
-
+  socket.on('register', (userId: number) => { if(userId) userSockets.set(parseInt(userId as any), socket.id); });
   socket.on('disconnect', () => {
     for (const [userId, socketId] of userSockets.entries()) {
-      if (socketId === socket.id) {
-        userSockets.delete(userId);
-        break;
-      }
+      if (socketId === socket.id) { userSockets.delete(userId); break; }
     }
   });
 });
 
 app.use(helmet());
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, message: { error: 'تم تجاوز الحد المسموح، يرجى المحاولة لاحقاً.' }, standardHeaders: true, legacyHeaders: false });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, message: { error: 'تم تجاوز الحد المسموح، يرجى المحاولة لاحقاً.' }, standardHeaders: true, legacyHeaders: false });
 app.use('/api', limiter); 
-
 app.use(express.json()); 
 app.use(cookieParser()); 
 
-// 🟢 2. الحل الجذري للـ API: السماح لجميع الروابط بالاتصال بالسيرفر
-app.use(cors({ 
-  origin: function (origin, callback) { callback(null, true); }, 
-  credentials: true 
-}));
+app.use(cors({ origin: function (origin, callback) { callback(null, true); }, credentials: true }));
 
 const initDB = async () => {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS super_admins (email VARCHAR(255) PRIMARY KEY)`);
     await pool.query(`INSERT INTO super_admins (email) VALUES ('alaa@taiba.pharma.sy'), ('admin@pharmaduty.com'), ('alaa3@taiba.dental.sy') ON CONFLICT DO NOTHING`);
     
+    // أعمدة المستخدمين الحالية
     try { await pool.query(`ALTER TABLE users ADD COLUMN specialty VARCHAR(255);`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN consultation_price DECIMAL(10, 2) DEFAULT 0;`); } catch(e){}
     try { await pool.query(`ALTER TABLE users ADD COLUMN about TEXT;`); } catch(e){}
@@ -72,11 +58,57 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE users ADD COLUMN show_in_directory BOOLEAN DEFAULT true;`); } catch(e){} 
     try { await pool.query(`ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 20;`); } catch(e){}
     
+    // 🟢 أعمدة جديدة للميزات القادمة (نقاط الولاء)
+    try { await pool.query(`ALTER TABLE users ADD COLUMN loyalty_points INTEGER DEFAULT 0;`); } catch(e){}
+
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(patient_id, doctor_id, appointment_date));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+
+    // 🟢 1. جدول أفراد العائلة
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS family_members (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        relation VARCHAR(100),
+        birth_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 🟢 2. جدول السجل الطبي الموحد (EHR)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS medical_records (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        blood_type VARCHAR(10),
+        allergies TEXT,
+        chronic_diseases TEXT,
+        past_surgeries TEXT,
+        notes TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 🟢 3. جدول الوصفات الطبية (E-Prescriptions)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS prescriptions (
+        id SERIAL PRIMARY KEY,
+        doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+        diagnosis TEXT,
+        medicines JSONB NOT NULL, -- [{name: 'Panadol', dosage: '500mg', frequency: 'Twice daily', duration: '5 days'}]
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'active', -- active, dispensed
+        dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
   } catch (e) { console.error("خطأ في تهيئة قاعدة البيانات:", e); }
 };
 initDB();
@@ -151,7 +183,64 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
   } catch(err: any) { console.error("❌ خطأ في إرسال الرسالة:", err); res.status(500).json({ error: err.message }); }
 });
 
-// المسارات الأخرى
+// 📝 ================= مسارات السجل الطبي والوصفات ================= 📝
+
+// جلب السجل الطبي لمريض معين (للطبيب أو للمريض نفسه)
+app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const record = await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId]);
+    res.json(record.rows[0] || {});
+  } catch(err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// تحديث السجل الطبي
+app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => {
+  const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes } = req.body;
+  try {
+    const query = `
+      INSERT INTO medical_records (patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (patient_id) 
+      DO UPDATE SET blood_type=$2, allergies=$3, chronic_diseases=$4, past_surgeries=$5, notes=$6, updated_at=CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const record = await pool.query(query, [patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes]);
+    res.json({ success: true, record: record.rows[0] });
+  } catch(err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// إصدار وصفة طبية جديدة (للطبيب فقط)
+app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]
+    );
+    // إرسال إشعار للمريض
+    await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]);
+    res.json({ success: true, prescription: result.rows[0] });
+  } catch(err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// جلب وصفات مريض معين
+app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const query = `
+      SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty 
+      FROM prescriptions p 
+      JOIN users d ON p.doctor_id = d.id 
+      WHERE p.patient_id = $1 
+      ORDER BY p.created_at DESC
+    `;
+    const prescriptions = await pool.query(query, [req.params.patientId]);
+    res.json(prescriptions.rows);
+  } catch(err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// =========================================================
+
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows[0]; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
@@ -165,10 +254,10 @@ app.post('/api/public/orders', async (req: any, res: any) => { const { pharmacy_
 app.get('/api/notifications', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/notifications/read', authenticateToken, async (req: any, res: any) => { try { await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'محاولات كثيرة خاطئة، انتظر 15 دقيقة.' } });
-app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows[0]; if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows[0]; if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/auth/register', async (req: any, res: any) => { const { email, password, name, phone, role, activationKey } = req.body; try { let isActive = role === 'patient'; if (!isActive && activationKey) { const keyCheck = await pool.query('SELECT * FROM activation_keys WHERE key = $1 AND is_used = false', [activationKey]); if (keyCheck.rows.length === 0) return res.status(400).json({ error: 'مفتاح التفعيل غير صحيح.' }); isActive = true; await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); } await pool.query(`INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [email, bcrypt.hashSync(password, 10), role, name, phone || null, 10, isActive]); res.json({ success: true, isActive }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'البريد مستخدم!' : err.message }); } });
 app.post('/api/auth/logout', (req: any, res: any) => { res.clearCookie('token'); res.json({ message: 'تم تسجيل الخروج' }); });
-app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance FROM users WHERE id = $1', [req.user.id])).rows[0] }); });
+app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance, loyalty_points FROM users WHERE id = $1', [req.user.id])).rows[0] }); });
 app.post('/api/auth/update-profile', authenticateToken, async (req: any, res: any) => { const { email, currentPassword, newPassword, name, phone, notes } = req.body; const userId = req.user.id; try { const user = (await pool.query('SELECT * FROM users WHERE id = $1', [userId])).rows[0]; if ((newPassword || email !== user.email) && (!currentPassword || !user.password || !bcrypt.compareSync(currentPassword, user.password))) return res.status(401).json({ error: 'كلمة المرور الحالية غير صالحة' }); if (newPassword) await pool.query('UPDATE users SET password = $1 WHERE id = $2', [bcrypt.hashSync(newPassword, 10), userId]); await pool.query('UPDATE users SET name=$1, phone=$2, notes=$3 WHERE id=$4', [name, phone, notes, userId]); res.json({ message: 'تم التحديث' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/doctor/update-profile', authenticateToken, async (req: any, res: any) => { const { specialty, consultation_price, about, faqs, show_in_directory, user_id, daily_limit } = req.body; const targetId = user_id || req.user.id; try { if (targetId !== req.user.id && !(await isSuperAdmin(req.user.email))) { return res.status(403).json({ error: 'ممنوع تعديل ملف طبيب آخر' }); } const faqsString = JSON.stringify(faqs || []); await pool.query(`UPDATE users SET specialty = $1, consultation_price = $2, about = $3, faqs = $4, show_in_directory = $5, daily_limit = $6 WHERE id = $7`, [specialty, consultation_price, about, faqsString, show_in_directory, daily_limit || 20, targetId]); res.json({ success: true, message: 'تم حفظ الملف الشخصي بنجاح' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/pharmacies', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(req.user.role === 'admin' ? 'SELECT * FROM pharmacies ORDER BY id DESC' : 'SELECT * FROM pharmacies WHERE doctor_id = $1 ORDER BY id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
@@ -202,7 +291,7 @@ app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any,
 if (process.env.NODE_ENV !== 'production') {
   const PORT = 5000;
   server.listen(PORT, () => {
-    console.log(`🚀 Backend Server (with Sockets) is running on http://localhost:${PORT}`);
+    console.log(`🚀 Backend Server (with Sockets & EHR) is running on http://localhost:${PORT}`);
   });
 }
 
