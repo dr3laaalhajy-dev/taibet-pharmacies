@@ -223,29 +223,18 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
     const receiverSocketId = userSockets.get(numReceiver);
     if (receiverSocketId) io.to(receiverSocketId).emit('receive_message', msgData);
 
-    // 🔔================ السحر يبدأ هنا (الإشعارات المنبثقة) ================🔔
     try {
-      // 1. جلب التوكن الخاص بهاتف المستلم، واسم المرسل
       const receiverData = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [numReceiver]);
       const senderData = await pool.query('SELECT name FROM users WHERE id = $1', [numSender]);
       
-      // 2. التحقق مما إذا كان المستلم يمتلك توكن (مفعل الإشعارات على هاتفه)
       if (receiverData.rows.length > 0 && receiverData.rows[0].fcm_token) {
         const senderName = senderData.rows[0]?.name || 'تطبيق طيبة';
         const fcmToken = receiverData.rows[0].fcm_token;
-        
-        // 3. إرسال الإشعار للهاتف
-        await sendPushNotification(
-          fcmToken, 
-          `رسالة جديدة من ${senderName}`, // عنوان الإشعار
-          content // محتوى الإشعار
-        );
+        await sendPushNotification(fcmToken, `رسالة جديدة من ${senderName}`, content);
       }
     } catch (notifError) {
-      // نضعها داخل try-catch منفصلة حتى لا تتأثر الرسالة الأساسية إذا فشل الإشعار
-      console.error("⚠️ خطأ في إرسال الإشعار المنبثق، لكن الرسالة تم حفظها:", notifError);
+      console.error("⚠️ خطأ في إرسال الإشعار المنبثق:", notifError);
     }
-    // 🔔=======================================================================🔔
 
     res.json(msgData);
   } catch(err: any) { 
@@ -254,9 +243,6 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
   }
 });
 
-// 📝 ================= مسارات السجل الطبي والوصفات ================= 📝
-
-// جلب السجل الطبي لمريض معين (للطبيب أو للمريض نفسه)
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
     const record = await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId]);
@@ -264,7 +250,6 @@ app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, r
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// تحديث السجل الطبي
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => {
   const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes } = req.body;
   try {
@@ -280,7 +265,7 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// إصدار وصفة طبية جديدة (للطبيب فقط)
+// إصدار وصفة طبية جديدة (مُعدل لإرسال إشعار منبثق للمريض)
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body;
@@ -289,13 +274,31 @@ app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => 
       'INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]
     );
-    // إرسال إشعار للمريض
+
+    // 1. تسجيل الإشعار في قاعدة البيانات (داخلي)
     await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]);
+
+    // 🔔 2. إرسال إشعار منبثق (Push Notification) لهاتف المريض
+    try {
+      const patientData = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [patient_id]);
+      const doctorData = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+      
+      if (patientData.rows.length > 0 && patientData.rows[0].fcm_token) {
+        const doctorName = doctorData.rows[0]?.name || 'طبيبك';
+        await sendPushNotification(
+          patientData.rows[0].fcm_token,
+          '📝 وصفة طبية جديدة',
+          `أصدر الدكتور ${doctorName} وصفة طبية جديدة لك.`
+        );
+      }
+    } catch (pushErr) {
+      console.error("⚠️ فشل إرسال الإشعار المنبثق للوصفة:", pushErr);
+    }
+
     res.json({ success: true, prescription: result.rows[0] });
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// جلب وصفات مريض معين
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
     const query = `
@@ -309,8 +312,6 @@ app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: 
     res.json(prescriptions.rows);
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
-
-// =========================================================
 
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });

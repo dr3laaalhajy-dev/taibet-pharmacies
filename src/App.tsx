@@ -209,6 +209,21 @@ export default function App() {
     const updated = addresses.filter(a => a !== addr); setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
     if(defaultAddress === addr) { setDefaultAddress(updated[0] || ''); localStorage.setItem(`defAddr_${user?.id}`, updated[0] || ''); }
   };
+  // 🟢 دالة تفعيل الإشعارات للمريض
+  const enableNotifications = async () => {
+    const toastId = toast.loading(lang === 'ar' ? 'جاري تفعيل الإشعارات...' : 'Enabling notifications...');
+    const token = await requestForToken();
+    if (token) {
+      try {
+        await api.post('/api/auth/fcm-token', { fcm_token: token });
+        toast.success(lang === 'ar' ? 'تم تفعيل الإشعارات بنجاح! 🔔' : 'Notifications Enabled! 🔔', { id: toastId });
+      } catch (err) {
+        toast.error(lang === 'ar' ? 'حدث خطأ في ربط هاتفك.' : 'Error linking device.', { id: toastId });
+      }
+    } else {
+      toast.error(lang === 'ar' ? 'الرجاء السماح للإشعارات من إعدادات المتصفح.' : 'Please allow notifications in browser.', { id: toastId });
+    }
+  };
 
   if (loading) return null;
 
@@ -481,6 +496,81 @@ export default function App() {
                   {isUpdatingProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'حفظ التغييرات' : 'Save')}
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+{/* 🟢 نافذة الإعدادات العلوية للمستخدم (إضافة العناوين والإشعارات) */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 p-0 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
+                <h3 className="text-xl font-bold dark:text-white flex items-center gap-2"><Settings className="text-blue-600"/> {lang === 'ar' ? 'الإعدادات' : 'Settings'}</h3>
+                <button onClick={() => setShowSettingsModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} className="dark:text-slate-300"/></button>
+              </div>
+
+              <div className="flex border-b border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-slate-900">
+                <button onClick={() => setSettingsTab('addresses')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'addresses' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><MapPin size={18}/> {lang === 'ar' ? 'عناوين التوصيل' : 'Addresses'}</button>
+                <button onClick={() => setSettingsTab('currency')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'currency' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><CreditCard size={18}/> {lang === 'ar' ? 'العملة والإشعارات' : 'General'}</button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {settingsTab === 'currency' ? (
+                  <div className="space-y-8">
+                    {/* 🟢 زر تفعيل الإشعارات داخل الإعدادات العامة */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold flex items-center gap-2 mb-1"><Bell size={18}/> {lang === 'ar' ? 'الإشعارات المباشرة' : 'Push Notifications'}</h4>
+                        <p className="text-xs text-blue-100">{lang === 'ar' ? 'تلقى تنبيهات فورية بحالة طلباتك ووصفاتك الطبية.' : 'Get instant alerts for your orders.'}</p>
+                      </div>
+                      <button onClick={enableNotifications} className="shrink-0 bg-white text-blue-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-50 active:scale-95 transition-all">
+                        {lang === 'ar' ? 'تفعيل' : 'Enable'}
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-800 dark:text-slate-200 mb-3">{lang === 'ar' ? 'اختر العملة المفضلة للعرض:' : 'Select Display Currency:'}</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => handleCurrencyChange('new')} className={`py-4 rounded-xl font-bold border-2 transition-all flex flex-col items-center gap-2 ${currency === 'new' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-slate-500'}`}>
+                          <span className="text-2xl">💵</span> {lang === 'ar' ? 'ليرة سورية جديدة' : 'New L.S'}
+                        </button>
+                        <button onClick={() => handleCurrencyChange('old')} className={`py-4 rounded-xl font-bold border-2 transition-all flex flex-col items-center gap-2 ${currency === 'old' ? 'border-slate-800 dark:border-slate-400 bg-slate-800 dark:bg-slate-700 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-500'}`}>
+                          <span className="text-2xl">💰</span> {lang === 'ar' ? 'ليرة سورية قديمة' : 'Old L.S'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'أضف عنوان توصيل جديد' : 'Add New Address'}</label>
+                    <div className="flex gap-2 mb-6">
+                      <input type="text" className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-blue-500 bg-slate-50 dark:bg-slate-950 dark:text-white" placeholder={lang === 'ar' ? "مثال: دمشق، المزة، شارع 1..." : "e.g. Damascus, Mazzeh..."} value={newAddress} onChange={e => setNewAddress(e.target.value)} disabled={isAddingAddress} />
+                      <button onClick={addAddress} disabled={isAddingAddress || !newAddress.trim()} className="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"><Plus size={20}/></button>
+                    </div>
+
+                    <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{lang === 'ar' ? 'عناويني المحفوظة:' : 'Saved Addresses:'}</h4>
+                    {addresses.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700"><MapPin className="mx-auto mb-2 opacity-50" size={32}/> {lang === 'ar' ? 'لا توجد عناوين محفوظة.' : 'No saved addresses.'}</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {addresses.map((addr, idx) => (
+                          <div key={idx} className={`p-4 border-2 rounded-2xl flex items-center justify-between gap-3 transition-colors cursor-pointer ${defaultAddress === addr ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600'}`} onClick={() => { setDefaultAddress(addr); localStorage.setItem(`defAddr_${user?.id}`, addr); }}>
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className={`mt-0.5 ${defaultAddress === addr ? 'text-emerald-500' : 'text-slate-400'}`}>{defaultAddress === addr ? <CheckCircle size={20}/> : <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}</div>
+                              <p className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{addr}</p>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); removeAddress(addr); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                <button onClick={() => setShowSettingsModal(false)} className="w-full py-4 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-md">{lang === 'ar' ? 'إغلاق الإعدادات' : 'Close Settings'}</button>
+              </div>
             </motion.div>
           </div>
         )}
