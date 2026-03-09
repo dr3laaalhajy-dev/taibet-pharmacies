@@ -40,21 +40,20 @@ export const sendPushNotification = async (fcmToken: string, title: string, body
 
 const { Pool } = pg;
 const app = express();
-const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const server = http.createServer(app);
 
-// 🟢 1. إعدادات CORS قوية ومضمونة للسماح للفرونت إند بالاتصال بالاسم
-const corsOptions = {
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://taibet-pharmacies.vercel.app'],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept"]
-};
 
-// 🟢 إعدادات الدردشة
+
+// 🟢 2. إيقاف قيود مكتبة Helmet التي تسبب حظر الاتصالات
+app.use(helmet({ crossOriginResourcePolicy: false }));
+
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, message: { error: 'تم تجاوز الحد المسموح، يرجى المحاولة لاحقاً.' }, standardHeaders: true, legacyHeaders: false });
+app.use('/api', limiter); 
+app.use(express.json()); 
+app.use(cookieParser()); 
+
+// 🟢 3. إعدادات الدردشة (تأكد من السماح للـ origin بـ true)
 const io = new Server(server, {
-  cors: corsOptions
+  cors: { origin: true, credentials: true, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }
 });
 
 const userSockets = new Map<number, string>();
@@ -76,8 +75,6 @@ app.use('/api', limiter);
 app.use(express.json()); 
 app.use(cookieParser()); 
 
-// 🟢 3. تفعيل CORS في Express
-app.use(cors(corsOptions));
 
 const initDB = async () => {
   try {
@@ -391,7 +388,7 @@ app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any,
 app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => { const { fcm_token } = req.body; if (!fcm_token) return res.status(400).json({ error: 'Token is required' }); try { await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]); res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
 if (process.env.NODE_ENV !== 'production') {
-  const PORT = 5000;
+  const PORT = 5005; // 🟢 غيرنا الباب لتجنب تعارض النظام
   server.listen(PORT, () => {
     console.log(`🚀 Backend Server (with Ticketing) is running on http://localhost:${PORT}`);
   });

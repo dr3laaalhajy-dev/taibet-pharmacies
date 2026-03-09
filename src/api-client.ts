@@ -1,68 +1,95 @@
-// 🟢 الرابط الكامل لمنصتك
-const BASE_URL = 'http://localhost:5000'; // غيّر هذا الرابط لـ Localhost
-
-const getFullUrl = (url: string) => url.startsWith('http') ? url : `${BASE_URL}${url}`;
-
-// 🛡️ دالة ذكية لمعالجة الردود (تمنع انهيار التطبيق إذا كان الرد ليس JSON)
-const handleResponse = async (r: Response) => {
-  if (r.ok) {
-    return r.json();
-  }
-
-  // 🟢 التقاط خطأ الحماية من الـ DDoS (Rate Limit)
-  if (r.status === 429) {
-    return Promise.reject({ error: 'لقد قمت بإرسال طلبات كثيرة جداً. يرجى الانتظار لمدة 15 دقيقة ثم المحاولة مجدداً.' });
-  }
-
-  // محاولة قراءة الخطأ كـ JSON
-  try {
-    const errorData = await r.json();
-    return Promise.reject(errorData);
-  } catch (parseError) {
-    // 🟢 إذا فشل في قراءته كـ JSON (مثل أخطاء Vercel الوهمية)، نعرض خطأ عام وأنيق
-    return Promise.reject({ error: `عذراً، حدث خطأ في الخادم (رمز الخطأ: ${r.status}). يرجى المحاولة لاحقاً.` });
-  }
-};
+// 🟢 الرابط الأساسي للباك إند
+const BASE_URL = 'http://localhost:5005'; 
 
 export const api = {
-  get: (url: string) => fetch(getFullUrl(url), { credentials: 'include' }).then(handleResponse),
-  
-  post: (url: string, body: any) => fetch(getFullUrl(url), { 
-    method: 'POST', 
-    headers: { 'Content-Type': 'application/json' }, 
-    credentials: 'include', 
-    body: JSON.stringify(body) 
-  }).then(handleResponse),
-  
-  put: (url: string, body: any) => fetch(getFullUrl(url), { 
-    method: 'PUT', 
-    headers: { 'Content-Type': 'application/json' }, 
-    credentials: 'include', 
-    body: JSON.stringify(body) 
-  }).then(handleResponse),
-  
-  patch: (url: string, body?: any) => fetch(getFullUrl(url), { 
-    method: 'PATCH', 
-    headers: { 'Content-Type': 'application/json' }, 
-    credentials: 'include', 
-    body: body ? JSON.stringify(body) : undefined 
-  }).then(handleResponse),
-  
-  delete: (url: string) => fetch(getFullUrl(url), { 
-    method: 'DELETE', 
-    credentials: 'include' 
-  }).then(handleResponse),
+  get: async (endpoint: string) => {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 🟢 تم التصحيح هنا
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw error;
+    }
+    return res.json();
+  },
+
+  post: async (endpoint: string, body: any) => {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 🟢 تم التصحيح هنا
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw error;
+    }
+    return res.json();
+  },
+
+  put: async (endpoint: string, body: any) => {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 🟢 تم التصحيح هنا
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw error;
+    }
+    return res.json();
+  },
+
+  patch: async (endpoint: string, body?: any) => {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 🟢 تم التصحيح هنا
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw error;
+    }
+    return res.json();
+  },
+
+  delete: async (endpoint: string) => {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 🟢 تم التصحيح هنا
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw error;
+    }
+    return res.json();
+  },
 };
 
-export const uploadImageToImgBB = async (file: File) => {
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader(); reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string); reader.onerror = e => reject(e);
-  });
-  const f = new FormData(); f.append('image', base64.split(',')[1]);
-  // تأكد من وضع مفتاح API الخاص بك هنا
-  const r = await fetch('https://api.imgbb.com/1/upload?key=ba0a89c85f4f7651c6daab7d351989ed', { method: 'POST', body: f });
-  const d = await r.json();
-  if (d.success) return d.data.url;
-  throw new Error(d.error?.message || 'فشل الرفع');
+// 🟢 الدالة الخاصة برفع الصور
+export const uploadImageToImgBB = async (file: File) => { 
+  const base64 = await new Promise<string>((resolve, reject) => { 
+    const reader = new FileReader(); reader.readAsDataURL(file); 
+    reader.onload = () => resolve(reader.result as string); 
+    reader.onerror = e => reject(e); 
+  }); 
+  const f = new FormData(); f.append('image', base64.split(',')[1]); 
+  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
+  const d = await r.json(); if (d.success) return d.data.url; 
+  throw new Error(d.error?.message || 'فشل الرفع'); 
 };
