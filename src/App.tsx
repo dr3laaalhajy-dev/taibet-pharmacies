@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell, MessageSquare, FileSignature, Activity, Store, ChevronRight, Moon, Sun } from 'lucide-react';
+import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell, MessageSquare, FileSignature, Activity, Store, ChevronRight, Moon, Sun, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -14,6 +14,7 @@ import { Dashboard } from './Components/Dashboard';
 import { Chat } from './Components/Chat'; 
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { requestForToken } from './firebase';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ 
@@ -41,7 +42,6 @@ export default function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
   
-  // 🟢 حالة الوضع الليلي (Dark Mode)
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const [isSubmittingWallet, setIsSubmittingWallet] = useState(false);
@@ -85,7 +85,6 @@ export default function App() {
 
   const t = translations[lang] || translations['ar'];
 
-  // 🟢 استرجاع وتفعيل الوضع الليلي
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
     if (savedMode === 'true') {
@@ -94,7 +93,6 @@ export default function App() {
     }
   }, []);
 
-  // 🟢 دالة التبديل السحرية المحصنة لضمان استجابة زر الشمس والقمر فوراً
   const toggleDarkMode = () => {
     setIsDarkMode((prevMode) => {
       const newMode = !prevMode;
@@ -209,7 +207,7 @@ export default function App() {
     const updated = addresses.filter(a => a !== addr); setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
     if(defaultAddress === addr) { setDefaultAddress(updated[0] || ''); localStorage.setItem(`defAddr_${user?.id}`, updated[0] || ''); }
   };
-  // 🟢 دالة تفعيل الإشعارات للمريض (معدلة لمنع التعليق)
+
   const enableNotifications = async () => {
     const toastId = toast.loading(lang === 'ar' ? 'جاري تفعيل الإشعارات...' : 'Enabling notifications...');
     try {
@@ -229,18 +227,15 @@ export default function App() {
   if (loading) return null;
 
   return (
-    // 🟢 إضافة كلاسات الدارك مود للمكون الرئيسي (dark:bg-slate-950 dark:text-slate-100)
     <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50 dark:bg-slate-950 dark:text-slate-100 relative transition-colors duration-300">
       <Toaster position="top-center" reverseOrder={false} />
       
       {view !== 'dashboard' && (
-        // 🟢 تحديث ألوان النافبار لتدعم الوضع المظلم
         <nav className="bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md shadow-sm transition-colors duration-300">
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white"> Taiba Health</button>
           
           <div className="flex gap-2 md:gap-3 items-center">
 
-            {/* 🟢 زر تبديل الوضع الليلي (Dark Mode Toggle) */}
             <button onClick={toggleDarkMode} className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors" title={lang === 'ar' ? 'الوضع الليلي' : 'Dark Mode'}>
               {isDarkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} />}
             </button>
@@ -376,7 +371,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* مودال السجل الطبي للمريض */}
       <AnimatePresence>
         {showRecordsModal && user && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -475,7 +469,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* باقي نوافذ المودال (الملف الشخصي والإعدادات) تم إضافة الـ Dark Mode لها */}
       <AnimatePresence>
         {showProfileModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -501,7 +494,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-{/* 🟢 نافذة الإعدادات العلوية للمستخدم (إضافة العناوين والإشعارات) */}
+
       <AnimatePresence>
         {showSettingsModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -519,7 +512,6 @@ export default function App() {
               <div className="p-6 overflow-y-auto flex-1">
                 {settingsTab === 'currency' ? (
                   <div className="space-y-8">
-                    {/* 🟢 زر تفعيل الإشعارات داخل الإعدادات العامة */}
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md flex items-center justify-between gap-4">
                       <div>
                         <h4 className="font-bold flex items-center gap-2 mb-1"><Bell size={18}/> {lang === 'ar' ? 'الإشعارات المباشرة' : 'Push Notifications'}</h4>
@@ -576,6 +568,26 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 💬 فقاعة خدمة العملاء العائمة المضافة هنا بشكل صحيح! */}
+      <button
+        onClick={() => {
+          if (!user) {
+            toast.error(
+              lang === 'ar' 
+                ? 'يرجى تسجيل الدخول أولاً للتواصل مع خدمة العملاء' 
+                : 'Please login first to contact support'
+            );
+          } else {
+            openChatWithUser(null); 
+          }
+        }}
+        className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full shadow-2xl hover:bg-green-700 hover:scale-110 transition-all duration-300 group cursor-pointer"
+        title={lang === 'ar' ? 'الدعم الفني' : 'Support'}
+      >
+        <MessageCircle size={28} className="group-hover:animate-pulse" />
+        <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
+      </button>
 
       <SpeedInsights />
     </div>
