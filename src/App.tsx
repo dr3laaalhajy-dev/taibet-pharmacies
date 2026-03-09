@@ -209,19 +209,20 @@ export default function App() {
     const updated = addresses.filter(a => a !== addr); setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
     if(defaultAddress === addr) { setDefaultAddress(updated[0] || ''); localStorage.setItem(`defAddr_${user?.id}`, updated[0] || ''); }
   };
-  // 🟢 دالة تفعيل الإشعارات للمريض
+  // 🟢 دالة تفعيل الإشعارات للمريض (معدلة لمنع التعليق)
   const enableNotifications = async () => {
     const toastId = toast.loading(lang === 'ar' ? 'جاري تفعيل الإشعارات...' : 'Enabling notifications...');
-    const token = await requestForToken();
-    if (token) {
-      try {
+    try {
+      const token = await requestForToken();
+      if (token) {
         await api.post('/api/auth/fcm-token', { fcm_token: token });
         toast.success(lang === 'ar' ? 'تم تفعيل الإشعارات بنجاح! 🔔' : 'Notifications Enabled! 🔔', { id: toastId });
-      } catch (err) {
-        toast.error(lang === 'ar' ? 'حدث خطأ في ربط هاتفك.' : 'Error linking device.', { id: toastId });
+      } else {
+        toast.error(lang === 'ar' ? 'الرجاء السماح للإشعارات من إعدادات المتصفح.' : 'Please allow notifications in browser.', { id: toastId });
       }
-    } else {
-      toast.error(lang === 'ar' ? 'الرجاء السماح للإشعارات من إعدادات المتصفح.' : 'Please allow notifications in browser.', { id: toastId });
+    } catch (error) {
+      console.error(error);
+      toast.error(lang === 'ar' ? 'مرفوض! (في الآيفون: يجب إضافة التطبيق للشاشة الرئيسية أولاً)' : 'Failed! (On iOS: Add to Home Screen first)', { id: toastId });
     }
   };
 
