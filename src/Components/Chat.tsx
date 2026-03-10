@@ -44,7 +44,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isEnding, setIsEnding] = useState(false);
-  
+  const [showRatingModal, setShowRatingModal] = useState(false);
   // 🟢 حالات دعم العملاء
   const [activeTab, setActiveTab] = useState<'chats' | 'support'>('chats');
   const [pendingSupportRequests, setPendingSupportRequests] = useState<SupportRequest[]>([]);
@@ -521,6 +521,19 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
           </div>
         )}
       </div>
+      {/* 🟢 شاشة تقييم الموظف (تظهر للمريض فقط عند الإغلاق) */}
+      <AnimatePresence>
+        {showRatingModal && (
+          <RatingModal
+            staffId={targetUserId || activeChat?.other_user_id || 0} 
+            onClose={() => {
+              setShowRatingModal(false);
+              if (onClose) onClose(); // إغلاق الشات بالكامل بعد التقييم
+            }}
+            lang={lang}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
