@@ -41,20 +41,20 @@ interface SupportRequest {
 import { Star } from 'lucide-react'; // تأكد من استدعاء النجمة في أعلى الملف مع بقية الأيقونات
 
 // 🟢 مكون نافذة التقييم المنبثقة
-const RatingModal = ({ staffId, onClose, lang }: { staffId: number, onClose: () => void, lang: string }) => {
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
     if (rating === 0) return toast.error(lang === 'ar' ? 'الرجاء اختيار عدد النجوم للتقييم' : 'Please select a rating');
     setLoading(true);
     try {
+      console.log("إرسال تقييم للموظف رقم:", staffId); // سيكتب رقم الموظف في الكونسول للتأكد
+      
       await api.post('/api/support/review', { staff_id: staffId, rating, comment });
       toast.success(lang === 'ar' ? 'شكراً لتقييمك تجربتك معنا!' : 'Thank you for your feedback!');
       onClose();
-    } catch (err) {
-      toast.error(lang === 'ar' ? 'فشل حفظ التقييم' : 'Error submitting review');
+    } catch (err: any) {
+      // 🟢 هنا سيظهر لك الخطأ الحقيقي القادم من قاعدة البيانات أو السيرفر
+      const errorMsg = err.response?.data?.error || err.error || 'فشل حفظ التقييم';
+      toast.error(`خطأ السيرفر: ${errorMsg}`);
+      console.error(err);
     } finally {
       setLoading(false);
     }
