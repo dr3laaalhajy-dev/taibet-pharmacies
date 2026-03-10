@@ -6,6 +6,8 @@ import { UserType } from '../types';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 
+
+
 const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
 interface Message {
@@ -35,6 +37,67 @@ interface SupportRequest {
   profile_picture: string | null;
   created_at: string;
 }
+
+import { Star } from 'lucide-react'; // تأكد من استدعاء النجمة في أعلى الملف مع بقية الأيقونات
+
+// 🟢 مكون نافذة التقييم المنبثقة
+const RatingModal = ({ staffId, onClose, lang }: { staffId: number, onClose: () => void, lang: string }) => {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (rating === 0) return toast.error(lang === 'ar' ? 'الرجاء اختيار عدد النجوم للتقييم' : 'Please select a rating');
+    setLoading(true);
+    try {
+      await api.post('/api/support/review', { staff_id: staffId, rating, comment });
+      toast.success(lang === 'ar' ? 'شكراً لتقييمك تجربتك معنا!' : 'Thank you for your feedback!');
+      onClose();
+    } catch (err) {
+      toast.error(lang === 'ar' ? 'فشل حفظ التقييم' : 'Error submitting review');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20}/></button>
+        
+        <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-500 shadow-inner">
+          <Star size={40} className="fill-current" />
+        </div>
+        <h3 className="text-2xl font-black mb-2 text-slate-900 dark:text-white">{lang === 'ar' ? 'قيم تجربتك' : 'Rate your experience'}</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{lang === 'ar' ? 'كيف كانت مساعدة موظف الدعم الفني لك؟ تقييمك يساعدنا على التحسن.' : 'How helpful was our support agent?'}</p>
+        
+        <div className="flex justify-center gap-2 mb-6" dir="ltr">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button key={star} onClick={() => setRating(star)} className={`transition-transform hover:scale-125 focus:outline-none ${rating >= star ? 'text-amber-400' : 'text-slate-200 dark:text-slate-700'}`}>
+              <Star size={36} fill={rating >= star ? "currentColor" : "none"} />
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          className="w-full p-4 border-2 border-slate-100 dark:border-slate-800 rounded-2xl mb-6 text-sm bg-slate-50 dark:bg-slate-950 dark:text-white outline-none focus:border-amber-500 transition-colors resize-none"
+          placeholder={lang === 'ar' ? 'اكتب رأيك هنا (اختياري)...' : 'Write your feedback (optional)...'}
+          rows={3}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+
+        <button 
+          onClick={handleSubmit} 
+          disabled={loading}
+          className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50 active:scale-95 flex justify-center items-center gap-2"
+        >
+          {loading ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'إرسال التقييم وإغلاق المحادثة' : 'Submit & Close')}
+        </button>
+      </motion.div>
+    </div>
+  );
+};
 
 export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded }: { user: UserType, lang: string, onClose?: () => void, targetUserId?: number | null, onSessionEnded?: (doctorId: number) => void }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -236,7 +299,10 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
       setMessages([]);
       fetchConversations();
       
-      if (user.role === 'patient' && activeChat.type !== 'support' && onSessionEnded) {
+      // 🟢 التعديل هنا: إظهار التقييم بدلاً من الإغلاق المباشر
+      if (user.role !== 'admin' && user.role !== 'customer_service') {
+         setShowRatingModal(true); 
+      } else if (user.role === 'patient' && activeChat.type !== 'support' && onSessionEnded) {
         onClose && onClose();
         onSessionEnded(doctorIdToRate);
       }
