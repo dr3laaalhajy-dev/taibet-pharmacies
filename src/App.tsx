@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star , Sun, Moon, MessageCircle, Bell, Camera, CreditCard} from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star , Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -371,7 +371,7 @@ export default function App() {
         
         <form onSubmit={submitWalletRequest} className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س)' : 'Amount (L.S)'}</label>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
             <div className="relative">
               <input 
                 required type="number" 
@@ -380,7 +380,7 @@ export default function App() {
                 value={walletAmount} 
                 onChange={e => setWalletAmount(e.target.value)} 
               />
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س' : 'L.S'}</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
             </div>
           </div>
           <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">

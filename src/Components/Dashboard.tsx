@@ -12,6 +12,7 @@ import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 import { requestForToken, onMessageListener } from '../firebase';
+import { FileText, X, Activity } from 'lucide-react';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -270,6 +271,27 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   const [loadingAppointments, setLoadingAppointments] = useState(false);
 
   const [patientRecordModal, setPatientRecordModal] = useState<{isOpen: boolean, patientId: number, appointmentId: number, patientName: string}>({isOpen: false, patientId: 0, appointmentId: 0, patientName: ''});
+
+  // 🟢 حالات السجل الطبي السابق (التشخيصات السابقة)
+ const [showHistoryModal, setShowHistoryModal] = useState(false);
+ const [selectedPatientHistory, setSelectedPatientHistory] = useState<any[]>([]);
+ const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+ const [historyPatientName, setHistoryPatientName] = useState('');
+
+ const openPatientHistory = async (patientId: number, patientName: string) => {
+   setHistoryPatientName(patientName);
+   setShowHistoryModal(true);
+   setIsLoadingHistory(true);
+   try {
+     const data = await api.get(`/api/doctors/patient-history/${patientId}`);
+     setSelectedPatientHistory(Array.isArray(data) ? data : []);
+   } catch (err) {
+     toast.error(lang === 'ar' ? 'فشل جلب السجل الطبي' : 'Failed to load history');
+     setSelectedPatientHistory([]);
+   } finally {
+     setIsLoadingHistory(false);
+   }
+ };
 
 
   
@@ -685,8 +707,13 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                           <tr key={appt.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-6 py-4 font-mono font-bold text-slate-400">#{idx + 1}</td>
                             <td className="px-6 py-4">
-                              <span className="font-bold text-slate-900 dark:text-white block mb-1">{appt.patient_name}</span>
-                              <button onClick={() => setPatientRecordModal({isOpen: true, patientId: appt.patient_id, appointmentId: appt.id, patientName: appt.patient_name})} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-md font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1 w-max">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-slate-900 dark:text-white">{appt.patient_name}</span>
+                                <button onClick={() => openPatientHistory(appt.patient_id, appt.patient_name)} title={lang === 'ar' ? 'سجل التشخيصات السابقة' : 'Past Medical History'} className="p-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full transition-colors shrink-0 shadow-sm border border-indigo-100 dark:border-indigo-800">
+                                  <Activity size={14} />
+                                </button>
+                              </div>
+                              <button onClick={() => setPatientRecordModal({isOpen: true, patientId: appt.patient_id, appointmentId: appt.id, patientName: appt.patient_name})} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-md font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1 w-max mt-1.5">
                                 <FileText size={12}/> {lang === 'ar' ? 'السجل والوصفة (روشتة)' : 'EHR & Rx'}
                               </button>
                             </td>
@@ -1242,6 +1269,71 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
       </AnimatePresence>
 
       <ConfirmModal isOpen={confirmData.isOpen} onClose={() => setConfirmData(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmData.onConfirm} title={confirmData.title} body={confirmData.body} t={t} />
+
+        {/* 🟢 نافذة السجل الطبي السابق (تشخيصات الأطباء) */}
+      <AnimatePresence>
+        {showHistoryModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[120] p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+              <div className="p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center shadow-sm">
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white">{lang === 'ar' ? 'السجل الطبي السابق' : 'Past Medical History'}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">{lang === 'ar' ? `المريض: ${historyPatientName}` : `Patient: ${historyPatientName}`}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowHistoryModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-white"><X size={20}/></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 md:p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
+                {isLoadingHistory ? (
+                  <div className="flex justify-center py-12"><span className="animate-spin h-10 w-10 border-4 border-indigo-600 rounded-full border-t-transparent"></span></div>
+                ) : selectedPatientHistory.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <FileText size={56} className="mx-auto mb-4 opacity-50 text-indigo-300 dark:text-indigo-800" />
+                    <p className="font-bold">{lang === 'ar' ? 'لا يوجد سجل طبي أو تشخيصات سابقة لهذا المريض.' : 'No previous medical history found.'}</p>
+                  </div>
+                ) : (
+                  selectedPatientHistory.map((record, index) => (
+                    <div key={index} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500 rounded-r-2xl hidden rtl:block"></div>
+                      <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 rounded-l-2xl hidden ltr:block"></div>
+                      
+                      <div className="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-lg">{lang === 'ar' ? 'د.' : 'Dr.'} {record.doctor_name}</h4>
+                          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-md mt-1 inline-block">{record.specialty || (lang==='ar'?'طبيب':'Doctor')}</span>
+                        </div>
+                        <span className="text-xs text-slate-500 font-mono font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700" dir="ltr">
+                          {new Date(record.created_at).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {record.diagnosis && (
+                          <div>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1"><Activity size={12}/> {lang === 'ar' ? 'التشخيص الطبي:' : 'Diagnosis:'}</span>
+                            <p className="text-sm text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 leading-relaxed whitespace-pre-wrap">{record.diagnosis}</p>
+                          </div>
+                        )}
+                        {record.prescription && (
+                          <div>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1"><FileText size={12}/> {lang === 'ar' ? 'الوصفة الطبية (الأدوية):' : 'Prescription:'}</span>
+                            <p className="text-sm text-slate-800 dark:text-slate-200 bg-indigo-50/50 dark:bg-indigo-900/10 p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900/30 leading-relaxed font-medium whitespace-pre-wrap">{record.prescription}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <SuccessModal 
         isOpen={successModalData.isOpen} 

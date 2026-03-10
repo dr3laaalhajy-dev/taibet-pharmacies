@@ -498,7 +498,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
 
         <header className="mb-16 text-center">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 dark:text-blue-400 uppercase bg-blue-50 dark:bg-blue-900/30 rounded-full border border-blue-100 dark:border-blue-800">{t.communityHealth}</motion.div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-tight">{lang === 'ar' ? <>اهلا بكم في <span className="text-blue-600 dark:text-blue-500">طيبة الإمام</span> الصحية</> : <>Welcome to<span className="text-blue-600 dark:text-blue-500">Taibet El-Imam</span>Health</>}</h1>
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-tight">{lang === 'ar' ? <>اهلا بكم في <span className="text-blue-600 dark:text-blue-500">طيبة الإمام</span> الصحية</> : <>Welcome to <span className="text-blue-600 dark:text-blue-500">Taibet El-Imam </span>Health</>}</h1>
           <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
           <div className="max-w-xl mx-auto relative group"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} /><input type="text" placeholder={t.searchPlaceholder} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-transparent focus:border-blue-600 dark:focus:border-blue-500 outline-none shadow-sm text-lg transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
           
@@ -647,7 +647,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0004.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 0 0-.1521-.5676.416.416 0 0 0-.5676.1521l-2.022 3.503C15.548 8.1633 13.852 7.747 12 7.747c-1.852 0-3.548.4163-5.1371 1.2028L4.841 5.4467a.416.416 0 0 0-.5676-.1521.416.416 0 0 0-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
                   </svg>
-                  {lang === 'ar' ? 'تحميل تطبيق الأندرويد' : 'Download for Android'}
+                  {lang === 'ar' ? ' تنزيل لأجهزة أندرويد ' : 'Download for Android'}
                 </a>
                 
                 {/* زر الآيفون (يبقى كما هو ويظهر فقط إذا أضفت رابطه من الإعدادات) */}
