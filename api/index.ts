@@ -285,6 +285,26 @@ app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, r
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes } = req.body; try { res.json({ success: true, record: (await pool.query(`INSERT INTO medical_records (patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (patient_id) DO UPDATE SET blood_type=$2, allergies=$3, chronic_diseases=$4, past_surgeries=$5, notes=$6, updated_at=CURRENT_TIMESTAMP RETURNING *`, [patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes])).rows[0] }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows[0] }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
+// 🟢 جلب السجل الطبي والتشخيصات السابقة للمريض (لواجهة الطبيب)
+app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => { 
+  try { 
+    const result = await pool.query(`
+      SELECT 
+        p.created_at,
+        p.diagnosis,
+        p.medicines::text AS prescription,
+        u.name AS doctor_name,
+        u.specialty
+      FROM prescriptions p
+      JOIN users u ON p.doctor_id = u.id
+      WHERE p.patient_id = $1
+      ORDER BY p.created_at DESC
+    `, [req.params.patientId]); 
+    res.json(result.rows); 
+  } catch(err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } 
+});
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows[0]; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
