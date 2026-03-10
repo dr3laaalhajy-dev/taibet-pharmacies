@@ -637,12 +637,26 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                 </>
               )}
 
-              {(footerData?.androidLink || footerData?.iosLink) && (
-                <div className="flex flex-col sm:flex-row gap-3 mb-6 w-full justify-center lg:justify-start">
-                  {footerData?.androidLink && <a href={footerData.androidLink} download="Taiba-Health.apk" target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Download APK" className="h-10 object-contain" /></a>}
-                  {footerData?.iosLink && <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-10 object-contain" /></a>}
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row gap-4 mb-8 w-full justify-center lg:justify-start">
+                {/* 🟢 زر التحميل المباشر لتطبيق الأندرويد بالاسم الجديد */}
+                <a 
+                  href="/taiba-health-v2.apk" 
+                  download="taiba-health-v2.apk" 
+                  className="flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto"
+                >
+                  <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0004.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 0 0-.1521-.5676.416.416 0 0 0-.5676.1521l-2.022 3.503C15.548 8.1633 13.852 7.747 12 7.747c-1.852 0-3.548.4163-5.1371 1.2028L4.841 5.4467a.416.416 0 0 0-.5676-.1521.416.416 0 0 0-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
+                  </svg>
+                  {lang === 'ar' ? 'تحميل تطبيق الأندرويد' : 'Download for Android'}
+                </a>
+                
+                {/* زر الآيفون (يبقى كما هو ويظهر فقط إذا أضفت رابطه من الإعدادات) */}
+                {footerData?.iosLink && (
+                  <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex items-center justify-center w-full sm:w-auto">
+                    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-12 object-contain" />
+                  </a>
+                )}
+              </div>
 
               <div className="flex items-center justify-center lg:justify-start gap-6 text-blue-100 dark:text-slate-400 w-full mt-2">
                 {footerData?.twitter && <a href={footerData.twitter} target="_blank" rel="noreferrer" className="hover:text-white hover:scale-110 transition-all"><span className="text-2xl font-bold font-mono">X</span></a>}
