@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { LogOut, Wallet, Plus, X, User, Settings, LayoutDashboard, Camera, MapPin, CreditCard, Trash2, CheckCircle, Bell, MessageSquare, FileSignature, Activity, Store, ChevronRight, Moon, Sun, MessageCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
