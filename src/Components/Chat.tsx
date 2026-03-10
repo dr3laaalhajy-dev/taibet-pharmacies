@@ -303,17 +303,22 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
         <div className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors">
           <div className="p-5 flex justify-between items-center">
             <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2"><MessageSquare className="text-blue-600 dark:text-blue-400"/> {lang === 'ar' ? 'الرسائل' : 'Messages'}</h2>
-            {onClose && <button onClick={() => {
-                if (user.role === 'patient') {
-                  setShowRatingModal(true);
-                } else {
-                  onClose();
-                }
-              }}>
-                <X />
+            {onClose && (
+              <button 
+                onClick={() => {
+                  if (user.role === 'patient') {
+                    setShowRatingModal(true);
+                  } else {
+                    onClose();
+                  }
+                }}
+                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 dark:text-slate-400"
+              >
+                <X size={24} />
               </button>
             )}
           </div>
+
           {canSeeSupportTab && (
             <div className="flex border-t border-slate-200 dark:border-slate-800">
               <button onClick={() => setActiveTab('chats')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'chats' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
