@@ -1331,12 +1331,34 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                                   if (Array.isArray(meds)) {
                                     return meds.map((m: any, i: number) => (
                                       <div key={i} className="flex flex-wrap items-center gap-2 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
-                                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
-                                         <span className="font-bold text-indigo-700 dark:text-indigo-300 min-w-[100px]">{m.name}</span>
+                                         <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
                                          
-                                         {m.dosage && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.dosage}</span>}
-                                         {m.frequency && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.frequency}</span>}
-                                         {m.duration && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.duration}</span>}
+                                         {/* 🟢 اسم الدواء */}
+                                         <span className="font-black text-indigo-700 dark:text-indigo-300 text-sm min-w-[120px]" dir="ltr">{m.name}</span>
+                                         
+                                         {/* 🟢 التفاصيل مع التسميات */}
+                                         <div className="flex flex-wrap items-center gap-1.5 border-r border-indigo-200 dark:border-indigo-800 pr-3 mr-1">
+                                             {m.dosage && (
+                                               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">
+                                                 <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">{lang === 'ar' ? 'الجرعة:' : 'Dosage:'}</span>
+                                                 {m.dosage}
+                                               </span>
+                                             )}
+                                             
+                                             {m.frequency && (
+                                               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">
+                                                 <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">{lang === 'ar' ? 'التكرار:' : 'Freq:'}</span>
+                                                 {m.frequency}
+                                               </span>
+                                             )}
+                                             
+                                             {m.duration && (
+                                               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">
+                                                 <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">{lang === 'ar' ? 'المدة:' : 'Duration:'}</span>
+                                                 {m.duration}
+                                               </span>
+                                             )}
+                                         </div>
                                       </div>
                                     ));
                                   }
