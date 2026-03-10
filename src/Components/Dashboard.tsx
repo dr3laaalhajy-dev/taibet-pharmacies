@@ -1301,8 +1301,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                     <div key={index} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500 rounded-r-2xl hidden rtl:block"></div>
                       <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 rounded-l-2xl hidden ltr:block"></div>
-                      
-                      <div className="flex justify-between items-start mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
                         <div>
                           <h4 className="font-bold text-slate-900 dark:text-white text-lg">{lang === 'ar' ? 'د.' : 'Dr.'} {record.doctor_name}</h4>
                           <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-md mt-1 inline-block">{record.specialty || (lang==='ar'?'طبيب':'Doctor')}</span>
