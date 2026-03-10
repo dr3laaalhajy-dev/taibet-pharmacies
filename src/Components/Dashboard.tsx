@@ -1322,7 +1322,32 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                         {record.prescription && (
                           <div>
                             <span className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1"><FileText size={12}/> {lang === 'ar' ? 'الوصفة الطبية (الأدوية):' : 'Prescription:'}</span>
-                            <p className="text-sm text-slate-800 dark:text-slate-200 bg-indigo-50/50 dark:bg-indigo-900/10 p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900/30 leading-relaxed font-medium whitespace-pre-wrap">{record.prescription}</p>
+                            <div className="text-sm text-slate-800 dark:text-slate-200 bg-indigo-50/50 dark:bg-indigo-900/10 p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900/30 leading-relaxed font-medium space-y-2">
+                              {(() => {
+                                try {
+                                  // محاولة تحويل النص إلى مصفوفة بيانات
+                                  const meds = typeof record.prescription === 'string' ? JSON.parse(record.prescription) : record.prescription;
+                                  
+                                  if (Array.isArray(meds)) {
+                                    return meds.map((m: any, i: number) => (
+                                      <div key={i} className="flex flex-wrap items-center gap-2 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-lg border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                                         <span className="font-bold text-indigo-700 dark:text-indigo-300 min-w-[100px]">{m.name}</span>
+                                         
+                                         {m.dosage && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.dosage}</span>}
+                                         {m.frequency && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.frequency}</span>}
+                                         {m.duration && <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{m.duration}</span>}
+                                      </div>
+                                    ));
+                                  }
+                                  // إذا لم يكن بصيغة JSON اعرضه كنص عادي
+                                  return <p className="whitespace-pre-wrap">{record.prescription}</p>;
+                                } catch(e) {
+                                  // في حال فشل التحويل (نص عادي قديم)
+                                  return <p className="whitespace-pre-wrap">{record.prescription}</p>;
+                                }
+                              })()}
+                            </div>
                           </div>
                         )}
                       </div>
