@@ -310,9 +310,9 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
     onClose(); // الموظف يغلق مباشرة
   }
 }}>
-  <X />
-</button>
-)}
+ <X />
+              </button>
+            )}
           </div>
 
           {canSeeSupportTab && (
