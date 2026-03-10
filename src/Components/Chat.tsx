@@ -312,7 +312,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
 }}>
   <X />
 </button>
-          </div>
+          
 
           {canSeeSupportTab && (
             <div className="flex border-t border-slate-200 dark:border-slate-800">
