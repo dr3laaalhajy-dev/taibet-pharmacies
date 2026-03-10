@@ -4,6 +4,7 @@ import { api } from '../api-client';
 import { io, Socket } from 'socket.io-client';
 import { UserType } from '../types';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'motion/react';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
