@@ -303,7 +303,15 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
         <div className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors">
           <div className="p-5 flex justify-between items-center">
             <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2"><MessageSquare className="text-blue-600 dark:text-blue-400"/> {lang === 'ar' ? 'الرسائل' : 'Messages'}</h2>
-            {onClose && <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"><X size={24}/></button>}
+            {onClose && <button onClick={() => {
+  if (user.role === 'patient') {
+    setShowRatingModal(true); // نظهر نافذة النجوم للمريض أولاً
+  } else {
+    onClose(); // الموظف يغلق مباشرة
+  }
+}}>
+  <X />
+</button>
           </div>
 
           {canSeeSupportTab && (

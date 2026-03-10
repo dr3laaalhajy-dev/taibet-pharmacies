@@ -175,6 +175,8 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
 
   const [patientRecordModal, setPatientRecordModal] = useState<{isOpen: boolean, patientId: number, appointmentId: number, patientName: string}>({isOpen: false, patientId: 0, appointmentId: 0, patientName: ''});
 
+
+  
   useEffect(() => {
     if (targetDoctorId) {
       const targetDoc = users.find(u => u.id === targetDoctorId) || user;
@@ -451,6 +453,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               <User size={18} /> {lang === 'ar' ? (isSuperAdmin ? 'إدارة ملفات الأطباء' : 'ملف الطبيب الشخصي') : 'Doctor Profiles'}
             </button>
           )}
+
+          {isSuperAdmin && (
+  <button 
+    onClick={() => setActiveTab('customer_reviews')} 
+    className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'customer_reviews' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+  >
+    <Star size={18} />
+    <span>{lang === 'ar' ? 'آراء العملاء' : 'Customer Reviews'}</span>
+  </button>
+)}
 
           {(user.role === 'admin' || hasEcommerce) && (<><button onClick={() => setActiveTab('products')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'products' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Package size={18} /> {lang === 'ar' ? 'إدارة المنتجات' : 'Products Manager'}</button><button onClick={() => setActiveTab('orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><FileText size={18} /> {lang === 'ar' ? 'طلبات الزبائن' : 'Customer Orders'}</button></>)}
           {user.role === 'admin' && <button onClick={() => setActiveTab('users')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><User size={18} /> {t?.userManagement || 'إدارة المستخدمين'}</button>}
@@ -779,6 +791,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               </div>
             </div>
           )}
+          {activeTab === 'customer_reviews' && <SupportReviewsManager lang={lang} />}
 
           {activeTab === 'settings' && isSuperAdmin && (
             <div className="max-w-4xl mx-auto pb-12 animate-in fade-in duration-300">

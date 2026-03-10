@@ -71,6 +71,17 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
+    // 🟢 إضافة جدول تقييمات الدعم الفني (جديد)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_reviews (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        staff_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   } catch (e) {}
 };
 initDB();
@@ -155,6 +166,44 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
     res.json({ success: true, message: 'تم إنهاء المحادثة بنجاح.' });
   } catch(err: any) { 
     res.status(500).json({ error: 'خطأ برمجي: ' + err.message }); 
+  }
+});
+
+// 🟢 1. إرسال تقييم جديد من المريض لموظف الدعم
+app.post('/api/support/review', authenticateToken, async (req: any, res: any) => {
+  const { staff_id, rating, comment } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO support_reviews (patient_id, staff_id, rating, comment) VALUES ($1, $2, $3, $4)',
+      [req.user.id, staff_id, rating, comment]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'فشل حفظ التقييم: ' + err.message });
+  }
+});
+
+// 🟢 2. جلب إحصائيات تقييم الموظفين (للسوبر أدمن فقط)
+app.get('/api/admin/staff-reviews', authenticateToken, async (req: any, res: any) => {
+  if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' });
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.name, u.profile_picture,
+             COALESCE(AVG(sr.rating), 0) as avg_rating,
+             COUNT(sr.id) as reviews_count,
+             json_agg(
+               json_build_object('comment', sr.comment, 'rating', sr.rating, 'date', sr.created_at)
+               ORDER BY sr.created_at DESC
+             ) FILTER (WHERE sr.id IS NOT NULL) as comments
+      FROM users u
+      LEFT JOIN support_reviews sr ON u.id = sr.staff_id
+      WHERE u.role IN ('support', 'admin', 'customer_service') OR u.email IN (SELECT email FROM super_admins)
+      GROUP BY u.id
+      HAVING COUNT(sr.id) > 0 OR u.role = 'customer_service'
+    `);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: 'فشل جلب التقييمات: ' + err.message });
   }
 });
 
