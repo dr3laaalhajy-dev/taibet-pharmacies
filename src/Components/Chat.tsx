@@ -591,7 +591,7 @@ const [ratingStaffId, setRatingStaffId] = useState<number>(0); // 🟢 السط�
       <AnimatePresence>
         {showRatingModal && (
           <RatingModal
-            staffId={ratingStaffId}  {/* 🟢 التعديل هنا */}
+            staffId={ratingStaffId}  
             onClose={() => {
               setShowRatingModal(false);
               // بعد التقييم نقوم بتنظيف الشاشة
