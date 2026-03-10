@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, ArrowRight, User as UserIcon, Clock, Check, CheckCheck, MessageSquare, Search, X, PowerOff, HeadphonesIcon, Headset, CheckCircle2 } from 'lucide-react';
+import { Send, ArrowRight, User as UserIcon, Clock, Check, CheckCheck, MessageSquare, Search, X, PowerOff, HeadphonesIcon, Headset, CheckCircle2, Star } from 'lucide-react';
 import { api } from '../api-client';
 import { io, Socket } from 'socket.io-client';
 import { UserType } from '../types';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
-
-
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || '';
 
@@ -38,20 +36,21 @@ interface SupportRequest {
   created_at: string;
 }
 
-import { Star } from 'lucide-react'; // تأكد من استدعاء النجمة في أعلى الملف مع بقية الأيقونات
+// 🟢 مكون نافذة التقييم المنبثقة (هذا هو السطر الذي كان مفقوداً)
+const RatingModal = ({ staffId, onClose, lang }: { staffId: number, onClose: () => void, lang: string }) => {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
 
-// 🟢 مكون نافذة التقييم المنبثقة
-const handleSubmit = async () => {
+  const handleSubmit = async () => {
     if (rating === 0) return toast.error(lang === 'ar' ? 'الرجاء اختيار عدد النجوم للتقييم' : 'Please select a rating');
     setLoading(true);
     try {
-      console.log("إرسال تقييم للموظف رقم:", staffId); // سيكتب رقم الموظف في الكونسول للتأكد
-      
+      console.log("إرسال تقييم للموظف رقم:", staffId);
       await api.post('/api/support/review', { staff_id: staffId, rating, comment });
       toast.success(lang === 'ar' ? 'شكراً لتقييمك تجربتك معنا!' : 'Thank you for your feedback!');
       onClose();
     } catch (err: any) {
-      // 🟢 هنا سيظهر لك الخطأ الحقيقي القادم من قاعدة البيانات أو السيرفر
       const errorMsg = err.response?.data?.error || err.error || 'فشل حفظ التقييم';
       toast.error(`خطأ السيرفر: ${errorMsg}`);
       console.error(err);
@@ -109,6 +108,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
   const [searchQuery, setSearchQuery] = useState('');
   const [isEnding, setIsEnding] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+const [ratingStaffId, setRatingStaffId] = useState<number>(0); // 🟢 السطر الجديد
   // 🟢 حالات دعم العملاء
   const [activeTab, setActiveTab] = useState<'chats' | 'support'>('chats');
   const [pendingSupportRequests, setPendingSupportRequests] = useState<SupportRequest[]>([]);
@@ -290,14 +290,16 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
     
     setIsEnding(true);
     try {
+      // 1. نخبر السيرفر بإنهاء المحادثة
       await api.post(`/api/chat/end/${activeChat.conversation_id}`);
       toast.success(lang === 'ar' ? 'تم إنهاء المحادثة بنجاح' : 'Chat ended successfully');
       
-      // 🟢 التعديل: إظهار التقييم أولاً (للمرضى والأطباء) قبل مسح بيانات المحادثة
+      // 2. 🟢 التعديل الجديد: هنا نحفظ رقم الموظف ونظهر التقييم للمريض/الطبيب
       if (user.role !== 'admin' && user.role !== 'customer_service') {
+         setRatingStaffId(activeChat.other_user_id); // حفظ رقم الموظف قبل مسح المحادثة
          setShowRatingModal(true); 
       } else {
-        // إذا كان موظف خدمة عملاء، امسح المحادثة فوراً
+        // إذا كان موظف خدمة عملاء، امسح المحادثة من الشاشة فوراً
         setActiveChat(null);
         setMessages([]);
         fetchConversations();
@@ -370,6 +372,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
               <button 
                 onClick={() => {
                   if (user.role !== 'customer_service' && user.role !== 'admin') {
+                    setRatingStaffId(targetUserId || activeChat?.other_user_id || 0); // 🟢 التعديل هنا
                     setShowRatingModal(true);
                   } else {
                     onClose();
@@ -584,11 +587,11 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
           </div>
         )}
       </div>
-     {/* 🟢 شاشة تقييم الموظف */}
+   {/* 🟢 شاشة تقييم الموظف */}
       <AnimatePresence>
         {showRatingModal && (
           <RatingModal
-            staffId={targetUserId || activeChat?.other_user_id || 0} 
+            staffId={ratingStaffId}  {/* 🟢 التعديل هنا */}
             onClose={() => {
               setShowRatingModal(false);
               // بعد التقييم نقوم بتنظيف الشاشة
