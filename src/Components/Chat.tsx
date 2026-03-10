@@ -307,7 +307,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
             {onClose && (
               <button 
                 onClick={() => {
-                  if (user.role === 'patient') {
+                  if (user.role !== 'customer_service' && user.role !== 'admin') {
                     setShowRatingModal(true);
                   } else {
                     onClose();
