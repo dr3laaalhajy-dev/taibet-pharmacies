@@ -232,7 +232,10 @@ export default function App() {
       
       {view !== 'dashboard' && (
         <nav className="bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md shadow-sm transition-colors duration-300">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white"> Taiba Health</button>
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white hover:opacity-80 transition-opacity"> 
+  <img src="/logo.png" alt="Taiba Health Logo" className="w-9 h-9 md:w-10 md:h-10 object-contain drop-shadow-sm" />
+  <span className="text-lg md:text-xl">Taiba Health</span>
+</button>
           
           <div className="flex gap-2 md:gap-3 items-center">
 

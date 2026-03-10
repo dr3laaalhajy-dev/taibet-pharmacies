@@ -22,28 +22,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
       } 
     } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); } 
   };
-{/* 💬 فقاعة خدمة العملاء العائمة */}
-      <button
-        onClick={() => {
-          if (!user) {
-            toast.error(
-              lang === 'ar' 
-                ? 'يرجى تسجيل الدخول أولاً للتواصل مع خدمة العملاء' 
-                : 'Please login first to contact support'
-            );
-          } else {
-            // قم بتغيير 'chat' إلى الاسم الفعلي للصفحة لديك إذا كان مختلفاً
-            setActiveView('chat'); 
-          }
-        }}
-        className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full shadow-2xl hover:bg-green-700 hover:scale-110 transition-all duration-300 group cursor-pointer"
-        title={lang === 'ar' ? 'الدعم الفني' : 'Support'}
-      >
-        <MessageCircle size={28} className="group-hover:animate-pulse" />
-        
-        {/* شارة حمراء صغيرة للتنبيه لجذب الانتباه */}
-        <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
-      </button>
+
   return (
     <>{/* 🟢 زر الرجوع للرئيسية (أضفه في أعلى تصميمك) */}
       <div className="w-full max-w-md mx-auto mb-4 pt-4">
