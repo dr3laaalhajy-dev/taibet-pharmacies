@@ -304,17 +304,16 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
           <div className="p-5 flex justify-between items-center">
             <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2"><MessageSquare className="text-blue-600 dark:text-blue-400"/> {lang === 'ar' ? 'الرسائل' : 'Messages'}</h2>
             {onClose && <button onClick={() => {
-  if (user.role === 'patient') {
-    setShowRatingModal(true); // نظهر نافذة النجوم للمريض أولاً
-  } else {
-    onClose(); // الموظف يغلق مباشرة
-  }
-}}>
- <X />
+                if (user.role === 'patient') {
+                  setShowRatingModal(true);
+                } else {
+                  onClose();
+                }
+              }}>
+                <X />
               </button>
             )}
           </div>
-
           {canSeeSupportTab && (
             <div className="flex border-t border-slate-200 dark:border-slate-800">
               <button onClick={() => setActiveTab('chats')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'chats' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
