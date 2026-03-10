@@ -293,18 +293,14 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
       await api.post(`/api/chat/end/${activeChat.conversation_id}`);
       toast.success(lang === 'ar' ? 'تم إنهاء المحادثة بنجاح' : 'Chat ended successfully');
       
-      const doctorIdToRate = activeChat.other_user_id;
-      
-      setActiveChat(null);
-      setMessages([]);
-      fetchConversations();
-      
-      // 🟢 التعديل هنا: إظهار التقييم بدلاً من الإغلاق المباشر
+      // 🟢 التعديل: إظهار التقييم أولاً (للمرضى والأطباء) قبل مسح بيانات المحادثة
       if (user.role !== 'admin' && user.role !== 'customer_service') {
          setShowRatingModal(true); 
-      } else if (user.role === 'patient' && activeChat.type !== 'support' && onSessionEnded) {
-        onClose && onClose();
-        onSessionEnded(doctorIdToRate);
+      } else {
+        // إذا كان موظف خدمة عملاء، امسح المحادثة فوراً
+        setActiveChat(null);
+        setMessages([]);
+        fetchConversations();
       }
       
     } catch (err: any) {
@@ -588,14 +584,18 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
           </div>
         )}
       </div>
-      {/* 🟢 شاشة تقييم الموظف (تظهر للمريض فقط عند الإغلاق) */}
+     {/* 🟢 شاشة تقييم الموظف */}
       <AnimatePresence>
         {showRatingModal && (
           <RatingModal
             staffId={targetUserId || activeChat?.other_user_id || 0} 
             onClose={() => {
               setShowRatingModal(false);
-              if (onClose) onClose(); // إغلاق الشات بالكامل بعد التقييم
+              // بعد التقييم نقوم بتنظيف الشاشة
+              setActiveChat(null);
+              setMessages([]);
+              fetchConversations();
+              if (onClose) onClose(); // إغلاق الشات بالكامل
             }}
             lang={lang}
           />
