@@ -143,6 +143,102 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   );
 };
 
+// 🟢 مكون عرض تقييمات موظفي خدمة العملاء للسوبر أدمن
+const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
+  const [staffData, setStaffData] = useState<any[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // جلب التقييمات من الـ API
+    api.get('/api/admin/staff-reviews')
+      .then(setStaffData)
+      .catch(() => toast.error(lang === 'ar' ? 'فشل تحميل التقييمات' : 'Failed to load reviews'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-10 text-center animate-pulse font-bold text-slate-500">جاري تحميل التقييمات...</div>;
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center">
+           <Users size={28} />
+        </div>
+        <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+          {lang === 'ar' ? 'آراء العملاء في الدعم' : 'Customer Feedback'}
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {staffData.map(staff => (
+          <div 
+            key={staff.id} 
+            onClick={() => setSelectedStaff(staff)}
+            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold text-2xl overflow-hidden shadow-inner">
+                {staff.profile_picture ? <img src={staff.profile_picture} className="w-full h-full object-cover" /> : staff.name[0]}
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">{staff.name}</h3>
+                <div className="flex items-center gap-1 text-yellow-500">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <Star key={s} size={14} fill={s <= Math.round(staff.avg_rating) ? "currentColor" : "none"} className={s <= Math.round(staff.avg_rating) ? "" : "text-slate-300 dark:text-slate-700"} />
+                  ))}
+                  <span className="font-black text-slate-700 dark:text-slate-300 ml-1">{Number(staff.avg_rating || 0).toFixed(1)}</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{staff.reviews_count} {lang === 'ar' ? 'تقييمات' : 'reviews'}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t dark:border-slate-800 flex justify-between items-center">
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:underline">{lang === 'ar' ? 'عرض التعليقات' : 'View Comments'}</span>
+              <MessageSquare size={16} className="text-slate-300 dark:text-slate-600" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 🟢 مودال عرض تعليقات العملاء التفصيلية */}
+      <AnimatePresence>
+        {selectedStaff && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">{selectedStaff.name[0]}</div>
+                  <h3 className="font-bold dark:text-white">{lang === 'ar' ? `تعليقات: ${selectedStaff.name}` : `Reviews for ${selectedStaff.name}`}</h3>
+                </div>
+                <button onClick={() => setSelectedStaff(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full dark:text-white"><X size={20}/></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {selectedStaff.comments && selectedStaff.comments.length > 0 ? (
+                  selectedStaff.comments.map((c: any, i: number) => (
+                    <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map(s => <Star key={s} size={12} fill={s <= c.rating ? "#eab308" : "none"} className={s <= c.rating ? "text-yellow-500" : "text-slate-300 dark:text-slate-600"} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono" dir="ltr">{new Date(c.date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-300 text-sm italic font-medium leading-relaxed">
+                        {c.comment ? `"${c.comment}"` : (lang === 'ar' ? 'بدون تعليق نصي' : 'No comment text')}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-400">{lang === 'ar' ? 'لا توجد تعليقات نصية حتى الآن.' : 'No text comments yet.'}</div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void }) => {
  const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support'>(user.role === 'customer_service' ? 'support' : 'facilities');
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
