@@ -1,5 +1,6 @@
-// 🟢 الرابط الأساسي للباك إند
-const BASE_URL = ''; // 🟢 اتركه هكذا لكي يعمل على Vercel بدون مشاكل
+// 🟢 الرابط الأساسي للباك إند: الآن يسحب الرابط من ملف .env تلقائياً للعمل على الموبايل!
+const BASE_URL = import.meta.env.VITE_API_URL || ''; 
+
 export const api = {
   get: async (endpoint: string) => {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
@@ -7,7 +8,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 🟢 تم التصحيح هنا
+      credentials: 'include', 
     });
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
@@ -22,7 +23,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 🟢 تم التصحيح هنا
+      credentials: 'include', 
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -38,7 +39,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 🟢 تم التصحيح هنا
+      credentials: 'include', 
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -54,7 +55,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 🟢 تم التصحيح هنا
+      credentials: 'include', 
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
@@ -70,7 +71,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 🟢 تم التصحيح هنا
+      credentials: 'include', 
     });
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
