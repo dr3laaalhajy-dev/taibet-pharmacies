@@ -361,7 +361,7 @@ export default function App() {
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
                     ) : (
                       <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
-                        {user.name?.charAt(0).toUpperCase() || (user?.name || 'مستخدم')}
+                        {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </button>
