@@ -642,20 +642,23 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center justify-center gap-2"><Star className="text-yellow-400 fill-yellow-400"/> {lang === 'ar' ? 'أشهر أطباء موقعنا' : 'Our Top Rated Doctors'} <Star className="text-yellow-400 fill-yellow-400"/></h2>
                   <p className="text-slate-500">{lang === 'ar' ? 'تم اختيارهم بناءً على التقييمات وعدد الحجوزات الفعلية' : 'Ranked based on real reviews and bookings.'}</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* 🟢 حاوية الأطباء (سحب أفقي للهاتف - وشبكة للكمبيوتر) */}
+                <div className="flex lg:grid lg:grid-cols-5 gap-4 overflow-x-auto pb-8 snap-x snap-mandatory px-2 -mx-2 sm:px-0 sm:mx-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  
                   {topDoctors.map((doc, idx) => (
-                    <div key={doc.id} onClick={() => setSelectedDoctorId(doc.id)} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all cursor-pointer text-center relative overflow-hidden group">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
-                      <div className="absolute top-3 right-3 w-6 h-6 bg-yellow-100 text-yellow-700 rounded-full text-xs font-black flex items-center justify-center shadow-sm">#{idx + 1}</div>
+                    <div key={doc.id} onClick={() => setSelectedDoctorId(doc.id)} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all cursor-pointer text-center relative overflow-hidden group min-w-[240px] sm:min-w-[260px] lg:min-w-0 shrink-0 snap-center">
                       
-                      <div className="w-20 h-20 mx-auto bg-slate-50 dark:bg-slate-800 text-blue-600 rounded-full flex items-center justify-center text-2xl font-bold mb-3 overflow-hidden outline outline-2 outline-slate-100 dark:outline-slate-700 mt-2">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
+                      <div className="absolute top-3 right-3 w-6 h-6 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-black flex items-center justify-center shadow-sm">#{idx + 1}</div>
+                      
+                      <div className="w-20 h-20 mx-auto bg-slate-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-2xl font-bold mb-3 overflow-hidden outline outline-2 outline-slate-100 dark:outline-slate-700 mt-2">
                         {doc.profile_picture ? <img src={doc.profile_picture} className="w-full h-full object-cover"/> : doc.name}
                       </div>
                       <h3 className="font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doc.name}</h3>
-                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-3">{doc.specialty || (doc.role === 'dentist' ? (lang==='ar'?'أسنان':'Dentist') : 'طبيب')}</p>
+                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-4">{doc.specialty || (doc.role === 'dentist' ? (lang==='ar'?'أسنان':'Dentist') : 'طبيب')}</p>
                       
-                      <div className="flex items-center justify-center gap-1 text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-1.5 rounded-lg mt-auto">
-                        <Star size={14} className="fill-current" />
+                      <div className="flex items-center justify-center gap-1 text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-2 rounded-xl mt-auto">
+                        <Star size={16} className="fill-current" />
                         <span className="text-sm font-black text-slate-800 dark:text-slate-200">{Number(doc.average_rating).toFixed(1)}</span>
                       </div>
                     </div>

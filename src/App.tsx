@@ -23,16 +23,45 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' 
 });
 
-const uploadImageToImgBB = async (file: File) => { 
-  const base64 = await new Promise<string>((resolve, reject) => { 
-    const reader = new FileReader(); reader.readAsDataURL(file); 
-    reader.onload = () => resolve(reader.result as string); 
-    reader.onerror = e => reject(e); 
-  }); 
-  const f = new FormData(); f.append('image', base64.split(',')[1]); 
-  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
-  const d = await r.json(); if (d.success) return d.data.url; 
-  throw new Error(d.error?.message || 'فشل الرفع'); 
+const uploadImageToImgBB = async (file: File | string) => {
+  const formData = new FormData();
+
+  // 1. معالجة ذكية لنوع الملف
+  if (typeof file === 'string' && file.startsWith('data:image')) {
+    // إذا كانت الصورة مقصوصة أو محولة لنص (Base64)، يجب إزالة المقدمة
+    const base64Data = file.split(',');
+    formData.append('image', base64Data);
+  } else {
+    // إذا كانت ملفاً عادياً (File Object) من الـ Input مباشرة
+    formData.append('image', file);
+  }
+
+  // ⚠️ تأكد أن مفتاحك هنا كامل وصحيح (بدون مسافات قبله أو بعده)
+  const apiKey = 'ba0a89c85f4f7651c6daab7d351989ed'; // ضع مفتاحك الكامل هنا
+
+  try {
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+      method: 'POST',
+      body: formData,
+      // لا تضع headers هنا أبداً
+    });
+
+    // 2. نقرأ بيانات الرد (حتى لو كان هناك خطأ لنعرف سببه)
+    const data = await response.json();
+
+    if (!response.ok) {
+      // 🚨 هنا السحر: سنطبع رسالة الخطأ الحقيقية القادمة من ImgBB!
+      console.error("🛑 تفاصيل الرفض من ImgBB:", data);
+      throw new Error(`ImgBB Error: ${data.error?.message || 'فشل غير معروف'}`);
+    }
+
+    // إذا نجح الرفع، نُرجع الرابط المباشر للصورة
+    return data.data.url;
+
+  } catch (error) {
+    console.error("خطأ في دالة الرفع:", error);
+    throw error;
+  }
 };
 
 export default function App() {
@@ -189,9 +218,41 @@ export default function App() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true);
-    try { const url = await uploadImageToImgBB(file); setProfileForm({ ...profileForm, profile_picture: url }); } 
-    catch (err: any) { toast.error('فشل الرفع'); } finally { setUploadingImage(false); }
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      console.log("1. جاري الرفع إلى ImgBB...");
+      const imageUrl = await uploadImageToImgBB(file);
+      console.log("2. نجح الرفع! رابط الصورة هو:", imageUrl);
+      
+      if (imageUrl) {
+        console.log("3. جاري إرسال الرابط للسيرفر الخاص بنا...");
+        
+        // 🚨 هنا غالباً تقع المشكلة! هل رابط '/api/user' هو الرابط الصحيح في ملف السيرفر لديك؟
+        const response = await api.put('/api/user', { profile_picture: imageUrl });
+        
+        console.log("4. السيرفر وافق على التعديل!", response);
+        
+        if (typeof refreshUser === 'function') {
+          refreshUser();
+        } else if (user) {
+          setUser({ ...user, profile_picture: imageUrl });
+        }
+        
+        alert(lang === 'ar' ? 'تم تحديث الصورة بنجاح!' : 'Profile picture updated successfully!');
+      }
+    } catch (error: any) {
+      // طباعة الخطأ بشكل مفصل بدلاً من كائن فارغ
+      console.error("🛑 حدث خطأ في إحدى المراحل:", error);
+      
+      if (error.response) {
+        console.error("تفاصيل الرفض من السيرفر:", error.response.data);
+        alert(lang === 'ar' ? `السيرفر رفض التحديث: ${error.response.data.message || error.response.data.error || 'خطأ مجهول'}` : 'Server rejected the update');
+      } else {
+        alert(lang === 'ar' ? 'تعذر الاتصال بالسيرفر لحفظ الصورة' : 'Network error');
+      }
+    }
   };
 
   const addAddress = async () => {
