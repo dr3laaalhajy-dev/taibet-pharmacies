@@ -45,10 +45,10 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   useEffect(() => { fetchDoctorData(); }, [doctorId]);
   if (!doctorId) return null;
 
-  const fee = doctor?.consultation_price || doctor?.facilities[0]?.consultation_fee || 0;
+  const fee = doctor?.consultation_price || doctor?.facilities?.[0]?.consultation_fee || 0;
   const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
   const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
-  const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : doctor?.facilities[0];
+  const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : doctor?.facilities?.[0];
 
   const submitReview = async () => {
     if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لتقييم الطبيب' : 'Please login to submit a review');
@@ -99,12 +99,12 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row gap-6 items-start transition-colors">
                 <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm overflow-hidden border-2 border-white dark:border-slate-700 outline outline-1 outline-slate-200 dark:outline-slate-700">
-                  {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
+                  {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : <User size={48} className="opacity-40" />}
                 </div>
                 <div className="flex-1 w-full">
                   <div className="flex justify-between items-start flex-wrap gap-4">
                     <div>
-                      <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor.name}</h2>
+                      <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor?.name?.trim() ? doctor.name : doctor.id}</h2>
                       <p className="text-blue-600 dark:text-blue-400 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
                     </div>
                     <button onClick={handleOpenChat} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm">
@@ -282,7 +282,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
 
       <div className="text-center mb-12">
         <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border ${filterRole === 'dentist' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800'}`}>
-          {filterRole === 'dentist' ? <Smile size={40}/> : <Stethoscope size={40}/>}
+          {filterRole === 'dentist' ? <ToothIcon size={40}/> : <Stethoscope size={40}/>}
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white mb-4">{directoryTitle}</h1>
         <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto">{lang === 'ar' ? 'تصفح قائمة الأطباء المعتمدين، ابحث بالاسم، وقارن أسعار الكشفية لتحجز موعدك بسهولة.' : 'Browse certified doctors and compare fees.'}</p>
@@ -332,9 +332,9 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
                 <Star size={12} className="fill-current" /> {Number(doctor.average_rating).toFixed(1)}
               </div>
               <div className="w-24 h-24 mx-auto bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50 dark:outline-slate-800">
-                {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
+                {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : <User size={40} className="opacity-40" />}
               </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doctor.name}</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doctor?.name?.trim() ? doctor.name : doctor.id}</h3>
               <p className={`text-sm font-bold mb-4 ${filterRole === 'dentist' ? 'text-indigo-600 dark:text-indigo-400' : 'text-blue-600 dark:text-blue-400'}`}>{doctor.specialty || (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
               
               <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -467,20 +467,129 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
     </div>
   );
 };
+import { mdiPill, mdiStethoscope, mdiToothOutline } from '@mdi/js';
+import Icon from '@mdi/react';
+
+// 🟢 أيقونة الصيدليات - حبة دواء احترافية
+const PharmacyIcon = ({ size = 24, className = "" }) => (
+  <div className={`flex items-center justify-center ${className}`}>
+    <Icon 
+      path={mdiPill} 
+      size={size / 24} 
+      color="currentColor" 
+      rotate={45} // جعلنا الحبة مائلة قليلاً لتبدو أكثر حيوية وتصميماً
+    />
+  </div>
+);
+
+// 2. أيقونة العيادات الطبية (سماعة طبيب احترافية)
+const ClinicIcon = ({ size = 24, className = "" }) => (
+  <div className={`flex items-center justify-center ${className}`}>
+    <Icon path={mdiStethoscope} size={size / 24} color="currentColor" />
+  </div>
+);
+
+// 3. أيقونة السن (التي اخترناها سوياً)
+const ToothIcon = ({ size = 24, className = "" }) => (
+  <div className={`flex items-center justify-center ${className}`}>
+    <Icon path={mdiToothOutline} size={size / 24} color="currentColor" />
+  </div>
+);
+// 🟢 مكون العداد المتحرك (نسخة مصغرة ومتجاوبة مع سحب الهاتف)
+const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: number, label: string, icon: any, delay?: number }) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const duration = 2000;
+    const increment = target / (duration / 16);
+    const timer = setTimeout(() => {
+      const counter = setInterval(() => {
+        start += increment;
+        if (start >= target) { clearInterval(counter); setCount(target); } 
+        else { setCount(Math.ceil(start)); }
+      }, 16);
+      return () => clearInterval(counter);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [target, delay]);
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center transform hover:-translate-y-1 transition-transform duration-300 min-w-[120px] lg:min-w-0 flex-1 shrink-0 snap-center">
+      <div className="w-10 h-10 md:w-12 md:h-12 mx-auto bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-3">
+        <Icon size={20} className="md:w-6 md:h-6"/>
+      </div>
+      <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-1" dir="ltr">+{count.toLocaleString()}</h3>
+      <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-bold">{label}</p>
+    </div>
+  );
+};
 
 export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
-  const [facilities, setFacilities] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [searchQuery, setSearchQuery] = useState(''); const [activeTab, setActiveTab] = useState<'pharmacy' | 'clinic' | 'dental_clinic'>('pharmacy'); const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); const [selectedFacilityId, setSelectedFacilityId] = useState<number | null>(null); const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); const [currentPage, setCurrentPage] = useState(1); const [openNowPage, setOpenNowPage] = useState(1); const itemsPerPage = 6; 
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [facilities, setFacilities] = useState<any[]>([]); 
+  const [loading, setLoading] = useState(true); 
+  const [searchQuery, setSearchQuery] = useState(''); 
+  
+  // 🟢 الصفحة الرئيسية هي الافتراضية الآن
+  const [activeTab, setActiveTab] = useState<'home' | 'pharmacy' | 'clinic' | 'dental_clinic'>('home'); 
+  const [topDoctors, setTopDoctors] = useState<any[]>([]);
+  const [stats, setStats] = useState({ clinics: 0, dental_clinics: 0, pharmacies: 0, bookings: 0, patients: 0 });
+
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); 
+  const [selectedFacilityId, setSelectedFacilityId] = useState<number | null>(null); 
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null); 
+  const [currentPage, setCurrentPage] = useState(1); 
+  const [openNowPage, setOpenNowPage] = useState(1); 
+  const itemsPerPage = 6; 
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false); 
 
   useEffect(() => { 
+    // شاشة التحميل الأولية لمدة ثانيتين
+    const timer = setTimeout(() => setIsInitialLoading(false), 2000);
+    
     setLoading(true); 
-    api.get('/api/public/facilities').then(data => setFacilities(data)).finally(() => setLoading(false)); 
+    // جلب المنشآت
+    api.get('/api/public/facilities').then(data => setFacilities(data));
+    api.get('/api/public/stats').then(data => setStats(data)).catch(() => {});
+    
+    // 🟢 جلب الأطباء وحساب أفضل 5 بناءً على معادلة رياضية ذكية
+    api.get('/api/public/doctors').then(docs => {
+      const rankedDoctors = docs.map((doc: any) => {
+        // المعادلة: (متوسط التقييم × 10) + (عدد المراجعات × 2) = النقاط
+        const score = (Number(doc.average_rating || 0) * 10) + (Number(doc.reviews_count || 0) * 2);
+        return { ...doc, popularityScore: score };
+      });
+      // ترتيب تنازلي وأخذ أول 5
+      rankedDoctors.sort((a: any, b: any) => b.popularityScore - a.popularityScore);
+      setTopDoctors(rankedDoctors.slice(0, 5));
+    }).finally(() => setLoading(false));
+
     if (navigator.geolocation) { navigator.geolocation.getCurrentPosition( (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.log("الموقع غير مفعل") ); } 
+    
+    return () => clearTimeout(timer);
   }, []);
   
   useEffect(() => { setCurrentPage(1); setOpenNowPage(1); }, [activeTab, searchQuery]);
   
+  // 🟢 شاشة التحميل الافتتاحية (Splash Screen)
+  if (isInitialLoading) return (
+    <div className="fixed inset-0 z- bg-white dark:bg-slate-950 flex flex-col items-center justify-center transition-colors">
+      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1, rotate: [0, -10, 10, 0] }} transition={{ duration: 0.8 }} className="relative mb-6">
+        <div className="absolute inset-0 bg-blue-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+        <img src="/logo.png" alt="Logo" className="w-32 h-32 md:w-40 md:h-40 object-contain relative z-10 drop-shadow-2xl" />
+      </motion.div>
+      <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+        {lang === 'ar' ? 'طيبة الإمام الصحية' : 'Taibet Health'}
+      </motion.h1>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-8 flex gap-2">
+        <span className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0s'}}></span>
+        <span className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></span>
+        <span className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></span>
+      </motion.div>
+    </div>
+  );
+
   if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
   if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} openChatWithUser={openChatWithUser} />;
   
@@ -492,106 +601,218 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   return (
     <div className="w-full flex flex-col min-h-[85vh] relative transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full overflow-x-hidden flex-1 relative">
-        <div className="flex justify-end mb-4">
-           <CurrencyToggle currency={currency} setCurrency={setCurrency} lang={lang} />
-        </div>
+        
+        {/* الهيدر الرئيسي متاح دائماً */}
+        <header className="mb-12 text-center">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-5 py-2 mb-6 text-sm font-bold tracking-widest text-emerald-700 dark:text-emerald-400 uppercase bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800 shadow-sm">
+            {lang === 'ar' ? 'خدمات الصحة المجتمعية' : 'Community Health Services'}
+          </motion.div>
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-tight">
+            {lang === 'ar' ? <>أهلاً بكم في <span className="text-blue-600 dark:text-blue-500">طيبة الإمام</span> الصحية</> : <>Welcome to <span className="text-blue-600 dark:text-blue-500">Taibet El-Imam</span> Health</>}
+          </h1>
+          <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium leading-relaxed mb-10">
+            {lang === 'ar' ? 'اكتشف أفضل الخدمات الطبية في مدينتك، احجز موعدك، أو اطلب أدويتك من الصيدلية الأقرب إليك.' : 'Discover the best medical services in your city.'}
+          </p>
 
-        <header className="mb-16 text-center">
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 dark:text-blue-400 uppercase bg-blue-50 dark:bg-blue-900/30 rounded-full border border-blue-100 dark:border-blue-800">{t.communityHealth}</motion.div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-tight">{lang === 'ar' ? <>اهلا بكم في <span className="text-blue-600 dark:text-blue-500">طيبة الإمام</span> الصحية</> : <>Welcome to <span className="text-blue-600 dark:text-blue-500">Taibet El-Imam </span>Health</>}</h1>
-          <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-light leading-relaxed mb-8">{t.searchPlaceholder}</p>
-          <div className="max-w-xl mx-auto relative group"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} /><input type="text" placeholder={t.searchPlaceholder} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-transparent focus:border-blue-600 dark:focus:border-blue-500 outline-none shadow-sm text-lg transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
-          
-          <div className="flex justify-center gap-3 mt-10 flex-wrap">
-            <button onClick={() => setActiveTab('pharmacy')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'}`}><BriefcaseMedical size={18} /> {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}</button>
-            <button onClick={() => setActiveTab('clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'clinic' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'}`}><Stethoscope size={18} /> {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}</button>
-            <button onClick={() => setActiveTab('dental_clinic')} className={`px-6 md:px-8 py-3.5 rounded-2xl font-bold transition-all shadow-sm flex items-center gap-2 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white shadow-indigo-200' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'}`}><Smile size={18} /> {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}</button>
-          </div>
-
-          <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-            {activeTab === 'clinic' && (
-              <button onClick={() => setShowDoctors('doctor')} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1">
-                <User size={20} /> {lang === 'ar' ? 'دليل الأطباء البشري المعتمدين' : 'Medical Doctors Directory'}
-              </button>
-            )}
-            {activeTab === 'dental_clinic' && (
-              <button onClick={() => setShowDoctors('dentist')} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 bg-indigo-500 text-white hover:bg-indigo-600 hover:-translate-y-1">
-                <Smile size={20} /> {lang === 'ar' ? 'دليل أطباء الأسنان المعتمدين' : 'Dentists Directory'}
-              </button>
-            )}
-            {activeTab === 'pharmacy' && (
-              <button onClick={() => setShowShop(true)} className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold transition-all shadow-md flex items-center justify-center gap-2 bg-slate-900 dark:bg-emerald-600 text-white hover:bg-slate-800 dark:hover:bg-emerald-700 animate-pulse hover:-translate-y-1">
-                <ShoppingCart size={20} /> {lang === 'ar' ? 'تسوق الأدوية والمنتجات' : 'Shop Products'}
-              </button>
-            )}
+          {/* الأزرار الثلاثة الرئيسية */}
+          <div className="flex justify-center gap-4 flex-wrap max-w-3xl mx-auto">
+            <button onClick={() => setActiveTab('pharmacy')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-slate-200 dark:border-slate-700'}`}>
+              <PharmacyIcon size={28} className={activeTab === 'pharmacy' ? 'text-white' : 'text-emerald-500'} /> 
+              {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}
+            </button>
+            <button onClick={() => setActiveTab('clinic')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'clinic' ? 'bg-blue-600 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200 dark:border-slate-700'}`}>
+              <Stethoscope size={28} className={activeTab === 'clinic' ? 'text-white' : 'text-blue-600'} /> 
+              {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}
+            </button>
+            <button onClick={() => setActiveTab('dental_clinic')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-slate-200 dark:border-slate-700'}`}>
+              <ToothIcon size={28} className={activeTab === 'dental_clinic' ? 'text-white' : 'text-indigo-500'} /> 
+              {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}
+            </button>
           </div>
         </header>
+
+        {/* 🟢 محتوى الصفحة الرئيسية (عندما لا يتم اختيار قسم) */}
+        {activeTab === 'home' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-16">
+            
+            {/* أشهر 5 أطباء */}
+            {topDoctors.length > 0 && (
+              <div className="mb-12 border-t border-slate-100 dark:border-slate-800 pt-12">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center justify-center gap-2"><Star className="text-yellow-400 fill-yellow-400"/> {lang === 'ar' ? 'أشهر أطباء موقعنا' : 'Our Top Rated Doctors'} <Star className="text-yellow-400 fill-yellow-400"/></h2>
+                  <p className="text-slate-500">{lang === 'ar' ? 'تم اختيارهم بناءً على التقييمات وعدد الحجوزات الفعلية' : 'Ranked based on real reviews and bookings.'}</p>
+                </div>
+                
+                {/* حاوية مرنة للتحكم بالعرض مع ميزة السحب للموبايل وبداية من اليمين للكمبيوتر */}
+                <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-6 px-4 -mx-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {topDoctors.map((doc, idx) => (
+                    <div key={doc.id} onClick={() => setSelectedDoctorId(doc.id)} className="w-[140px] md:w-[160px] shrink-0 snap-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer text-center relative overflow-hidden group flex flex-col">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
+                      <div className="absolute top-2 right-2 w-5 h-5 bg-yellow-100 text-yellow-700 rounded-full text-[10px] font-black flex items-center justify-center shadow-sm">#{idx + 1}</div>
+                      
+                      <div className="w-14 h-14 mx-auto bg-slate-50 dark:bg-slate-800 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold mb-2 overflow-hidden outline outline-2 outline-slate-100 dark:outline-slate-700 mt-2 shrink-0">
+                        {doc.profile_picture ? <img src={doc.profile_picture} className="w-full h-full object-cover"/> : <User size={28} className="opacity-40" />}
+                      </div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doc?.name?.trim() ? doc.name : doc.id}</h3>
+                      <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-3">{doc.specialty || (doc.role === 'dentist' ? (lang==='ar'?'أسنان':'Dentist') : 'طبيب')}</p>
+                      
+                      <div className="flex items-center justify-center gap-1 text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-1 rounded-lg mt-auto">
+                        <Star size={12} className="fill-current" />
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200">{Number(doc.average_rating).toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 🟢 عنوان قسم الإحصائيات */}
+            <div className="text-center mb-10 mt-20">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-3">
+                <Activity size={32} className="text-blue-600 hidden sm:block" />
+                {lang === 'ar' ? 'إحصائيات المنصة' : 'Platform Statistics'}
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto">
+                {lang === 'ar' ? 'أرقام تعكس ثقتكم المستمرة، ونسعى دائماً لتقديم أفضل رعاية صحية في طيبة الإمام.' : 'Numbers that reflect your continuous trust in our medical services.'}
+              </p>
+            </div>
+
+            {/* 🟢 العدادات الإحصائية الحقيقية (في مستوى واحد) */}
+            <div className="w-full mt-8">
+              <div className="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto pb-4 ...">
+  <AnimatedCounter 
+    target={facilities.filter(f => f.type === 'clinic').length} 
+    label={lang === 'ar' ? 'عيادة طبية' : 'Clinics'} 
+    icon={ClinicIcon} delay={0} 
+  />
+  <AnimatedCounter 
+    target={facilities.filter(f => f.type === 'dental_clinic').length} 
+    label={lang === 'ar' ? 'عيادة أسنان' : 'Dental Clinics'} 
+    icon={ToothIcon} delay={200} 
+  />
+  <AnimatedCounter 
+    target={facilities.filter(f => f.type === 'pharmacy').length} 
+    label={lang === 'ar' ? 'صيدلية' : 'Pharmacies'} 
+    icon={PharmacyIcon} delay={400} // 👈 هنا ستظهر حبة الدواء الأنيقة
+  />
+  
+
+                <AnimatedCounter target={stats.bookings || 0} label={lang === 'ar' ? 'حجز ناجح' : 'Successful Bookings'} icon={Calendar} delay={600} />
+                <AnimatedCounter target={stats.patients || 0} label={lang === 'ar' ? 'مريض مسجل' : 'Registered Patients'} icon={Users} delay={800} />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 🟢 محتوى القوائم (عند اختيار صيدلية أو عيادة) */}
+        {activeTab !== 'home' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="pt-8 border-t border-slate-200 dark:border-slate-800">
+            
+            {/* شريط البحث والعودة */}
+            <div className="flex flex-col md:flex-row justify-between gap-4 mb-8">
+              <button onClick={() => setActiveTab('home')} className="flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-3 rounded-2xl font-bold hover:bg-slate-200 transition-colors w-full md:w-auto">
+                <ArrowRight size={18} /> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
+              </button>
+              
+              <div className="flex-1 relative group">
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input type="text" placeholder={lang === 'ar' ? 'ابحث بالاسم أو العنوان...' : 'Search name or address...'} className="w-full pr-12 pl-4 py-3 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-blue-600 outline-none transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+              </div>
+              
+              <div className="flex justify-center md:justify-end">
+                <CurrencyToggle currency={currency} setCurrency={setCurrency} lang={lang} />
+              </div>
+            </div>
+
+            {/* الأزرار الفرعية للأقسام */}
+            <div className="mb-10 flex flex-col sm:flex-row justify-center items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-800">
+              {activeTab === 'clinic' && (
+                <button onClick={() => setShowDoctors('doctor')} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1">
+                  <User size={18} /> {lang === 'ar' ? 'تصفح دليل الأطباء البشري المعتمدين' : 'Medical Doctors Directory'}
+                </button>
+              )}
+              {activeTab === 'dental_clinic' && (
+                <button onClick={() => setShowDoctors('dentist')} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2 bg-indigo-500 text-white hover:bg-indigo-600 hover:-translate-y-1">
+                  <Smile size={18} /> {lang === 'ar' ? 'تصفح دليل أطباء الأسنان المعتمدين' : 'Dentists Directory'}
+                </button>
+              )}
+              {activeTab === 'pharmacy' && (
+                <button onClick={() => setShowShop(true)} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 hover:-translate-y-1">
+                  <ShoppingCart size={18} /> {lang === 'ar' ? 'الدخول للسوق الطبي وطلب الأدوية' : 'Shop Products'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-12 md:gap-16 mb-16">
+              {/* قسم المناوبين الآن */}
+              <div className="w-full">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
+                    <div key={`open-${f.id}`} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-emerald-100 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:shadow-md transition-all flex flex-col h-full">
+                      <div className="absolute top-4 left-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
+                      <div className="flex items-center gap-4 mb-4 mt-2">
+                        {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100 dark:border-slate-700" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <ToothIcon size={24} /> : <Activity size={24} />)}</div>}
+                        <div><h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
+                      
+                      <div className="mt-auto">
+                        {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
+                          <div className="flex items-center justify-center gap-2 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 p-2.5 rounded-xl text-sm font-bold mb-3 border border-orange-100 dark:border-orange-800">
+                            <Users size={16} />
+                            {lang === 'ar' ? 'في الانتظار حالياً:' : 'Waiting Now:'} 
+                            <span className="bg-orange-600 text-white px-2 py-0.5 rounded-md mx-1">{f.waiting_patients || 0}</span>
+                            {lang === 'ar' ? 'مرضى' : 'patients'}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
+                            <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="flex-1 bg-blue-600 text-white border border-blue-600 text-center py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">{lang === 'ar' ? 'احجز موعدك' : 'Book Appt'}</button>
+                          )}
+                          <a href={`tel:${f.phone}`} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-center py-3 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (<div className="col-span-full text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-slate-500"><Clock className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
+                </div>
+                {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+              </div>
+
+              {/* الجدول الأسبوعي */}
+              <div className="w-full">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><Calendar className="text-slate-400 dark:text-slate-500" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}</h2>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden w-full">
+                  <div className="overflow-x-auto w-full">
+                    <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50 dark:bg-slate-800/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar'?'الصيدلية':'Pharmacy') : (activeTab === 'clinic' ? (lang === 'ar'?'العيادة':'Clinic') : (lang === 'ar'?'العيادة':'Dental Clinic'))}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'text-slate-400 dark:text-slate-500'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {paginatedFacilities.map((f, idx) => {
+                          const isOpenNow = f.isOpenNow;
+                          return (
+                            <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                              <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 dark:text-slate-200 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
+                              {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 dark:border-slate-800/50 ${isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
+                              <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 dark:text-slate-600 text-xs">---</span>}</td>
+                            </motion.tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         <AnimatePresence>
           {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => {setSelectedDoctorId(null); setSelectedFacilityId(null);}} t={t} lang={lang} currency={currency} currentUser={user} openChatWithUser={openChatWithUser} />}
         </AnimatePresence>
-
-        <div className="flex flex-col gap-12 md:gap-16 mb-16">
-          <div className="w-full">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
-                <div key={`open-${f.id}`} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-emerald-100 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:shadow-md transition-all flex flex-col h-full">
-                  <div className="absolute top-4 left-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
-                  <div className="flex items-center gap-4 mb-4 mt-2">
-                    {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100 dark:border-slate-700" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <Smile size={24} /> : <Activity size={24} />)}</div>}
-                    <div><h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
-                  </div>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0"/> <span className="truncate">{f.address}</span></p>
-                  
-                  <div className="mt-auto">
-                    {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
-                      <div className="flex items-center justify-center gap-2 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 p-2.5 rounded-xl text-sm font-bold mb-3 border border-orange-100 dark:border-orange-800">
-                        <Users size={16} />
-                        {lang === 'ar' ? 'في الانتظار حالياً:' : 'Waiting Now:'} 
-                        <span className="bg-orange-600 text-white px-2 py-0.5 rounded-md mx-1">{f.waiting_patients || 0}</span>
-                        {lang === 'ar' ? 'مرضى' : 'patients'}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
-                        <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="flex-1 bg-blue-600 text-white border border-blue-600 text-center py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">{lang === 'ar' ? 'احجز موعدك' : 'Book Appt'}</button>
-                      )}
-                      <a href={`tel:${f.phone}`} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-center py-3 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
-                    </div>
-                  </div>
-                </div>
-              )) : (<div className="col-span-full text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-slate-500"><Clock className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
-            </div>
-            {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
-          </div>
-
-          <div className="w-full">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><Calendar className="text-slate-400 dark:text-slate-500" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}</h2>
-            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden w-full">
-              <div className="overflow-x-auto w-full">
-                <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50 dark:bg-slate-800/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar'?'الصيدلية':'Pharmacy') : (activeTab === 'clinic' ? (lang === 'ar'?'العيادة':'Clinic') : (lang === 'ar'?'العيادة':'Dental Clinic'))}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'text-slate-400 dark:text-slate-500'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {paginatedFacilities.map((f, idx) => {
-                      const isOpenNow = f.isOpenNow;
-                      return (
-                        <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-                          <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 dark:text-slate-200 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10}/> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
-                          {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 dark:border-slate-800/50 ${isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
-                          <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => {setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id);}} className="px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 dark:text-slate-600 text-xs">---</span>}</td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
-            </div>
-          </div>
-        </div>
       </div>
 
+      {/* الفوتر */}
       <footer className="w-full bg-[#0c5bc6] dark:bg-slate-950 text-white pt-12 pb-10 mt-auto border-t-[5px] border-blue-400 dark:border-slate-800 transition-colors">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center lg:text-start">
@@ -638,7 +859,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               )}
 
               <div className="flex flex-col sm:flex-row gap-4 mb-8 w-full justify-center lg:justify-start">
-                {/* 🟢 زر التحميل المباشر لتطبيق الأندرويد بالاسم الجديد */}
                 <a 
                   href="/taiba-health-v2.apk" 
                   download="taiba-health-v2.apk" 
@@ -650,7 +870,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   {lang === 'ar' ? ' تنزيل لأجهزة أندرويد ' : 'Download for Android'}
                 </a>
                 
-                {/* زر الآيفون (يبقى كما هو ويظهر فقط إذا أضفت رابطه من الإعدادات) */}
                 {footerData?.iosLink && (
                   <a href={footerData.iosLink} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex items-center justify-center w-full sm:w-auto">
                     <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-12 object-contain" />
