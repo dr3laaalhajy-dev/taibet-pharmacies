@@ -106,20 +106,17 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
     const patientId = req.user.id;
     const existing = await pool.query(`SELECT id, status FROM conversations WHERE user1_id = $1 AND type = 'support' AND status IN ('pending', 'active')`, [patientId]);
     let convId;
-    const extRow = existing.rows.shift();
-    if (extRow) {
-      if (extRow.status === 'pending') return res.status(400).json({ error: 'لديك طلب دعم فني قيد الانتظار بالفعل.' });
-      convId = extRow.id;
+    if (existing.rows.length > 0) {
+      if (existing.rows.status === 'pending') return res.status(400).json({ error: 'لديك طلب دعم فني قيد الانتظار بالفعل.' });
+      convId = existing.rows.id;
     } else {
       const closed = await pool.query(`SELECT id FROM conversations WHERE user1_id = $1 AND type = 'support'`, [patientId]);
-      const clRow = closed.rows.shift();
-      if (clRow) {
-        await pool.query(`UPDATE conversations SET status = 'pending', user2_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [clRow.id]);
-        convId = clRow.id;
+      if (closed.rows.length > 0) {
+        await pool.query(`UPDATE conversations SET status = 'pending', user2_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [closed.rows.id]);
+        convId = closed.rows.id;
       } else {
         const newConv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, NULL, 'support', 'pending') RETURNING id`, [patientId]);
-        const ncRow = newConv.rows.shift();
-        convId = ncRow.id;
+        convId = newConv.rows.id;
       }
     }
     res.json({ success: true, conversation_id: convId, message: 'تم إرسال طلبك لخدمة العملاء.' });
@@ -140,9 +137,8 @@ app.post('/api/chat/support/accept/:id', authenticateToken, async (req: any, res
   try {
     await client.query('BEGIN');
     const conv = await client.query('SELECT status, user1_id FROM conversations WHERE id = $1 FOR UPDATE', [req.params.id]);
-    const convRow = conv.rows.shift();
-    if (!convRow) throw new Error('الطلب غير موجود.');
-    if (convRow.status !== 'pending') throw new Error('عذراً، تم قبول هذا الطلب مسبقاً من موظف آخر.');
+    if (conv.rows.length === 0) throw new Error('الطلب غير موجود.');
+    if (conv.rows.status !== 'pending') throw new Error('عذراً، تم قبول هذا الطلب مسبقاً من موظف آخر.');
     await client.query(`UPDATE conversations SET user2_id = $1, status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [req.user.id, req.params.id]);
     await client.query('COMMIT');
     res.json({ success: true, conversation_id: req.params.id });
@@ -156,9 +152,8 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
   try {
     const convId = req.params.id;
     const conv = await pool.query('SELECT * FROM conversations WHERE id = $1', [convId]);
-    const convRow = conv.rows.shift();
-    if (!convRow) return res.status(400).json({ error: 'المحادثة غير موجودة في قاعدة البيانات!' });
-    const { user1_id, user2_id, type } = convRow;
+    if (conv.rows.length === 0) return res.status(400).json({ error: 'المحادثة غير موجودة في قاعدة البيانات!' });
+    const { user1_id, user2_id, type } = conv.rows;
     const currentUserId = String(req.user.id);
     const u1 = String(user1_id);
     const u2 = String(user2_id);
@@ -173,6 +168,7 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: 'خطأ برمجي: ' + err.message }); 
   }
 });
+
 app.post('/api/support/review', authenticateToken, async (req: any, res: any) => {
   const { staff_id, rating, comment } = req.body;
   try {
@@ -239,18 +235,9 @@ app.get('/api/chat/messages/:otherUserId', authenticateToken, async (req: any, r
       ORDER BY updated_at DESC LIMIT 1
     `, [userId, otherId]);
 
-    const convRow = conv.rows.shift();
-
-    if (!convRow || convRow.status === 'closed') {
-      return res.json({ conversation_id: convRow ? convRow.id : 0, messages: [], status: convRow ? convRow.status : 'closed' }); 
+    if (conv.rows.length === 0 || conv.rows.status === 'closed') {
+      return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows.id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows.status : 'closed' }); 
     }
-    
-    const convId = convRow.id;
-    await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
-    const messages = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
-    res.json({ conversation_id: convId, messages: messages.rows, status: 'active' });
-  } catch(err: any) { res.status(500).json({ error: err.message }); }
-});
     
     const convId = conv.rows.id;
     await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
@@ -273,18 +260,15 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
       ORDER BY updated_at DESC LIMIT 1
     `, [numSender, numReceiver]);
 
-    let convRow = conv.rows.shift();
-
-    if (!convRow) {
+    if (conv.rows.length === 0) {
       const user1 = Math.min(numSender, numReceiver); 
       const user2 = Math.max(numSender, numReceiver);
-      const newConv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
-      convRow = newConv.rows.shift();
-    } else if (convRow.status === 'closed') {
-      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [convRow.id]);
+      conv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
+    } else if (conv.rows.status === 'closed') {
+      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [conv.rows.id]);
     }
     
-    const convId = convRow.id;
+    const convId = conv.rows.id;
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
 
@@ -317,28 +301,28 @@ app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req
 });
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows.shift(); if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => { const { doctor_id, facility_id, appointment_date } = req.body; const patient_id = req.user.id; try { await pool.query('INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date) VALUES ($1, $2, $3, $4)', [patient_id, doctor_id, facility_id, appointment_date]); res.json({ success: true }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'حجزت مسبقاً.' : err.message }); } });
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT a.*, p.name as patient_name, p.phone as patient_phone FROM appointments a JOIN users p ON a.patient_id = p.id WHERE a.doctor_id = $1 AND a.appointment_date = $2 ORDER BY a.created_at ASC`, [req.user.id, req.query.date])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/settings', async (req: any, res: any) => { try { const row = (await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows.shift(); res.json(row?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
 // 🟢 جلب الإحصائيات الحقيقية للعدادات في الصفحة الرئيسية
 app.get('/api/public/stats', async (req: any, res: any) => {
   try {
-    const clinicsRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`)).rows.shift();
-    const dentalRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'dental_clinic'`)).rows.shift();
-    const pharmaciesRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'pharmacy'`)).rows.shift();
-    const bookingsRow = (await pool.query(`SELECT COUNT(*) FROM appointments`)).rows.shift();
-    const patientsRow = (await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`)).rows.shift();
+    const clinics = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`);
+    const dental = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'dental_clinic'`);
+    const pharmacies = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'pharmacy'`);
+    const bookings = await pool.query(`SELECT COUNT(*) FROM appointments`);
+    const patients = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`);
 
     res.json({
-      clinics: parseInt(clinicsRow?.count || '0'),
-      dental_clinics: parseInt(dentalRow?.count || '0'),
-      pharmacies: parseInt(pharmaciesRow?.count || '0'),
-      bookings: parseInt(bookingsRow?.count || '0'),
-      patients: parseInt(patientsRow?.count || '0')
+      clinics: parseInt(clinics.rows?.count || clinics.rows.count || '0'),
+      dental_clinics: parseInt(dental.rows?.count || dental.rows.count || '0'),
+      pharmacies: parseInt(pharmacies.rows?.count || pharmacies.rows.count || '0'),
+      bookings: parseInt(bookings.rows?.count || bookings.rows.count || '0'),
+      patients: parseInt(patients.rows?.count || patients.rows.count || '0')
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -350,10 +334,10 @@ app.post('/api/public/orders', async (req: any, res: any) => { const { pharmacy_
 app.get('/api/notifications', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/notifications/read', authenticateToken, async (req: any, res: any) => { try { await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'محاولات كثيرة.' } });
-app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows.shift(); if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows; if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/auth/register', async (req: any, res: any) => { const { email, password, name, phone, role, activationKey } = req.body; try { let isActive = role === 'patient'; if (!isActive && activationKey) { await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); isActive = true; } await pool.query(`INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [email, bcrypt.hashSync(password, 10), role, name, phone || null, 10, isActive]); res.json({ success: true, isActive }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'البريد مستخدم!' : err.message }); } });
 app.post('/api/auth/logout', (req: any, res: any) => { res.clearCookie('token'); res.json({ message: 'تم تسجيل الخروج' }); });
-app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance, loyalty_points, profile_picture FROM users WHERE id = $1', [req.user.id])).rows.shift() }); });
+app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance, loyalty_points, profile_picture FROM users WHERE id = $1', [req.user.id])).rows }); });
 
 app.post('/api/auth/update-profile', authenticateToken, async (req: any, res: any) => { const { name, phone, notes } = req.body; try { await pool.query('UPDATE users SET name=$1, phone=$2, notes=$3 WHERE id=$4', [name, phone, notes, req.user.id]); res.json({ message: 'تم التحديث' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
@@ -388,9 +372,9 @@ app.delete('/api/products/:id', authenticateToken, async (req: any, res: any) =>
 app.get('/api/orders', authenticateToken, async (req: any, res: any) => { try { await pool.query("DELETE FROM orders WHERE status != 'pending' AND created_at < NOW() - INTERVAL '1 month'"); res.json((await pool.query(req.user.role === 'admin' ? 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC' : 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY o.id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/orders/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => { const { type, amount } = req.body; try { await pool.query(`CREATE TABLE IF NOT EXISTS wallet_requests ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user_name VARCHAR(255), user_email VARCHAR(255), type VARCHAR(50) NOT NULL, amount DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`); const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows.shift(); await pool.query('INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]); res.json({ success: true }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => { const { type, amount } = req.body; try { await pool.query(`CREATE TABLE IF NOT EXISTS wallet_requests ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user_name VARCHAR(255), user_email VARCHAR(255), type VARCHAR(50) NOT NULL, amount DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`); const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows; await pool.query('INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]); res.json({ success: true }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { res.json((await pool.query("SELECT * FROM wallet_requests ORDER BY id DESC")).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
-app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); const { action } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); const reqRes = await client.query('SELECT * FROM wallet_requests WHERE id = $1 FOR UPDATE', [req.params.id]); const request = reqRes.rows.shift(); if (action === 'approve') { const modifier = request.type === 'deposit' ? request.amount : -request.amount; await client.query('UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [modifier, request.user_id]); await client.query("UPDATE wallet_requests SET status = 'approved' WHERE id = $1", [req.params.id]); } else { await client.query("UPDATE wallet_requests SET status = 'rejected' WHERE id = $1", [req.params.id]); } await client.query('COMMIT'); res.json({ success: true }); } catch(err: any) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); } });
+app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); const { action } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); const reqRes = await client.query('SELECT * FROM wallet_requests WHERE id = $1 FOR UPDATE', [req.params.id]); const request = reqRes.rows; if (action === 'approve') { const modifier = request.type === 'deposit' ? request.amount : -request.amount; await client.query('UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [modifier, request.user_id]); await client.query("UPDATE wallet_requests SET status = 'approved' WHERE id = $1", [req.params.id]); } else { await client.query("UPDATE wallet_requests SET status = 'rejected' WHERE id = $1", [req.params.id]); } await client.query('COMMIT'); res.json({ success: true }); } catch(err: any) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); } });
 app.post('/api/admin/wallet/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [req.body.amount, req.params.id]); res.json({ success: true }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/admin/users', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); res.json((await pool.query('SELECT id, email, role, name, pharmacy_limit, phone, notes, is_active, wallet_balance, specialty, consultation_price, about, faqs, show_in_directory, profile_picture FROM users ORDER BY id DESC')).rows); });
 app.patch('/api/admin/users/:id/approve', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [req.params.id]); res.json({ success: true }); });
