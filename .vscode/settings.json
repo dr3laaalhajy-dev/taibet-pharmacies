@@ -1,0 +1,21 @@
+{
+    "gitlens.codeLens.enabled": true,
+    "gitlens.currentLine.enabled": true,
+    "gitlens.hovers.currentLine.over": "line",
+    "gitlens.heatmap.locations": [
+        "gutter",
+        "overview",
+        "line"
+    ],
+    "gitlens.views.contributors.showAllBranches": true,
+    "gitlens.views.repositories.includeWorkingTree": true,
+    "gitlens.views.repositories.showIncomingActivity": true,
+    "gitlens.views.repositories.showStashes": true,
+    "gitlens.graph.dimMergeCommits": true,
+    "gitlens.graph.showRemoteNames": true,
+    "gitlens.codeLens.scopes": [
+        "document",
+        "containers",
+        "blocks"
+    ]
+}
