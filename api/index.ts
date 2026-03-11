@@ -313,6 +313,26 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows[0]?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+// 🟢 جلب الإحصائيات الحقيقية للعدادات في الصفحة الرئيسية
+app.get('/api/public/stats', async (req: any, res: any) => {
+  try {
+    const clinics = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`);
+    const dental = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'dental_clinic'`);
+    const pharmacies = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'pharmacy'`);
+    const bookings = await pool.query(`SELECT COUNT(*) FROM appointments`); // إجمالي الحجوزات
+    const patients = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`); // إجمالي المرضى
+
+    res.json({
+      clinics: parseInt(clinics.rows.count),
+      dental_clinics: parseInt(dental.rows.count),
+      pharmacies: parseInt(pharmacies.rows.count),
+      bookings: parseInt(bookings.rows.count),
+      patients: parseInt(patients.rows.count)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.get('/api/public/products', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, ph.name as pharmacy_name, ph.whatsapp_phone FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.is_ecommerce_enabled = true ORDER BY p.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/orders', async (req: any, res: any) => { const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); let buyerId = null; if (payment_method === 'wallet') { const token = req.cookies.token; if (!token) throw new Error('AuthRequired'); buyerId = (jwt.verify(token, JWT_SECRET) as any).id; await client.query('UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [total_price, buyerId]); } for (const item of items) { await client.query('UPDATE products SET quantity = quantity - $1 WHERE id = $2', [item.qty, item.product_id]); } await client.query('INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id) VALUES ($1, $2, $3, $4, $5, $6)', [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId]); await client.query('COMMIT'); res.json({ success: true }); } catch (err: any) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); } });
 app.get('/api/notifications', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });

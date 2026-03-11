@@ -308,7 +308,7 @@ export const Chat = ({ user, lang, onClose, targetUserId = null, onSessionEnded 
     
     setIsEnding(true);
     try {
-      await api.post(`/api/chat/end/${activeChat.conversation_id}`);
+      await api.post(`/api/chat/end/${activeChat.conversation_id}`, {});
       toast.success(lang === 'ar' ? 'تم إنهاء المحادثة بنجاح' : 'Chat ended successfully');
       
       const isSupport = activeChat.type === 'support';

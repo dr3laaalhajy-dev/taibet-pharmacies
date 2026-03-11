@@ -23,6 +23,7 @@ export interface UserType {
   consultation_price?: number;
   about?: string;
   faqs?: FAQ[];
+  daily_limit?: number;
 }
 
 export interface WorkingHours { 
@@ -80,13 +81,25 @@ export interface Order {
   created_at: string; 
 }
 
-export interface FooterSettings { 
-  copyright: string; 
-  description: string; 
-  facebook: string; 
-  instagram: string; 
-  contact_phone: string; 
-  complaints_phone: string; 
+export interface FooterSettings {
+  appName?: string;
+  aboutLink?: string;
+  teamLink?: string;
+  careersLink?: string;
+  doctorJoinLink?: string;
+  libraryLink?: string;     // 🟢 الحقل الذي طلبته
+  contactLink?: string;
+  termsLink?: string;
+  privacyLink?: string;
+  androidLink?: string;
+  iosLink?: string;
+  facebook?: string;
+  instagram?: string;
+  twitter?: string;
+  copyright?: string;
+  description?: string;
+  contact_phone?: string;
+  complaints_phone?: string;
 }
 
 export interface WalletRequest { 

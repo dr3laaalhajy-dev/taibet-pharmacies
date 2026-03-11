@@ -12,7 +12,6 @@ import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 import { requestForToken, onMessageListener } from '../firebase';
-import { FileText, X, Activity } from 'lucide-react';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -241,7 +240,7 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void }) => {
- const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support'>(user.role === 'customer_service' ? 'support' : 'facilities');
+ const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews'>(user.role === 'customer_service' ? 'support' : 'facilities');
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]); 
@@ -401,7 +400,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   };
   const acceptSupportRequest = async (conversationId: number) => {
     try {
-      await api.post(`/api/chat/support/accept/${conversationId}`);
+      await api.post(`/api/chat/support/accept/${conversationId}`, {});
       toast.success(lang === 'ar' ? 'تم قبول الطلب وبدء المحادثة!' : 'Request accepted!');
       loadData(); // تحديث القائمة
       if (openChatWithUser) openChatWithUser(conversationId); // فتح الشات مع المريض
