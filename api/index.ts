@@ -387,31 +387,5 @@ app.get('/api/admin/super-admins', authenticateToken, async (req: any, res: any)
 app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); await pool.query('INSERT INTO super_admins (email) VALUES ($1) ON CONFLICT DO NOTHING', [req.body.email]); res.json({ message: 'تمت الإضافة بنجاح' }); });
 app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' }); await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]); res.json({ message: 'تم الحذف بنجاح' }); });
 app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => { const { fcm_token } = req.body; if (!fcm_token) return res.status(400).json({ error: 'Token is required' }); try { await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]); res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-// 🚨 مسار الطوارئ لاسترجاع حساب الإدارة
-app.get('/api/rescue', async (req: any, res: any) => {
-  try {
-    const email = 'admin@pharmaduty.com';
-    // تشفير كلمة مرور بسيطة مؤقتة
-    const password = await bcrypt.hash('123456', 10);
-    
-    // 1. حذف الحساب المعلق تماماً لتنظيف القاعدة
-    await pool.query('DELETE FROM users WHERE email = $1', [email]);
-    
-    // 2. إعادة زرع الحساب كمدير مفعل (is_active = true)
-    await pool.query(`
-      INSERT INTO users (email, password, role, name, is_active, pharmacy_limit, wallet_balance) 
-      VALUES ($1, $2, 'admin', 'المدير الخارق', true, 100, 0)
-    `, [email, password]);
-    
-    // 3. التأكد من وجوده في جدول السوبر أدمن
-    await pool.query('INSERT INTO super_admins (email) VALUES ($1) ON CONFLICT DO NOTHING', [email]);
-    
-    res.json({ 
-      success: true, 
-      message: '✅ تم إنقاذ الحساب! اذهب لصفحة الدخول واستخدم: admin@pharmaduty.com | الباسورد: 123456' 
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: 'حدث خطأ: ' + err.message });
-  }
-});
+
 export default app;
