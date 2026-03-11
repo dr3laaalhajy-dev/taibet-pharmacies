@@ -45,10 +45,10 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   useEffect(() => { fetchDoctorData(); }, [doctorId]);
   if (!doctorId) return null;
 
-  const fee = doctor?.consultation_price || doctor?.facilities[0]?.consultation_fee || 0;
+  const fee = doctor?.consultation_price || (doctor?.name || 'ط').substring(0, 1)?.consultation_fee || 0;
   const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
   const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
-  const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : doctor?.facilities[0];
+  const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : (doctor?.name || 'ط').substring(0, 1);
 
   const submitReview = async () => {
     if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لتقييم الطبيب' : 'Please login to submit a review');
@@ -99,7 +99,7 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row gap-6 items-start transition-colors">
                 <div className="w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-4xl font-bold shrink-0 shadow-sm overflow-hidden border-2 border-white dark:border-slate-700 outline outline-1 outline-slate-200 dark:outline-slate-700">
-                  {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : doctor.name[0]}
+                  {doctor.profile_picture || primaryFacility?.image_url ? <img src={doctor.profile_picture || primaryFacility?.image_url} className="w-full h-full object-cover"/> : (doctor?.name || 'ط').substring(0, 1)}
                 </div>
                 <div className="flex-1 w-full">
                   <div className="flex justify-between items-start flex-wrap gap-4">
@@ -332,7 +332,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
                 <Star size={12} className="fill-current" /> {Number(doctor.average_rating).toFixed(1)}
               </div>
               <div className="w-24 h-24 mx-auto bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-sm group-hover:scale-110 transition-transform overflow-hidden outline outline-4 outline-slate-50 dark:outline-slate-800">
-                {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover"/> : doctor.name[0]}
+                {doctor?.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover" /> : (doctor?.name || 'ط').substring(0, 1)}
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doctor.name}</h3>
               <p className={`text-sm font-bold mb-4 ${filterRole === 'dentist' ? 'text-indigo-600 dark:text-indigo-400' : 'text-blue-600 dark:text-blue-400'}`}>{doctor.specialty || (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
