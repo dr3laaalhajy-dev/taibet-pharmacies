@@ -23,45 +23,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' 
 });
 
-const uploadImageToImgBB = async (file: File | string) => {
-  const formData = new FormData();
-
-  // 1. معالجة ذكية لنوع الملف
-  if (typeof file === 'string' && file.startsWith('data:image')) {
-    // إذا كانت الصورة مقصوصة أو محولة لنص (Base64)، يجب إزالة المقدمة
-    const base64Data = file.split(',');
-    formData.append('image', base64Data);
-  } else {
-    // إذا كانت ملفاً عادياً (File Object) من الـ Input مباشرة
-    formData.append('image', file);
-  }
-
-  // ⚠️ تأكد أن مفتاحك هنا كامل وصحيح (بدون مسافات قبله أو بعده)
-  const apiKey = 'ba0a89c85f4f7651c6daab7d351989ed'; // ضع مفتاحك الكامل هنا
-
-  try {
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-      method: 'POST',
-      body: formData,
-      // لا تضع headers هنا أبداً
-    });
-
-    // 2. نقرأ بيانات الرد (حتى لو كان هناك خطأ لنعرف سببه)
-    const data = await response.json();
-
-    if (!response.ok) {
-      // 🚨 هنا السحر: سنطبع رسالة الخطأ الحقيقية القادمة من ImgBB!
-      console.error("🛑 تفاصيل الرفض من ImgBB:", data);
-      throw new Error(`ImgBB Error: ${data.error?.message || 'فشل غير معروف'}`);
-    }
-
-    // إذا نجح الرفع، نُرجع الرابط المباشر للصورة
-    return data.data.url;
-
-  } catch (error) {
-    console.error("خطأ في دالة الرفع:", error);
-    throw error;
-  }
+const uploadImageToImgBB = async (file: File) => { 
+  const base64 = await new Promise<string>((resolve, reject) => { 
+    const reader = new FileReader(); reader.readAsDataURL(file); 
+    reader.onload = () => resolve(reader.result as string); 
+    reader.onerror = e => reject(e); 
+  }); 
+  const f = new FormData(); f.append('image', base64.split(',')[1]); 
+  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
+  const d = await r.json(); if (d.success) return d.data.url; 
+  throw new Error(d.error?.message || 'فشل الرفع'); 
 };
 
 export default function App() {
@@ -218,43 +189,9 @@ export default function App() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 1. تحديد الصورة الأولى المرفوعة (تم تصحيح الخطأ هنا بإضافة)
-    const file = e.target.files?.[0];
-    
-    // إذا لم يختر المستخدم صورة، نوقف العملية
-    if (!file) return;
-
-    try {
-      // 2. نرفع الصورة إلى ImgBB (باستخدام الدالة التي أصلحناها سابقاً)
-      const imageUrl = await uploadImageToImgBB(file);
-      
-      // 3. إذا تم الرفع بنجاح وحصلنا على الرابط
-      if (imageUrl) {
-        
-        // تحديث قاعدة البيانات (الباك إند) بالرابط الجديد
-        // ⚠️ ملاحظة: تأكد أن '/api/user' هو الرابط الصحيح لتعديل بيانات المستخدم في سيرفرك
-        // نستخدم مسار التحديث الصحيح الذي يقبل كل البيانات معاً
-await api.post('/api/auth/update-profile', { 
-  name: user.name, 
-  email: user.email, 
-  profile_picture: imageUrl 
-});
-        
-        // 4. تحديث الواجهة الأمامية (الفرونت إند) لتظهر الصورة فوراً بدون تحديث الصفحة
-        if (typeof refreshUser === 'function') {
-          refreshUser(); // الدالة المسؤولة عن إعادة جلب بيانات المستخدم
-        } else if (user) {
-          // في حال عدم وجود دالة الجلب، نحدث الحالة مباشرة
-          setUser({ ...user, profile_picture: imageUrl });
-        }
-        
-        // إشعار النجاح
-        alert(lang === 'ar' ? 'تم تحديث صورتك الشخصية بنجاح! 🖼️' : 'Profile picture updated successfully!');
-      }
-    } catch (error) {
-      console.error("خطأ أثناء تحديث الصورة:", error);
-      alert(lang === 'ar' ? 'حدث خطأ أثناء حفظ الصورة' : 'Error saving image');
-    }
+    const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true);
+    try { const url = await uploadImageToImgBB(file); setProfileForm({ ...profileForm, profile_picture: url }); } 
+    catch (err: any) { toast.error('فشل الرفع'); } finally { setUploadingImage(false); }
   };
 
   const addAddress = async () => {
@@ -366,7 +303,7 @@ await api.post('/api/auth/update-profile', {
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
                     ) : (
                       <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
-                        {(user?.name || 'U').substring(0, 1).toUpperCase()}
+                        {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </button>
@@ -633,7 +570,7 @@ await api.post('/api/auth/update-profile', {
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'أضف عنوان توصيل جديد' : 'Add New Address'}</label>
                     <div className="flex gap-2 mb-6">
-                      <input type="text" className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-blue-500 bg-slate-50 dark:bg-slate-950 dark:text-white" placeholder={lang === 'ar' ? "مثال: طيبة الامام ،الشارع الرئيسي، بجانب..." : "e.g. Damascus, Mazzeh..."} value={newAddress} onChange={e => setNewAddress(e.target.value)} disabled={isAddingAddress} />
+                      <input type="text" className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-blue-500 bg-slate-50 dark:bg-slate-950 dark:text-white" placeholder={lang === 'ar' ? "مثال: دمشق، المزة، شارع 1..." : "e.g. Damascus, Mazzeh..."} value={newAddress} onChange={e => setNewAddress(e.target.value)} disabled={isAddingAddress} />
                       <button onClick={addAddress} disabled={isAddingAddress || !newAddress.trim()} className="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"><Plus size={20}/></button>
                     </div>
 
