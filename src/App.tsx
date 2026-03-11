@@ -233,7 +233,12 @@ export default function App() {
         
         // تحديث قاعدة البيانات (الباك إند) بالرابط الجديد
         // ⚠️ ملاحظة: تأكد أن '/api/user' هو الرابط الصحيح لتعديل بيانات المستخدم في سيرفرك
-        await api.put('/api/user', { profile_picture: imageUrl });
+        // نستخدم مسار التحديث الصحيح الذي يقبل كل البيانات معاً
+await api.post('/api/auth/update-profile', { 
+  name: user.name, 
+  email: user.email, 
+  profile_picture: imageUrl 
+});
         
         // 4. تحديث الواجهة الأمامية (الفرونت إند) لتظهر الصورة فوراً بدون تحديث الصفحة
         if (typeof refreshUser === 'function') {
@@ -361,7 +366,7 @@ export default function App() {
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
                     ) : (
                       <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
-                        {user.name.charAt(0).toUpperCase()}
+                        {(user?.name || 'U').substring(0, 1).toUpperCase()}
                       </div>
                     )}
                   </button>
