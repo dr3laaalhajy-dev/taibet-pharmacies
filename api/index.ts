@@ -239,9 +239,18 @@ app.get('/api/chat/messages/:otherUserId', authenticateToken, async (req: any, r
       ORDER BY updated_at DESC LIMIT 1
     `, [userId, otherId]);
 
-    if (conv.rows.length === 0 || conv.rows.status === 'closed') {
-      return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows.id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows.status : 'closed' }); 
+    const convRow = conv.rows.shift();
+
+    if (!convRow || convRow.status === 'closed') {
+      return res.json({ conversation_id: convRow ? convRow.id : 0, messages: [], status: convRow ? convRow.status : 'closed' }); 
     }
+    
+    const convId = convRow.id;
+    await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
+    const messages = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
+    res.json({ conversation_id: convId, messages: messages.rows, status: 'active' });
+  } catch(err: any) { res.status(500).json({ error: err.message }); }
+});
     
     const convId = conv.rows.id;
     await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
@@ -264,15 +273,18 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
       ORDER BY updated_at DESC LIMIT 1
     `, [numSender, numReceiver]);
 
-    if (conv.rows.length === 0) {
+    let convRow = conv.rows.shift();
+
+    if (!convRow) {
       const user1 = Math.min(numSender, numReceiver); 
       const user2 = Math.max(numSender, numReceiver);
-      conv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
-    } else if (conv.rows.status === 'closed') {
-      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [conv.rows.id]);
+      const newConv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
+      convRow = newConv.rows.shift();
+    } else if (convRow.status === 'closed') {
+      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [convRow.id]);
     }
     
-    const convId = conv.rows.id;
+    const convId = convRow.id;
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
 
@@ -305,28 +317,28 @@ app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req
 });
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows.shift(); if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => { const { doctor_id, facility_id, appointment_date } = req.body; const patient_id = req.user.id; try { await pool.query('INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date) VALUES ($1, $2, $3, $4)', [patient_id, doctor_id, facility_id, appointment_date]); res.json({ success: true }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'حجزت مسبقاً.' : err.message }); } });
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT a.*, p.name as patient_name, p.phone as patient_phone FROM appointments a JOIN users p ON a.patient_id = p.id WHERE a.doctor_id = $1 AND a.appointment_date = $2 ORDER BY a.created_at ASC`, [req.user.id, req.query.date])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/settings', async (req: any, res: any) => { try { const row = (await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows.shift(); res.json(row?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
 // 🟢 جلب الإحصائيات الحقيقية للعدادات في الصفحة الرئيسية
 app.get('/api/public/stats', async (req: any, res: any) => {
   try {
-    const clinics = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`);
-    const dental = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'dental_clinic'`);
-    const pharmacies = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'pharmacy'`);
-    const bookings = await pool.query(`SELECT COUNT(*) FROM appointments`);
-    const patients = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`);
+    const clinicsRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`)).rows.shift();
+    const dentalRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'dental_clinic'`)).rows.shift();
+    const pharmaciesRow = (await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'pharmacy'`)).rows.shift();
+    const bookingsRow = (await pool.query(`SELECT COUNT(*) FROM appointments`)).rows.shift();
+    const patientsRow = (await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`)).rows.shift();
 
     res.json({
-      clinics: parseInt(clinics.rows?.count || clinics.rows.count || '0'),
-      dental_clinics: parseInt(dental.rows?.count || dental.rows.count || '0'),
-      pharmacies: parseInt(pharmacies.rows?.count || pharmacies.rows.count || '0'),
-      bookings: parseInt(bookings.rows?.count || bookings.rows.count || '0'),
-      patients: parseInt(patients.rows?.count || patients.rows.count || '0')
+      clinics: parseInt(clinicsRow?.count || '0'),
+      dental_clinics: parseInt(dentalRow?.count || '0'),
+      pharmacies: parseInt(pharmaciesRow?.count || '0'),
+      bookings: parseInt(bookingsRow?.count || '0'),
+      patients: parseInt(patientsRow?.count || '0')
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
