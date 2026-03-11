@@ -335,7 +335,63 @@ app.get('/api/notifications', authenticateToken, async (req: any, res: any) => {
 app.patch('/api/notifications/read', authenticateToken, async (req: any, res: any) => { try { await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'محاولات كثيرة.' } });
 app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows; if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/auth/register', async (req: any, res: any) => { const { email, password, name, phone, role, activationKey } = req.body; try { let isActive = role === 'patient'; if (!isActive && activationKey) { await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); isActive = true; } await pool.query(`INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [email, bcrypt.hashSync(password, 10), role, name, phone || null, 10, isActive]); res.json({ success: true, isActive }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'البريد مستخدم!' : err.message }); } });
+app.post('/api/auth/register', async (req: any, res: any) => {
+  const { email, password, name, phone, role, activationKey } = req.body;
+  
+  try {
+    // 1. التحقق من أن الإيميل غير موجود مسبقاً
+    const userExists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ error: lang === 'ar' ? 'البريد الإلكتروني مستخدم بالفعل!' : 'Email already exists!' });
+    }
+
+    // 2. تحديد حالة التفعيل (المريض يتفعل تلقائياً، الأدمن والطلبات الأخرى تحتاج تفعيل)
+    let isActive = role === 'patient';
+    if (!isActive && activationKey) {
+      // إذا كان هناك مفتاح تفعيل، نتحقق منه
+      const keyRes = await pool.query('SELECT * FROM activation_keys WHERE key = $1 AND is_used = false', [activationKey]);
+      if (keyRes.rows.length > 0) {
+        await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]);
+        isActive = true;
+      }
+    }
+
+    // 3. عملية الإدخال مع ضمان وجود قيم افتراضية للأعمدة الجديدة
+    const query = `
+      INSERT INTO users (
+        email, password, role, name, phone, is_active, 
+        pharmacy_limit, wallet_balance, loyalty_points, profile_picture
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      RETURNING id
+    `;
+    
+    const values = [
+      email, 
+      bcrypt.hashSync(password, 10), 
+      role, 
+      name, 
+      phone || null, 
+      isActive,
+      10, // pharmacy_limit
+      0,  // wallet_balance
+      0,  // loyalty_points
+      null // profile_picture
+    ];
+
+    await pool.query(query, values);
+    
+    res.json({ 
+      success: true, 
+      isActive, 
+      message: isActive ? 'تم التسجيل بنجاح، يمكنك الدخول الآن.' : 'تم التسجيل، حسابك قيد المراجعة من الإدارة.' 
+    });
+
+  } catch (err: any) {
+    console.error("خطأ في التسجيل:", err.message);
+    res.status(500).json({ error: 'خطأ في السيرفر: ' + err.message });
+  }
+});
 app.post('/api/auth/logout', (req: any, res: any) => { res.clearCookie('token'); res.json({ message: 'تم تسجيل الخروج' }); });
 app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance, loyalty_points, profile_picture FROM users WHERE id = $1', [req.user.id])).rows }); });
 

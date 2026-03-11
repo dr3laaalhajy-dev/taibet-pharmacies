@@ -218,40 +218,37 @@ export default function App() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 1. تحديد الصورة الأولى المرفوعة (تم تصحيح الخطأ هنا بإضافة)
     const file = e.target.files?.[0];
+    
+    // إذا لم يختر المستخدم صورة، نوقف العملية
     if (!file) return;
 
     try {
-      console.log("1. جاري الرفع إلى ImgBB...");
+      // 2. نرفع الصورة إلى ImgBB (باستخدام الدالة التي أصلحناها سابقاً)
       const imageUrl = await uploadImageToImgBB(file);
-      console.log("2. نجح الرفع! رابط الصورة هو:", imageUrl);
       
+      // 3. إذا تم الرفع بنجاح وحصلنا على الرابط
       if (imageUrl) {
-        console.log("3. جاري إرسال الرابط للسيرفر الخاص بنا...");
         
-        // 🚨 هنا غالباً تقع المشكلة! هل رابط '/api/user' هو الرابط الصحيح في ملف السيرفر لديك؟
-        const response = await api.put('/api/user', { profile_picture: imageUrl });
+        // تحديث قاعدة البيانات (الباك إند) بالرابط الجديد
+        // ⚠️ ملاحظة: تأكد أن '/api/user' هو الرابط الصحيح لتعديل بيانات المستخدم في سيرفرك
+        await api.put('/api/user', { profile_picture: imageUrl });
         
-        console.log("4. السيرفر وافق على التعديل!", response);
-        
+        // 4. تحديث الواجهة الأمامية (الفرونت إند) لتظهر الصورة فوراً بدون تحديث الصفحة
         if (typeof refreshUser === 'function') {
-          refreshUser();
+          refreshUser(); // الدالة المسؤولة عن إعادة جلب بيانات المستخدم
         } else if (user) {
+          // في حال عدم وجود دالة الجلب، نحدث الحالة مباشرة
           setUser({ ...user, profile_picture: imageUrl });
         }
         
-        alert(lang === 'ar' ? 'تم تحديث الصورة بنجاح!' : 'Profile picture updated successfully!');
+        // إشعار النجاح
+        alert(lang === 'ar' ? 'تم تحديث صورتك الشخصية بنجاح! 🖼️' : 'Profile picture updated successfully!');
       }
-    } catch (error: any) {
-      // طباعة الخطأ بشكل مفصل بدلاً من كائن فارغ
-      console.error("🛑 حدث خطأ في إحدى المراحل:", error);
-      
-      if (error.response) {
-        console.error("تفاصيل الرفض من السيرفر:", error.response.data);
-        alert(lang === 'ar' ? `السيرفر رفض التحديث: ${error.response.data.message || error.response.data.error || 'خطأ مجهول'}` : 'Server rejected the update');
-      } else {
-        alert(lang === 'ar' ? 'تعذر الاتصال بالسيرفر لحفظ الصورة' : 'Network error');
-      }
+    } catch (error) {
+      console.error("خطأ أثناء تحديث الصورة:", error);
+      alert(lang === 'ar' ? 'حدث خطأ أثناء حفظ الصورة' : 'Error saving image');
     }
   };
 
@@ -364,7 +361,7 @@ export default function App() {
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
                     ) : (
                       <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-sm">
-                        {user.name.charAt(0).toUpperCase()}
+                        {user.name?.charAt(0).toUpperCase() || (user?.name || 'مستخدم')}
                       </div>
                     )}
                   </button>
