@@ -36,7 +36,7 @@ export const requestForToken = async () => {
   return null;
 };
 
-// 🟢 دالة لاستقبال الإشعارات والتطبيق مفتوح (Foreground)
+// 🟢 دالة لاسddتقبال الإشعارات والتطبيق مفتوح (Foreground)
 export const onMessageListener = () =>
   new Promise((resolve) => {
     onMessage(messaging, (payload) => {
