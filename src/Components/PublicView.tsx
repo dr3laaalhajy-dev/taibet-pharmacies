@@ -206,17 +206,38 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                   <div className="mb-6">
                     <p className="text-sm text-slate-700 dark:text-slate-300 flex items-start gap-2 leading-tight">
                       <MapPin className="text-red-500 shrink-0 mt-1" size={18}/>
-                      <span><span className="font-bold block mb-1 dark:text-white">{primaryFacility?.name}</span>{primaryFacility?.address}</span>
+                      <span>
+                        <span className="font-bold block mb-1 dark:text-white">
+                          {primaryFacility?.name || (lang === 'ar' ? 'لم يتم تسجيل عيادة للطبيب' : 'No clinic registered')}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {primaryFacility?.address || (lang === 'ar' ? 'العنوان غير متوفر' : 'Address not available')}
+                        </span>
+                      </span>
                     </p>
                   </div>
 
                   <h5 className="text-center font-bold text-slate-900 dark:text-white mb-3">{lang === 'ar' ? 'مواعيد العمل:' : 'Working Hours:'}</h5>
                   <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 mb-6 space-y-2 max-h-[150px] overflow-y-auto text-sm text-center">
-                    {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => {
-                      const daySchedule = primaryFacility?.working_hours?.[idx.toString()];
-                      if(!daySchedule?.isOpen) return null;
-                      return <div key={idx} className="flex justify-between border-b dark:border-slate-700 last:border-0 pb-1"><span className="font-bold dark:text-slate-300">{day}</span><span dir="ltr" className="text-blue-700 dark:text-blue-400">{formatTime12h(daySchedule.start, lang)} - {formatTime12h(daySchedule.end, lang)}</span></div>
-                    })}
+                    {/* فحص ذكي: هل توجد أوقات عمل مفتوحة فعلاً؟ */}
+                    {primaryFacility?.working_hours && Object.values(primaryFacility.working_hours).some((day: any) => day.isOpen) ? (
+                      (lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => {
+                        const daySchedule = primaryFacility.working_hours[idx.toString()];
+                        if (!daySchedule?.isOpen) return null;
+                        return (
+                          <div key={idx} className="flex justify-between border-b border-slate-200 dark:border-slate-700 last:border-0 pb-1">
+                            <span className="font-bold text-slate-800 dark:text-slate-300">{day}</span>
+                            <span dir="ltr" className="text-blue-700 dark:text-blue-400 font-mono font-bold">
+                              {formatTime12h(daySchedule.start, lang)} - {formatTime12h(daySchedule.end, lang)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-slate-400 dark:text-slate-500 py-3 font-medium">
+                        {lang === 'ar' ? 'لا يوجد مواعيد عمل مسجلة حالياً' : 'No working hours registered yet'}
+                      </div>
+                    )}
                   </div>
 
                   {showBookingForm ? (
@@ -233,8 +254,13 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                       </div>
                     </motion.div>
                   ) : (
-                    <button onClick={() => { if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول كـ مريض للحجز' : 'Please login to book'); setShowBookingForm(true); }} 
-                      className="block w-full bg-blue-600 text-white text-center py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                    <button onClick={() => { 
+                      if (!currentUser) return toast.error(lang === 'ar' ? 'يجب تسجيل الدخول كـ مريض للحجز' : 'Please login to book'); 
+                      if (!primaryFacility) return toast.error(lang === 'ar' ? 'الطبيب لا يملك عيادة متاحة للحجز حالياً' : 'Doctor has no available clinics for booking');
+                      setShowBookingForm(true); 
+                    }} 
+                      className={`block w-full text-white text-center py-4 rounded-xl font-bold transition-colors shadow-md flex items-center justify-center gap-2 ${!primaryFacility ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      disabled={!primaryFacility}
                     >
                       <Calendar size={20} /> {lang === 'ar' ? 'حجز موعد في العيادة' : 'Book Appointment'}
                     </button>
