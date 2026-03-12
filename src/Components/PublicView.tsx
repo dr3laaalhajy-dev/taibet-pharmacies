@@ -905,8 +905,23 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                               <div className="text-center min-w-[150px] p-1">
                                 <strong className="block mb-1 text-sm text-slate-800">{f.name}</strong>
                                 {(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && (
-                                  <span className="text-[11px] font-bold text-blue-600 block mb-1">{f.specialty}</span>
+                                  <span className="text-[11px] font-bold text-blue-600 block mb-2">{f.specialty}</span>
                                 )}
+                                
+                                {/* 🟢 الإضافة الجديدة: حالة الدوام (مفتوح / مغلق) */}
+                                <div className="mb-2">
+                                  {f.isOpenNow ? (
+                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
+                                      {lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full">
+                                      {lang === 'ar' ? 'مغلق' : 'Closed'}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* 🔴 نهاية الإضافة */}
+
                                 <span className="text-xs text-slate-500 block mb-3 line-clamp-2">{f.address}</span>
                                 <div className="flex gap-2 justify-center">
                                   <a href={`tel:${f.phone}`} className="bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold no-underline hover:bg-emerald-600 transition-colors w-full">
