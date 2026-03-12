@@ -38,8 +38,38 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   const [isBooking, setIsBooking] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
 
-  const fetchDoctorData = () => {
-    api.get(`/api/public/doctors/${doctorId}`).then(setDoctor).catch(console.error).finally(() => setLoading(false));
+  const fetchDoctorData = async () => {
+    setLoading(true);
+    try {
+      // 1. جلب كل الأطباء (الرابط الذي نعرف أنه يعمل 100%) والبحث عن هذا الطبيب تحديداً
+      const docsRes: any = await api.get('/api/public/doctors');
+      let docsList = docsRes?.data || docsRes;
+      if (docsList?.doctors) docsList = docsList.doctors;
+      if (!Array.isArray(docsList)) docsList = [];
+      
+      let myDoctor = docsList.find((d: any) => d.id === doctorId);
+
+      if (myDoctor) {
+        // 2. جلب كل العيادات والبحث عن العيادة التي تتبع لهذا الطبيب
+        const facRes: any = await api.get('/api/public/facilities');
+        let facList = facRes?.data || facRes;
+        if (facList?.facilities) facList = facList.facilities;
+        if (!Array.isArray(facList)) facList = [];
+
+        // 3. ربط العيادة بالطبيب لكي تظهر في الشاشة
+        myDoctor.facilities = facList.filter((f: any) => f.doctor_id === doctorId);
+        
+        // إرسال البيانات النهائية للشاشة
+        setDoctor(myDoctor);
+      } else {
+        setDoctor(null);
+      }
+    } catch (err) {
+      console.error("❌ خطأ في الجلب:", err);
+      setDoctor(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchDoctorData(); }, [doctorId]);
@@ -104,7 +134,10 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                 <div className="flex-1 w-full">
                   <div className="flex justify-between items-start flex-wrap gap-4">
                     <div>
-                      <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">{lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor?.name?.trim() ? doctor.name : doctor.id}</h2>
+                      {/* 🚨 إصلاح مشكلة NaN في الاسم هنا 🚨 */}
+                      <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">
+                        {lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor?.name ? doctor.name : (doctor?.id || 'غير محدد')}
+                      </h2>
                       <p className="text-blue-600 dark:text-blue-400 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar'?'طبيب أسنان':'Dentist') : t.doctor)}</p>
                     </div>
                     <button onClick={handleOpenChat} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm">
@@ -112,10 +145,15 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                     </button>
                   </div>
                   
+                  {/* 🚨 إصلاح مشكلة NaN في التقييم هنا 🚨 */}
                   <div className="flex items-center gap-2 mb-4">
-                    <StarRating rating={Number(doctor.average_rating)} size={18} />
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{Number(doctor.average_rating).toFixed(1)}</span>
-                    <span className="text-xs text-slate-400">({doctor.reviews_count} {lang === 'ar' ? 'تقييمات' : 'reviews'})</span>
+                    <StarRating rating={Number(doctor?.average_rating || 0)} size={18} />
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      {Number(doctor?.average_rating || 0).toFixed(1)}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      ({doctor?.reviews_count || 0} {lang === 'ar' ? 'تقييمات' : 'reviews'})
+                    </span>
                   </div>
                 </div>
               </div>
@@ -175,7 +213,9 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                         </button>
                       ))}
                     </div>
+                    {/* 🚨 إضافة id و name لحقل التقييم 🚨 */}
                     <textarea 
+                      id="doctorReviewComment" name="doctorReviewComment"
                       placeholder={lang === 'ar' ? "أضف تعليقاً يصف تجربتك (اختياري)..." : "Write a comment (optional)..."} 
                       className="w-full px-4 py-3 rounded-xl border border-blue-200 dark:border-slate-600 focus:border-blue-500 outline-none resize-none bg-white dark:bg-slate-900 dark:text-white"
                       rows={3} value={userComment} onChange={e => setUserComment(e.target.value)}
@@ -243,7 +283,9 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                   {showBookingForm ? (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 p-4 rounded-xl mb-4">
                       <label className="block text-sm font-bold text-blue-900 dark:text-blue-300 mb-2">{lang === 'ar' ? 'اختر تاريخ الحجز:' : 'Select Date:'}</label>
+                      {/* 🚨 إضافة id و name لحقل التاريخ 🚨 */}
                       <input 
+                        id="appointmentDate" name="appointmentDate"
                         type="date" min={new Date().toISOString().split('T')[0]} 
                         className="w-full p-3 rounded-lg border border-blue-300 dark:border-slate-600 outline-none focus:border-blue-600 bg-white dark:bg-slate-900 dark:text-white mb-4 font-bold"
                         value={bookingDate} onChange={e => setBookingDate(e.target.value)}

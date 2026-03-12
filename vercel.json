@@ -1,8 +1,15 @@
 {
-  "version": 2,
-  "regions": ["iad1"],
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.ts" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "taibet-pharmacies.vercel.app"
+        }
+      ],
+      "destination": "https://www.taiba-health.com/$1",
+      "permanent": true
+    }
   ]
 }
