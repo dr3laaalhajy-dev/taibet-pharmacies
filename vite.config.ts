@@ -17,15 +17,6 @@ export default defineConfig(({mode}) => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
-      
-      // 🚀 الوسيط (Proxy) لحل مشكلة CORS محلياً 🚀
-      proxy: {
-        '/api': {
-          target: 'https://www.taiba-health.com',
-          changeOrigin: true,
-          secure: false,
-        }
-      }
     },
   };
 });
