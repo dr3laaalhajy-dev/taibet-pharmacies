@@ -36,9 +36,10 @@ const uploadImageToImgBB = async (file: File) => {
   throw new Error(d.error?.message || 'فشل الرفع'); 
 };
 
-// 🟢 مكون نموذج السجل الطبي المطور الشامل
+// 🟢 مكون نموذج السجل الطبي المطور الشامل (يدعم التعديل وجلب البيانات السابقة)
 const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
   const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true); // حالة جديدة للتحميل الأولي
 
   // المتغيرات لجميع الأقسام
   const [form, setForm] = useState({
@@ -48,28 +49,104 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
     allergies: 'لا', allergies_details: '',
   });
 
-  // العادات الخاصة
   const [habits, setHabits] = useState({ smoking: 'لا', alcohol: 'لا', drugs: 'لا' });
   
-  // صحة المرأة (الأسئلة الجديدة)
   const [womenHealth, setWomenHealth] = useState({ 
     cycle: 'منتظمة', cycle_length: '', flow_duration: '', pads_per_day: '', 
     gravida: '0', LMP: '' 
   });
 
-  // الأمراض السابقة والعائلية 
   const [pmh, setPmh] = useState<string[]>([]);
-  const [pmhOtherVal, setPmhOtherVal] = useState(''); // حقل (أخرى) للأمراض المرضية
+  const [pmhOtherVal, setPmhOtherVal] = useState(''); 
   
   const [fmh, setFmh] = useState<string[]>([]);
-  const [fmhOtherVal, setFmhOtherVal] = useState(''); // حقل (أخرى) للأمراض العائلية
+  const [fmhOtherVal, setFmhOtherVal] = useState(''); 
 
-  // التاريخ الدوائي
   const [medications, setMedications] = useState([{ name: '', dose: '', freq: '' }]);
 
-  // القوائم الثابتة للخيارات (تمت إضافة 'أخرى')
   const pmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'الربو', 'الغدة الدرقية', 'الكلى', 'الكبد', 'لا يوجد', 'أخرى'];
   const fmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'سرطان', 'أمراض وراثية', 'لا يوجد', 'أخرى'];
+
+  // 🟢 جلب البيانات القديمة عند فتح النافذة لتمكين التعديل
+  useEffect(() => {
+    const fetchMyRecord = async () => {
+      try {
+        const res = await api.get(`/api/medical-records/${user.id}`);
+        if (res && res.id) {
+          // تعبئة البيانات الأساسية
+          setForm(prev => ({
+            ...prev,
+            full_name: res.full_name || user?.name || '',
+            age: res.age || '',
+            gender: res.gender || '',
+            marital_status: res.marital_status || 'أعزب',
+            children_count: res.children_count?.toString() || '0',
+            occupation: res.occupation || '',
+            blood_type: res.blood_type || '',
+            surgeries: res.past_surgeries && res.past_surgeries !== 'لا يوجد' ? 'نعم' : 'لا',
+            surgeries_details: res.past_surgeries !== 'لا يوجد' ? res.past_surgeries : '',
+            allergies: res.allergies && res.allergies !== 'لا يوجد' ? 'نعم' : 'لا',
+            allergies_details: res.allergies !== 'لا يوجد' ? res.allergies : '',
+          }));
+
+          // تفكيك العادات الخاصة
+          if (res.special_habits) {
+            const parts = res.special_habits.split(' | ');
+            setHabits({
+              smoking: parts[0]?.replace('تدخين: ', '') || 'لا',
+              alcohol: parts[1]?.replace('كحول: ', '') || 'لا',
+              drugs: parts[2]?.replace('ممنوعات: ', '') || 'لا',
+            });
+          }
+
+          // تفكيك التاريخ النسائي
+          if (res.menstrual_history) {
+            try { setWomenHealth(JSON.parse(res.menstrual_history)); } catch (e) {}
+          }
+
+          // تفكيك الأمراض السابقة مع فحص حقل (أخرى)
+          if (res.past_medical_history) {
+            const pmhArr = res.past_medical_history.split('، ').filter(Boolean);
+            const standardPmh: string[] = [];
+            pmhArr.forEach((item: string) => {
+              if (item.startsWith('أخرى (')) {
+                standardPmh.push('أخرى');
+                setPmhOtherVal(item.replace('أخرى (', '').replace(')', ''));
+              } else {
+                standardPmh.push(item);
+              }
+            });
+            setPmh(standardPmh);
+          }
+
+          // تفكيك التاريخ العائلي مع فحص حقل (أخرى)
+          if (res.family_history) {
+            const fmhArr = res.family_history.split('، ').filter(Boolean);
+            const standardFmh: string[] = [];
+            fmhArr.forEach((item: string) => {
+              if (item.startsWith('أخرى (')) {
+                standardFmh.push('أخرى');
+                setFmhOtherVal(item.replace('أخرى (', '').replace(')', ''));
+              } else {
+                standardFmh.push(item);
+              }
+            });
+            setFmh(standardFmh);
+          }
+
+          // تفكيك الأدوية
+          if (res.medication_list && Array.isArray(res.medication_list) && res.medication_list.length > 0) {
+            setMedications(res.medication_list);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch medical record", error);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+    fetchMyRecord();
+  }, [user.id]);
 
   const toggleSelection = (item: string, list: string[], setList: Function) => {
     if (item === 'لا يوجد') { setList(['لا يوجد']); return; }
@@ -114,7 +191,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
         medication_list: medications.filter(m => m.name.trim() !== '') 
       });
       
-      toast.success(lang === 'ar' ? 'تم حفظ سجلك الطبي بنجاح!' : 'Medical record saved successfully!');
+      toast.success(lang === 'ar' ? 'تم تحديث سجلك الطبي بنجاح!' : 'Medical record updated successfully!');
       onSaved();
       onClose();
     } catch (err) {
@@ -123,6 +200,18 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
       setLoading(false);
     }
   };
+
+  // 🟢 إذا كانت البيانات قيد الجلب، أظهر دائرة تحميل بدل النموذج الفارغ
+  if (isFetching) {
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[150] p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 shadow-2xl flex flex-col items-center">
+          <span className="animate-spin h-10 w-10 border-4 border-emerald-500 rounded-full border-t-transparent mb-4"></span>
+          <p className="font-bold text-slate-600 dark:text-slate-300">{lang === 'ar' ? 'جاري تحميل السجل الطبي...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[150] p-4">
@@ -197,7 +286,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
                 )}
                 
                 <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأحمال السابقة' : 'Pregnancies (Gravida)'}</label>
+                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الحمل السابقة' : 'Pregnancies (Gravida)'}</label>
                   <input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} />
                 </div>
                 
@@ -210,7 +299,6 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
                     </>
                   ) : (
                     <>
-                      <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'تاريخ أول يوم لآخر دورة' : 'Last Menstrual Period'}</label>
                       <input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} />
                     </>
                   )}
@@ -669,7 +757,7 @@ export default function App() {
                         {/* 🟢 زر استكمال السجل الطبي المضاف حديثاً */}
                         {user.role === 'patient' && (
                           <button onClick={() => { setShowMedicalRecordFormModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors mt-1">
-                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? 'استكمال السجل الطبي' : 'Complete Medical Record'}
+                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? ' السجل الطبي' : 'Complete Medical Record'}
                           </button>
                         )}
 
