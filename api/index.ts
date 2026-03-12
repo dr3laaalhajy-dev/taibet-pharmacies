@@ -285,17 +285,48 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
 
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId])).rows || {}); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
-  const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes } = req.body; 
+  const { 
+    patient_id, full_name, age, gender, marital_status, children_count, 
+    occupation, special_habits, menstrual_history, past_medical_history, 
+    past_surgeries, allergies, family_history, medication_list, blood_type 
+  } = req.body; 
+
   try { 
-    res.json({ success: true, record: (await pool.query(`
-      INSERT INTO medical_records (patient_id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+    // تحديث الجدول تلقائياً بالحقول الجديدة إذا لم تكن موجودة
+    const columns = [
+      'full_name VARCHAR(255)', 'age INT', 'gender VARCHAR(50)', 
+      'children_count INT', 'special_habits TEXT', 'menstrual_history TEXT', 
+      'medication_list JSONB', 'past_medical_history TEXT'
+    ];
+    for (let col of columns) {
+      try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
+    }
+
+    const query = `
+      INSERT INTO medical_records (
+        patient_id, full_name, age, gender, marital_status, children_count, 
+        occupation, special_habits, menstrual_history, past_medical_history, 
+        past_surgeries, allergies, family_history, medication_list, blood_type
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
       ON CONFLICT (patient_id) DO UPDATE SET 
-      blood_type=$2, allergies=$3, chronic_diseases=$4, past_surgeries=$5, regular_medications=$6, vaccinations=$7, family_history=$8, smoking_status=$9, alcohol_status=$10, marital_status=$11, occupation=$12, notes=$13, updated_at=CURRENT_TIMESTAMP 
-      RETURNING *`, 
-      [patient_id || req.user.id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes]
-    )).rows[0] }); 
-  } catch(err: any) { res.status(500).json({ error: err.message }); } 
+        full_name=$2, age=$3, gender=$4, marital_status=$5, children_count=$6, 
+        occupation=$7, special_habits=$8, menstrual_history=$9, past_medical_history=$10, 
+        past_surgeries=$11, allergies=$12, family_history=$13, medication_list=$14, 
+        blood_type=$15, updated_at=CURRENT_TIMESTAMP 
+      RETURNING *`;
+      
+    const values = [
+      patient_id || req.user.id, full_name, age || null, gender, marital_status, 
+      children_count || 0, occupation, special_habits, menstrual_history, 
+      past_medical_history, past_surgeries, allergies, family_history, 
+      JSON.stringify(medication_list), blood_type
+    ];
+
+    res.json({ success: true, record: (await pool.query(query, values)).rows[0] }); 
+  } catch(err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } 
 });
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
