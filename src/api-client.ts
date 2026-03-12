@@ -1,5 +1,5 @@
 // 🟢 الرابط الأساسي للباك إند: الآن يسحب الرابط من ملف .env تلقائياً للعمل على الموبايل!
-const BASE_URL = import.meta.env.VITE_API_URL || ''; 
+const BASE_URL = '';
 
 export const api = {
   get: async (endpoint: string) => {
