@@ -42,13 +42,8 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
 
   // المتغيرات لجميع الأقسام
   const [form, setForm] = useState({
-    full_name: user?.name || '',
-    age: '',
-    gender: '',
-    marital_status: 'أعزب',
-    children_count: '0',
-    occupation: '',
-    blood_type: '',
+    full_name: user?.name || '', age: '', gender: '', marital_status: 'أعزب', children_count: '0',
+    occupation: '', blood_type: '',
     surgeries: 'لا', surgeries_details: '',
     allergies: 'لا', allergies_details: '',
   });
@@ -56,19 +51,25 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
   // العادات الخاصة
   const [habits, setHabits] = useState({ smoking: 'لا', alcohol: 'لا', drugs: 'لا' });
   
-  // صحة المرأة
-  const [womenHealth, setWomenHealth] = useState({ cycle: 'منتظمة', gravida: '0', LMP: '' });
+  // صحة المرأة (الأسئلة الجديدة)
+  const [womenHealth, setWomenHealth] = useState({ 
+    cycle: 'منتظمة', cycle_length: '', flow_duration: '', pads_per_day: '', 
+    gravida: '0', LMP: '' 
+  });
 
-  // الأمراض السابقة والعائلية (مصفوفات للخيارات المتعددة)
+  // الأمراض السابقة والعائلية 
   const [pmh, setPmh] = useState<string[]>([]);
+  const [pmhOtherVal, setPmhOtherVal] = useState(''); // حقل (أخرى) للأمراض المرضية
+  
   const [fmh, setFmh] = useState<string[]>([]);
+  const [fmhOtherVal, setFmhOtherVal] = useState(''); // حقل (أخرى) للأمراض العائلية
 
-  // التاريخ الدوائي (قائمة ديناميكية)
+  // التاريخ الدوائي
   const [medications, setMedications] = useState([{ name: '', dose: '', freq: '' }]);
 
-  // القوائم الثابتة للخيارات
-  const pmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'الربو', 'الغدة الدرقية', 'الكلى', 'الكبد', 'لا يوجد'];
-  const fmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'سرطان', 'أمراض وراثية', 'لا يوجد'];
+  // القوائم الثابتة للخيارات (تمت إضافة 'أخرى')
+  const pmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'الربو', 'الغدة الدرقية', 'الكلى', 'الكبد', 'لا يوجد', 'أخرى'];
+  const fmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'سرطان', 'أمراض وراثية', 'لا يوجد', 'أخرى'];
 
   const toggleSelection = (item: string, list: string[], setList: Function) => {
     if (item === 'لا يوجد') { setList(['لا يوجد']); return; }
@@ -80,18 +81,20 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
 
   const addMedication = () => setMedications([...medications, { name: '', dose: '', freq: '' }]);
   const updateMedication = (index: number, field: string, value: string) => {
-    const updated = [...medications];
-    updated[index] = { ...updated[index], [field]: value };
-    setMedications(updated);
+    const updated = [...medications]; updated[index] = { ...updated[index], [field]: value }; setMedications(updated);
   };
   const removeMedication = (index: number) => setMedications(medications.filter((_, i) => i !== index));
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.gender) return toast.error(lang === 'ar' ? 'يرجى تحديد الجنس' : 'Please select gender');
-    if (form.age && isNaN(Number(form.age))) return toast.error(lang === 'ar' ? 'العمر يجب أن يكون رقماً' : 'Age must be a number');
 
     setLoading(true);
+    
+    // 🟢 دمج حقل "أخرى" مع المصفوفات قبل الإرسال
+    const finalPmh = pmh.map(item => item === 'أخرى' && pmhOtherVal ? `أخرى (${pmhOtherVal})` : item).join('، ');
+    const finalFmh = fmh.map(item => item === 'أخرى' && fmhOtherVal ? `أخرى (${fmhOtherVal})` : item).join('، ');
+
     try {
       await api.post('/api/medical-records', {
         patient_id: user.id,
@@ -104,11 +107,11 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
         blood_type: form.blood_type,
         special_habits: `تدخين: ${habits.smoking} | كحول: ${habits.alcohol} | ممنوعات: ${habits.drugs}`,
         menstrual_history: form.gender === 'أنثى' ? JSON.stringify(womenHealth) : null,
-        past_medical_history: pmh.join('، '),
+        past_medical_history: finalPmh,
         past_surgeries: form.surgeries === 'نعم' ? form.surgeries_details : 'لا يوجد',
         allergies: form.allergies === 'نعم' ? form.allergies_details : 'لا يوجد',
-        family_history: fmh.join('، '),
-        medication_list: medications.filter(m => m.name.trim() !== '') // إرسال الأدوية المكتوبة فقط
+        family_history: finalFmh,
+        medication_list: medications.filter(m => m.name.trim() !== '') 
       });
       
       toast.success(lang === 'ar' ? 'تم حفظ سجلك الطبي بنجاح!' : 'Medical record saved successfully!');
@@ -125,12 +128,9 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[150] p-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
         
-        {/* الترويسة والتنبيه الأمني */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b dark:border-slate-800 p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-              <Heart className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Comprehensive Medical Record'}
-            </h2>
+            <h2 className="text-xl font-bold flex items-center gap-2 dark:text-white"><Heart className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Comprehensive Medical Record'}</h2>
             <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><X size={20} className="dark:text-slate-300"/></button>
           </div>
           <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-xl flex items-center gap-3 text-sm font-bold">
@@ -145,67 +145,47 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
           <section>
             <h3 className="text-lg font-bold mb-4 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'البيانات الأساسية' : 'Basic Info'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الاسم الثلاثي' : 'Full Name'}</label>
-                <input required type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} />
-              </div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الاسم الثلاثي' : 'Full Name'}</label><input required type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'العمر' : 'Age'}</label>
-                  <input required type="number" min="1" max="120" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.age} onChange={e => setForm({...form, age: e.target.value})} />
-                </div>
-                <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الجنس' : 'Gender'}</label>
-                  <select required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
-                    <option value="">{lang === 'ar' ? 'اختر...' : 'Select...'}</option>
-                    <option value="ذكر">{lang === 'ar' ? 'ذكر' : 'Male'}</option>
-                    <option value="أنثى">{lang === 'ar' ? 'أنثى' : 'Female'}</option>
-                  </select>
-                </div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'العمر' : 'Age'}</label><input required type="number" min="1" max="120" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.age} onChange={e => setForm({...form, age: e.target.value})} /></div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الجنس' : 'Gender'}</label><select required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}><option value="">{lang === 'ar' ? 'اختر...' : 'Select...'}</option><option value="ذكر">{lang === 'ar' ? 'ذكر' : 'Male'}</option><option value="أنثى">{lang === 'ar' ? 'أنثى' : 'Female'}</option></select></div>
               </div>
-              <div>
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</label>
-                <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.marital_status} onChange={e => setForm({...form, marital_status: e.target.value})}>
-                  <option value="أعزب">{lang === 'ar' ? 'أعزب' : 'Single'}</option>
-                  <option value="متزوج">{lang === 'ar' ? 'متزوج' : 'Married'}</option>
-                  <option value="مطلق">{lang === 'ar' ? 'مطلق' : 'Divorced'}</option>
-                  <option value="أرمل">{lang === 'ar' ? 'أرمل' : 'Widowed'}</option>
-                </select>
-              </div>
-              {form.marital_status === 'متزوج' && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأولاد' : 'Number of Children'}</label>
-                  <input type="number" min="0" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.children_count} onChange={e => setForm({...form, children_count: e.target.value})} />
-                </motion.div>
-              )}
-              <div className="md:col-span-2">
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'طبيعة العمل (المهنة)' : 'Occupation'}</label>
-                <input type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" placeholder={lang === 'ar' ? 'مثال: مهندس، معلم، طالب...' : 'e.g. Engineer, Teacher...'} value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} />
-              </div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.marital_status} onChange={e => setForm({...form, marital_status: e.target.value})}><option value="أعزب">{lang === 'ar' ? 'أعزب' : 'Single'}</option><option value="متزوج">{lang === 'ar' ? 'متزوج' : 'Married'}</option><option value="مطلق">{lang === 'ar' ? 'مطلق' : 'Divorced'}</option><option value="أرمل">{lang === 'ar' ? 'أرمل' : 'Widowed'}</option></select></div>
+              {form.marital_status === 'متزوج' && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأولاد' : 'Children'}</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.children_count} onChange={e => setForm({...form, children_count: e.target.value})} /></motion.div>)}
+              <div className="md:col-span-2"><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'طبيعة العمل (المهنة)' : 'Occupation'}</label><input type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" placeholder={lang === 'ar' ? 'مثال: مهندس، معلم...' : 'e.g. Engineer...'} value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} /></div>
             </div>
           </section>
 
-          {/* 2. التاريخ النسائي (يظهر فقط للإناث) */}
+          {/* 2. التاريخ النسائي (يظهر فقط للإناث - مع الأسئلة الجديدة) */}
           {form.gender === 'أنثى' && (
             <motion.section initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-pink-50 dark:bg-pink-900/10 p-5 rounded-2xl border border-pink-100 dark:border-pink-900/30">
               <h3 className="text-lg font-bold mb-4 text-pink-600 dark:text-pink-400">{lang === 'ar' ? 'التاريخ الصحي النسائي' : 'Women Health History'}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الدورة الشهرية' : 'Menstrual Cycle'}</label>
+                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'انتظام الدورة' : 'Cycle Regularity'}</label>
                   <select className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle} onChange={e => setWomenHealth({...womenHealth, cycle: e.target.value})}>
-                    <option value="منتظمة">{lang === 'ar' ? 'منتظمة' : 'Regular'}</option>
+                    <option value="منتظمة">{lang === 'ar' ? 'منتظمة كل شهر' : 'Regular'}</option>
                     <option value="غير منتظمة">{lang === 'ar' ? 'غير منتظمة' : 'Irregular'}</option>
                     <option value="منقطعة">{lang === 'ar' ? 'منقطعة (سن اليأس)' : 'Menopause'}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأحمال السابقة' : 'Pregnancies (Gravida)'}</label>
-                  <input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} />
+                  <label className="font-bold text-sm block mb-1 dark:text-white" title="عدد الأيام بين بداية الدورة وبداية الدورة التي تليها">{lang === 'ar' ? 'طول الدورة (بالأيام)' : 'Cycle Length (days)'}</label>
+                  <input type="number" placeholder="مثال: 28" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle_length} onChange={e => setWomenHealth({...womenHealth, cycle_length: e.target.value})} />
                 </div>
                 <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'تاريخ أول يوم لآخر دورة' : 'Last Menstrual Period (LMP)'}</label>
-                  <input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} />
+                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'مدة النزيف (بالأيام)' : 'Flow Duration (days)'}</label>
+                  <input type="number" placeholder="مثال: 5" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.flow_duration} onChange={e => setWomenHealth({...womenHealth, flow_duration: e.target.value})} />
+                  {Number(womenHealth.flow_duration) > 7 && <p className="text-xs text-red-500 mt-1 font-bold">⚠️ تزيد عن 7 أيام</p>}
                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الفوط المستخدمة يومياً' : 'Pads per day'}</label>
+                  <input type="number" placeholder="العدد التقريبي" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.pads_per_day} onChange={e => setWomenHealth({...womenHealth, pads_per_day: e.target.value})} />
+                </div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأحمال السابقة' : 'Pregnancies (Gravida)'}</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} /></div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'تاريخ أول يوم لآخر دورة' : 'Last Menstrual Period'}</label><input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} /></div>
               </div>
             </motion.section>
           )}
@@ -214,30 +194,9 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
           <section>
             <h3 className="text-lg font-bold mb-4 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'العادات الخاصة' : 'Special Habits'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'التدخين بأنواعه' : 'Smoking (All types)'}</label>
-                <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.smoking} onChange={e => setHabits({...habits, smoking: e.target.value})}>
-                  <option value="لا">{lang === 'ar' ? 'لا أدخن' : 'No'}</option>
-                  <option value="سجائر">{lang === 'ar' ? 'سجائر عادية' : 'Cigarettes'}</option>
-                  <option value="شيشة">{lang === 'ar' ? 'أرجيلة (شيشة)' : 'Shisha'}</option>
-                  <option value="إلكترونية">{lang === 'ar' ? 'سيجارة إلكترونية/فيب' : 'Vape / E-cig'}</option>
-                  <option value="سابق">{lang === 'ar' ? 'مدخن سابق' : 'Ex-smoker'}</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الكحول' : 'Alcohol'}</label>
-                <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.alcohol} onChange={e => setHabits({...habits, alcohol: e.target.value})}>
-                  <option value="لا">{lang === 'ar' ? 'لا أشرب أبداً' : 'Never'}</option>
-                  <option value="نعم">{lang === 'ar' ? 'نعم' : 'Yes'}</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'مواد ممنوعة / منبهات قوية' : 'Substances / Drugs'}</label>
-                <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.drugs} onChange={e => setHabits({...habits, drugs: e.target.value})}>
-                  <option value="لا">{lang === 'ar' ? 'لا يوجد' : 'No'}</option>
-                  <option value="نعم">{lang === 'ar' ? 'نعم' : 'Yes'}</option>
-                </select>
-              </div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'التدخين بأنواعه' : 'Smoking (All types)'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.smoking} onChange={e => setHabits({...habits, smoking: e.target.value})}><option value="لا">{lang === 'ar' ? 'لا أدخن' : 'No'}</option><option value="سجائر">{lang === 'ar' ? 'سجائر عادية' : 'Cigarettes'}</option><option value="شيشة">{lang === 'ar' ? 'أرجيلة (شيشة)' : 'Shisha'}</option><option value="إلكترونية">{lang === 'ar' ? 'سيجارة إلكترونية/فيب' : 'Vape / E-cig'}</option><option value="سابق">{lang === 'ar' ? 'مدخن سابق' : 'Ex-smoker'}</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الكحول' : 'Alcohol'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.alcohol} onChange={e => setHabits({...habits, alcohol: e.target.value})}><option value="لا">{lang === 'ar' ? 'لا أشرب أبداً' : 'Never'}</option><option value="نعم">{lang === 'ar' ? 'نعم' : 'Yes'}</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'مواد ممنوعة / منبهات قوية' : 'Substances / Drugs'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.drugs} onChange={e => setHabits({...habits, drugs: e.target.value})}><option value="لا">{lang === 'ar' ? 'لا يوجد' : 'No'}</option><option value="نعم">{lang === 'ar' ? 'نعم' : 'Yes'}</option></select></div>
             </div>
           </section>
 
@@ -253,14 +212,22 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
                 ))}
               </div>
               
+              {/* 🟢 حقل كتابة المرض الإضافي إذا اختار (أخرى) */}
+              {pmh.includes('أخرى') && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+                  <input type="text" placeholder={lang === 'ar' ? 'يرجى كتابة المرض...' : 'Please specify...'} className="w-full p-3 rounded-xl border border-blue-300 outline-none dark:bg-slate-800 dark:text-white" value={pmhOtherVal} onChange={e => setPmhOtherVal(e.target.value)} required />
+                </motion.div>
+              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div>
-                  <label className="font-bold text-sm block mb-2 dark:text-white">{lang === 'ar' ? 'هل أجريت عمليات جراحية سابقاً؟' : 'Past Surgeries?'}</label>
+                  {/* 🟢 تعديل سؤال العمليات الجراحية */}
+                  <label className="font-bold text-sm block mb-2 dark:text-white">{lang === 'ar' ? 'هل أجريت عمليات جراحية سابقاً؟ (حتى لو بسيطة مثل اللوزات/الزائدة)' : 'Past Surgeries? (Even minor like tonsils/appendix)'}</label>
                   <div className="flex gap-4 mb-2">
                     <label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" name="surg" checked={form.surgeries === 'لا'} onChange={() => setForm({...form, surgeries: 'لا'})} /> لا</label>
                     <label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" name="surg" checked={form.surgeries === 'نعم'} onChange={() => setForm({...form, surgeries: 'نعم'})} /> نعم</label>
                   </div>
-                  {form.surgeries === 'نعم' && <input type="text" placeholder={lang === 'ar' ? 'اذكر نوع العملية...' : 'Specify surgery...'} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.surgeries_details} onChange={e => setForm({...form, surgeries_details: e.target.value})} />}
+                  {form.surgeries === 'نعم' && <input type="text" placeholder={lang === 'ar' ? 'اذكر نوع العملية ومتى...' : 'Specify surgery...'} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.surgeries_details} onChange={e => setForm({...form, surgeries_details: e.target.value})} required />}
                 </div>
                 <div>
                   <label className="font-bold text-sm block mb-2 dark:text-white">{lang === 'ar' ? 'هل لديك حساسية (أدوية/طعام)؟' : 'Any Allergies?'}</label>
@@ -268,7 +235,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
                     <label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" name="allr" checked={form.allergies === 'لا'} onChange={() => setForm({...form, allergies: 'لا'})} /> لا</label>
                     <label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" name="allr" checked={form.allergies === 'نعم'} onChange={() => setForm({...form, allergies: 'نعم'})} /> نعم</label>
                   </div>
-                  {form.allergies === 'نعم' && <input type="text" placeholder={lang === 'ar' ? 'مما تتحسس؟ (بنسلين، سمك...)' : 'What are you allergic to?'} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.allergies_details} onChange={e => setForm({...form, allergies_details: e.target.value})} />}
+                  {form.allergies === 'نعم' && <input type="text" placeholder={lang === 'ar' ? 'مما تتحسس؟ (بنسلين، سمك...)' : 'What are you allergic to?'} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.allergies_details} onChange={e => setForm({...form, allergies_details: e.target.value})} required />}
                 </div>
               </div>
             </div>
@@ -276,13 +243,20 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
             <div>
               <h3 className="text-lg font-bold mb-3 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'التاريخ العائلي (Family History)' : 'Family History'}</h3>
               <p className="text-xs text-slate-500 mb-2">{lang === 'ar' ? 'هل يعاني أحد الوالدين أو الأشقاء من:' : 'Does any immediate family member suffer from:'}</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {fmhOptions.map(item => (
                   <button key={item} type="button" onClick={() => toggleSelection(item, fmh, setFmh)} className={`px-4 py-2 rounded-full text-sm font-bold border transition-colors ${fmh.includes(item) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
                     {item}
                   </button>
                 ))}
               </div>
+              
+              {/* 🟢 حقل كتابة المرض الإضافي للعائلة */}
+              {fmh.includes('أخرى') && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <input type="text" placeholder={lang === 'ar' ? 'يرجى كتابة المرض (مثال: ربو)...' : 'Please specify...'} className="w-full p-3 rounded-xl border border-indigo-300 outline-none dark:bg-slate-800 dark:text-white" value={fmhOtherVal} onChange={e => setFmhOtherVal(e.target.value)} required />
+                </motion.div>
+              )}
             </div>
           </section>
 
@@ -769,7 +743,6 @@ export default function App() {
               
               <div className="flex bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
                 <button onClick={() => setRecordsTab('rx')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'rx' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><FileSignature size={18}/> {lang === 'ar' ? 'الوصفات الطبية (الروشتات)' : 'Prescriptions'}</button>
-                <button onClick={() => setRecordsTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><Activity size={18}/> {lang === 'ar' ? 'السجل الطبي (EHR)' : 'Medical Record'}</button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">

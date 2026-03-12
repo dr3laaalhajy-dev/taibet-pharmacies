@@ -284,6 +284,17 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
 });
 
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId])).rows || {}); } catch(err: any) { res.status(500).json({ error: err.message }); } });
+// 🟢 1. جلب السجل الطبي (للتأكد من وجوده)
+app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const record = await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId]);
+    res.json(record.rows.length > 0 ? record.rows[0] : {});
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🟢 2. حفظ السجل الطبي (مع صيانة قاعدة البيانات تلقائياً)
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
   const { 
     patient_id, full_name, age, gender, marital_status, children_count, 
@@ -292,16 +303,30 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
   } = req.body; 
 
   try { 
-    // تحديث الجدول تلقائياً بالحقول الجديدة إذا لم تكن موجودة
+    // إنشاء الجدول الأساسي إذا لم يكن موجوداً لضمان عدم حدوث أخطاء
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS medical_records (
+        id SERIAL PRIMARY KEY,
+        patient_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // التأكد الإجباري من أن المريض لا يملك سوى سجل واحد (مهم جداً للحفظ)
+    try { await pool.query(`ALTER TABLE medical_records ADD CONSTRAINT unique_patient_id UNIQUE (patient_id);`); } catch(e){}
+
+    // إضافة الأعمدة الجديدة إذا كانت غير موجودة
     const columns = [
-      'full_name VARCHAR(255)', 'age INT', 'gender VARCHAR(50)', 
-      'children_count INT', 'special_habits TEXT', 'menstrual_history TEXT', 
-      'medication_list JSONB', 'past_medical_history TEXT'
+      'full_name VARCHAR(255)', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
+      'children_count INT', 'occupation VARCHAR(255)', 'special_habits TEXT', 'menstrual_history TEXT', 
+      'medication_list JSONB', 'past_medical_history TEXT', 'past_surgeries TEXT', 
+      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)',
+      'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
     ];
     for (let col of columns) {
       try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
     }
 
+    // أمر الإدخال والتحديث معاً
     const query = `
       INSERT INTO medical_records (
         patient_id, full_name, age, gender, marital_status, children_count, 
@@ -317,14 +342,16 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       RETURNING *`;
       
     const values = [
-      patient_id || req.user.id, full_name, age || null, gender, marital_status, 
-      children_count || 0, occupation, special_habits, menstrual_history, 
-      past_medical_history, past_surgeries, allergies, family_history, 
-      JSON.stringify(medication_list), blood_type
+      patient_id || req.user.id, full_name, age || null, gender, marital_status || 'أعزب', 
+      children_count || 0, occupation || '', special_habits || '', menstrual_history || '', 
+      past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
+      JSON.stringify(medication_list || []), blood_type || ''
     ];
 
-    res.json({ success: true, record: (await pool.query(query, values)).rows[0] }); 
+    const result = await pool.query(query, values);
+    res.json({ success: true, record: result.rows[0] }); 
   } catch(err: any) { 
+    console.error("Database Error:", err);
     res.status(500).json({ error: err.message }); 
   } 
 });
