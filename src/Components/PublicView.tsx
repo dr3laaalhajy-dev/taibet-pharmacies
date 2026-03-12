@@ -893,7 +893,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                     >
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       
-                      {/* رسم الدبابيس لكل عيادة/صيدلية مفلترة */}
+                      {/* رسم الدبابيس لكل عيادة /صيدلية مفلترة */}
                       {processedFacilities.map((f) => {
                         if (!f.latitude || !f.longitude) return null;
                         return (
