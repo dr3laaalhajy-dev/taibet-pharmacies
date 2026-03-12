@@ -334,13 +334,85 @@ app.post('/api/public/orders', async (req: any, res: any) => { const { pharmacy_
 app.get('/api/notifications', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/notifications/read', authenticateToken, async (req: any, res: any) => { try { await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'محاولات كثيرة.' } });
-app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { const { email, password } = req.body; try { const user = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows.shift(); if (user && user.password && bcrypt.compareSync(password, user.password)) { if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } }); } else { res.status(401).json({ error: 'بيانات غير صحيحة' }); } } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/auth/register', async (req: any, res: any) => { const { email, password, name, phone, role, activationKey } = req.body; try { let isActive = role === 'patient'; if (!isActive && activationKey) { await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); isActive = true; } await pool.query(`INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [email, bcrypt.hashSync(password, 10), role, name, phone || null, 10, isActive]); res.json({ success: true, isActive }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'البريد مستخدم!' : err.message }); } });
+app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => { 
+  const { email, password } = req.body; 
+  // 🟢 فلتر التنظيف: تحويل الإيميل لأحرف صغيرة وإزالة أي مسافات زائدة
+  const cleanEmail = email ? email.toLowerCase().trim() : '';
+
+  try { 
+// 🟢 استخدمنا LOWER(email) لكي نطلب من قاعدة البيانات تجاهل الأحرف الكبيرة أثناء البحث
+const user = (await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [cleanEmail])).rows[0];
+    if (user && user.password && bcrypt.compareSync(password, user.password)) { 
+      if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); 
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' }); 
+      res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' }); 
+      res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } }); 
+    } else { 
+      res.status(401).json({ error: 'بيانات غير صحيحة' }); 
+    } 
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } 
+});
+app.post('/api/auth/register', async (req: any, res: any) => { 
+  const { email, password, name, phone, role, activationKey } = req.body; 
+  // 🟢 فلتر التنظيف هنا أيضاً لضمان الحفظ في قاعدة البيانات بشكل موحد
+  const cleanEmail = email ? email.toLowerCase().trim() : '';
+
+  try { 
+    let isActive = role === 'patient'; 
+    if (!isActive && activationKey) { 
+      await pool.query('UPDATE activation_keys SET is_used = true WHERE key = $1', [activationKey]); 
+      isActive = true; 
+    } 
+    await pool.query(`INSERT INTO users (email, password, role, name, phone, pharmacy_limit, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [cleanEmail, bcrypt.hashSync(password, 10), role, name, phone || null, 10, isActive]); 
+    res.json({ success: true, isActive }); 
+  } catch (err: any) { 
+    res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'البريد مستخدم!' : err.message }); 
+  } 
+});
 app.post('/api/auth/logout', (req: any, res: any) => { res.clearCookie('token'); res.json({ message: 'تم تسجيل الخروج' }); });
 app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.json({ user: (await pool.query('SELECT id, email, role, name, wallet_balance, loyalty_points, profile_picture FROM users WHERE id = $1', [req.user.id])).rows.shift() }); });
 
-app.post('/api/auth/update-profile', authenticateToken, async (req: any, res: any) => { const { name, phone, notes } = req.body; try { await pool.query('UPDATE users SET name=$1, phone=$2, notes=$3 WHERE id=$4', [name, phone, notes, req.user.id]); res.json({ message: 'تم التحديث' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/auth/update-profile', authenticateToken, async (req: any, res: any) => { 
+  const { name, phone, notes, email, current_password, new_password } = req.body; 
+  try { 
+    // تحويل الإيميل لأحرف صغيرة دائماً
+    const cleanEmail = email ? email.toLowerCase().trim() : req.user.email;
 
+    // إذا كان المستخدم يريد تغيير كلمة المرور
+    if (new_password && new_password.trim() !== '') {
+      if (!current_password) {
+        return res.status(400).json({ error: 'يجب إدخال كلمة المرور الحالية لتأكيد التغيير.' });
+      }
+
+      // جلب كلمة المرور المشفرة من قاعدة البيانات للمقارنة
+      const userDb = await pool.query('SELECT password FROM users WHERE id = $1', [req.user.id]);
+      const isValidPassword = bcrypt.compareSync(current_password, userDb.rows[0].password);
+
+      if (!isValidPassword) {
+        return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة.' });
+      }
+
+      // تشفير كلمة المرور الجديدة
+      const hashedNewPassword = bcrypt.hashSync(new_password, 10);
+      await pool.query(
+        'UPDATE users SET name=$1, phone=$2, notes=$3, email=$4, password=$5 WHERE id=$6', 
+        [name, phone, notes, cleanEmail, hashedNewPassword, req.user.id]
+      );
+    } else {
+      // تحديث البيانات العادية بدون تغيير كلمة المرور
+      await pool.query(
+        'UPDATE users SET name=$1, phone=$2, notes=$3, email=$4 WHERE id=$5', 
+        [name, phone, notes, cleanEmail, req.user.id]
+      );
+    }
+
+    res.json({ message: 'تم تحديث الملف الشخصي بنجاح' }); 
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } 
+});
 app.put('/api/user', authenticateToken, async (req: any, res: any) => {
   try {
     const { profile_picture } = req.body;

@@ -15,6 +15,8 @@ import { Chat } from './Components/Chat';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { requestForToken } from './firebase';
+ import { Eye, EyeOff } from 'lucide-react'; // تأكد من استيراد أيقونات العين في أعلى الملف
+
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ 
@@ -84,6 +86,14 @@ export default function App() {
   const [selectedRxForDispense, setSelectedRxForDispense] = useState<any>(null);
 
   const t = translations[lang] || translations['ar'];
+
+
+// أضف هذه المتغيرات
+const [showPasswordChange, setShowPasswordChange] = useState(false);
+const [currentPassword, setCurrentPassword] = useState('');
+const [newPassword, setNewPassword] = useState('');
+const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
@@ -181,12 +191,34 @@ export default function App() {
     finally { setIsSubmittingWallet(false); }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault(); if (isUpdatingProfile) return; setIsUpdatingProfile(true);
-    try { await api.post('/api/auth/update-profile', { email: profileForm.email, name: profileForm.name, newPassword: profileForm.password, profile_picture: profileForm.profile_picture }); toast.success(lang === 'ar' ? 'تم تحديث الملف الشخصي بنجاح' : 'Profile updated'); refreshUser(); setShowProfileModal(false); } 
-    catch(err: any) { toast.error(err.error || 'خطأ في التحديث'); } 
-    finally { setIsUpdatingProfile(false); }
-  };
+  const handleUpdateProfile = async (e) => {
+  e.preventDefault();
+  setIsUpdatingProfile(true);
+  try {
+    const payload = {
+      name: profileForm.name,
+      email: profileForm.email.toLowerCase().trim(), // 🟢 تحويل للأحرف الصغيرة
+      current_password: currentPassword, // 🟢 إرسال كلمة المرور الحالية
+      new_password: newPassword          // 🟢 إرسال كلمة المرور الجديدة
+    };
+
+    await api.post('/api/auth/update-profile', payload);
+    
+    toast.success(lang === 'ar' ? 'تم حفظ التغييرات بنجاح!' : 'Profile updated successfully!');
+    
+    // إخفاء وتصفير حقول كلمة المرور بعد النجاح
+    setShowPasswordChange(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setShowProfileModal(false);
+    
+    // إذا كان لديك دالة لتحديث بيانات المستخدم محلياً استدعها هنا مثل refreshUser()
+  } catch (err) {
+    toast.error(err.error || 'حدث خطأ أثناء التحديث');
+  } finally {
+    setIsUpdatingProfile(false);
+  }
+};
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true);
@@ -504,22 +536,105 @@ export default function App() {
       <AnimatePresence>
         {showProfileModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md">
-              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold dark:text-white">{lang === 'ar' ? 'الملف الشخصي' : 'Profile'}</h3><button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20} className="dark:text-slate-300"/></button></div>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold dark:text-white">{lang === 'ar' ? 'الملف الشخصي' : 'Profile'}</h3>
+                <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                  <X size={20} className="dark:text-slate-300"/>
+                </button>
+              </div>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
+                
+                {/* 🟢 قسم الصورة الشخصية */}
                 <div className="flex flex-col items-center mb-6">
                   <div className="relative group cursor-pointer">
-                    {profileForm.profile_picture ? <img src={profileForm.profile_picture} className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 dark:border-slate-700 shadow-md" /> : <div className="w-24 h-24 rounded-full bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center text-3xl font-bold border-4 border-white dark:border-slate-800 shadow-md">{profileForm.name?.charAt(0)}</div>}
+                    {profileForm.profile_picture ? (
+                      <img src={profileForm.profile_picture} className="w-24 h-24 rounded-full object-cover border-4 border-slate-50 dark:border-slate-700 shadow-md" />
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center text-3xl font-bold border-4 border-white dark:border-slate-800 shadow-md">
+                        {profileForm.name?.charAt(0)}
+                      </div>
+                    )}
                     <label className="absolute inset-0 bg-black/50 text-white rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       {uploadingImage ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <Camera size={24} />}
                       <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage || isUpdatingProfile} />
                     </label>
                   </div>
                 </div>
-                <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">{lang === 'ar' ? 'الاسم' : 'Name'}</label><input required className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none dark:bg-slate-700 dark:text-white" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} disabled={isUpdatingProfile} /></div>
-                <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label><input required type="email" className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none dark:bg-slate-700 dark:text-white text-left" dir="ltr" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} disabled={isUpdatingProfile} /></div>
-                <button type="submit" disabled={uploadingImage || isUpdatingProfile} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 mt-2 flex items-center justify-center gap-2">
-                  {isUpdatingProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'حفظ التغييرات' : 'Save')}
+
+                {/* 🟢 حقل الاسم */}
+                <div>
+                  <label className="block text-sm font-bold mb-1 dark:text-slate-300 text-right">{lang === 'ar' ? 'الاسم' : 'Name'}</label>
+                  <input required className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white transition-colors" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} disabled={isUpdatingProfile} />
+                </div>
+
+                {/* 🟢 حقل الإيميل */}
+                <div>
+                  <label className="block text-sm font-bold mb-1 dark:text-slate-300 text-right">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                  <input required type="email" className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white text-left transition-colors" dir="ltr" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} disabled={isUpdatingProfile} />
+                </div>
+
+                {/* 🟢 زر التبديل لتغيير كلمة المرور */}
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-4 mt-2 text-right">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPasswordChange(!showPasswordChange)} 
+                    className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  >
+                    {showPasswordChange ? (lang === 'ar' ? 'إلغاء تغيير كلمة المرور' : 'Cancel Password Change') : (lang === 'ar' ? 'تغيير كلمة المرور؟' : 'Change Password?')}
+                  </button>
+                </div>
+
+                {/* 🟢 حقول كلمة المرور الجديدة (تظهر بلمسة أنيقة) */}
+                {showPasswordChange && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl space-y-4 border border-slate-100 dark:border-slate-700">
+                    
+                    {/* كلمة المرور الحالية */}
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-slate-400 text-right">
+                        {lang === 'ar' ? 'كلمة المرور الحالية (لتأكيد التغيير)' : 'Current Password (required)'}
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type={showCurrentPassword ? "text" : "password"} 
+                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors" 
+                          dir="ltr" 
+                          value={currentPassword} 
+                          onChange={(e) => setCurrentPassword(e.target.value)} 
+                          disabled={isUpdatingProfile}
+                        />
+                        <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors">
+                          {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* كلمة المرور الجديدة */}
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-slate-400 text-right">
+                        {lang === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type={showNewPassword ? "text" : "password"} 
+                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors" 
+                          dir="ltr" 
+                          value={newPassword} 
+                          onChange={(e) => setNewPassword(e.target.value)} 
+                          disabled={isUpdatingProfile}
+                        />
+                        <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors">
+                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                  </motion.div>
+                )}
+
+                {/* 🟢 زر الحفظ */}
+                <button type="submit" disabled={uploadingImage || isUpdatingProfile} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-blue-700 mt-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
+                  {isUpdatingProfile ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'حفظ التغييرات' : 'Save Changes')}
                 </button>
               </form>
             </motion.div>
