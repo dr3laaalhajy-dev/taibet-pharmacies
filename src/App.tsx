@@ -867,6 +867,7 @@ export default function App() {
               
               <div className="flex bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
                 <button onClick={() => setRecordsTab('rx')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'rx' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><FileSignature size={18}/> {lang === 'ar' ? 'الوصفات الطبية (الروشتات)' : 'Prescriptions'}</button>
+                <button onClick={() => setRecordsTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><Activity size={18}/> {lang === 'ar' ? 'السجل الطبي (EHR)' : 'Medical Record'}</button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
