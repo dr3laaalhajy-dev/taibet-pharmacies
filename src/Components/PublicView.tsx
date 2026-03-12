@@ -866,7 +866,16 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                             </motion.tr>
                           );
                         })}
-                        {/* 🟢 قسم الخريطة التفاعلية الشاملة */}
+                      </tbody>
+                    </table>
+                  </div>
+                  {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+        {/* 🟢 قسم الخريطة التفاعلية الشاملة */}
               {processedFacilities.length > 0 && (
                 <div className="w-full bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative z-0">
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
@@ -913,15 +922,6 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   </div>
                 </div>
               )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {totalPages > 1 && (<div className="flex justify-center items-center gap-4 p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"><button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{currentPage} / {totalPages}</span><button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         <AnimatePresence>
           {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => {setSelectedDoctorId(null); setSelectedFacilityId(null);}} t={t} lang={lang} currency={currency} currentUser={user} openChatWithUser={openChatWithUser} />}
