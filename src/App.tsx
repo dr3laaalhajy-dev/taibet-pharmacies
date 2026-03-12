@@ -156,36 +156,65 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
             </div>
           </section>
 
-          {/* 2. التاريخ النسائي (يظهر فقط للإناث - مع الأسئلة الجديدة) */}
+          {/* 2. التاريخ النسائي (يظهر فقط للإناث - تفاعلي وذكي) */}
           {form.gender === 'أنثى' && (
             <motion.section initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-pink-50 dark:bg-pink-900/10 p-5 rounded-2xl border border-pink-100 dark:border-pink-900/30">
               <h3 className="text-lg font-bold mb-4 text-pink-600 dark:text-pink-400">{lang === 'ar' ? 'التاريخ الصحي النسائي' : 'Women Health History'}</h3>
+              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'انتظام الدورة' : 'Cycle Regularity'}</label>
-                  <select className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle} onChange={e => setWomenHealth({...womenHealth, cycle: e.target.value})}>
+                  <select className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle} onChange={e => setWomenHealth({...womenHealth, cycle: e.target.value, LMP: ''})}>
                     <option value="منتظمة">{lang === 'ar' ? 'منتظمة كل شهر' : 'Regular'}</option>
                     <option value="غير منتظمة">{lang === 'ar' ? 'غير منتظمة' : 'Irregular'}</option>
                     <option value="منقطعة">{lang === 'ar' ? 'منقطعة (سن اليأس)' : 'Menopause'}</option>
                   </select>
                 </div>
-                <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white" title="عدد الأيام بين بداية الدورة وبداية الدورة التي تليها">{lang === 'ar' ? 'طول الدورة (بالأيام)' : 'Cycle Length (days)'}</label>
-                  <input type="number" placeholder="مثال: 28" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle_length} onChange={e => setWomenHealth({...womenHealth, cycle_length: e.target.value})} />
-                </div>
-                <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'مدة النزيف (بالأيام)' : 'Flow Duration (days)'}</label>
-                  <input type="number" placeholder="مثال: 5" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.flow_duration} onChange={e => setWomenHealth({...womenHealth, flow_duration: e.target.value})} />
-                  {Number(womenHealth.flow_duration) > 7 && <p className="text-xs text-red-500 mt-1 font-bold">⚠️ تزيد عن 7 أيام</p>}
-                </div>
+                
+                {/* 🟢 إخفاء هذه الأسئلة إذا كانت الدورة منقطعة */}
+                {womenHealth.cycle !== 'منقطعة' && (
+                  <>
+                    <div>
+                      <label className="font-bold text-sm block mb-1 dark:text-white" title="عدد الأيام بين بداية الدورة وبداية الدورة التي تليها">{lang === 'ar' ? 'طول الدورة (بالأيام)' : 'Cycle Length (days)'}</label>
+                      <input type="number" placeholder="مثال: 28" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle_length} onChange={e => setWomenHealth({...womenHealth, cycle_length: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'مدة النزيف (بالأيام)' : 'Flow Duration (days)'}</label>
+                      <input type="number" placeholder="مثال: 5" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.flow_duration} onChange={e => setWomenHealth({...womenHealth, flow_duration: e.target.value})} />
+                      {Number(womenHealth.flow_duration) > 7 && <p className="text-xs text-red-500 mt-1 font-bold">⚠️ تزيد عن 7 أيام</p>}
+                    </div>
+                  </>
+                )}
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 🟢 إخفاء الفوط إذا كانت منقطعة */}
+                {womenHealth.cycle !== 'منقطعة' && (
+                  <div>
+                    <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الفوط المستخدمة يومياً' : 'Pads per day'}</label>
+                    <input type="number" placeholder="العدد التقريبي" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.pads_per_day} onChange={e => setWomenHealth({...womenHealth, pads_per_day: e.target.value})} />
+                  </div>
+                )}
+                
                 <div>
-                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الفوط المستخدمة يومياً' : 'Pads per day'}</label>
-                  <input type="number" placeholder="العدد التقريبي" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.pads_per_day} onChange={e => setWomenHealth({...womenHealth, pads_per_day: e.target.value})} />
+                  <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأحمال السابقة' : 'Pregnancies (Gravida)'}</label>
+                  <input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} />
                 </div>
-                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأحمال السابقة' : 'Pregnancies (Gravida)'}</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} /></div>
-                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'تاريخ أول يوم لآخر دورة' : 'Last Menstrual Period'}</label><input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} /></div>
+                
+                <div>
+                  {/* 🟢 التغيير الذكي لحقل التاريخ بناءً على حالة الدورة */}
+                  {womenHealth.cycle === 'منقطعة' ? (
+                    <>
+                      <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'منذ متى انقطعت الدورة تقريباً؟' : 'When did menopause start?'}</label>
+                      <input type="text" placeholder={lang === 'ar' ? 'مثال: منذ 5 سنوات، أو 2018...' : 'e.g., 5 years ago...'} className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} />
+                    </>
+                  ) : (
+                    <>
+                      <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'تاريخ أول يوم لآخر دورة' : 'Last Menstrual Period'}</label>
+                      <input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} />
+                    </>
+                  )}
+                </div>
               </div>
             </motion.section>
           )}
