@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star , Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight} from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star , Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -15,8 +15,7 @@ import { Chat } from './Components/Chat';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { requestForToken } from './firebase';
- import { Eye, EyeOff } from 'lucide-react'; // تأكد من استيراد أيقونات العين في أعلى الملف
-
+import { Eye, EyeOff } from 'lucide-react'; 
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({ 
@@ -36,6 +35,140 @@ const uploadImageToImgBB = async (file: File) => {
   const d = await r.json(); if (d.success) return d.data.url; 
   throw new Error(d.error?.message || 'فشل الرفع'); 
 };
+
+// 🟢 مكون نموذج السجل الطبي (تم عزله لترتيب الكود)
+const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
+  const [loading, setLoading] = useState(false);
+  const [chronic, setChronic] = useState('');
+  const [showOtherChronic, setShowOtherChronic] = useState(false);
+  const [otherChronicVal, setOtherChronicVal] = useState('');
+  const [allergies, setAllergies] = useState('');
+  const [showOtherAllergy, setShowOtherAllergy] = useState(false);
+  const [otherAllergyVal, setOtherAllergyVal] = useState('');
+
+  const [form, setForm] = useState({
+    blood_type: '', past_surgeries: '', regular_medications: '', vaccinations: '', family_history: '',
+    smoking_status: 'لا أدخن', alcohol_status: 'لا أشرب', marital_status: 'أعزب', occupation: ''
+  });
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const finalChronic = showOtherChronic ? otherChronicVal : chronic;
+    const finalAllergies = showOtherAllergy ? otherAllergyVal : allergies;
+
+    try {
+      await api.post('/api/medical-records', {
+        ...form,
+        chronic_diseases: finalChronic,
+        allergies: finalAllergies,
+        patient_id: user.id
+      });
+      toast.success(lang === 'ar' ? 'تم حفظ سجلك الطبي بنجاح!' : 'Medical record saved successfully!');
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(lang === 'ar' ? 'حدث خطأ أثناء الحفظ' : 'Error saving record');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[150] p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-2xl">
+        <div className="flex justify-between items-center mb-6 border-b dark:border-slate-800 pb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+            <Heart className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Comprehensive Medical Record'}
+          </h2>
+          <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><X size={20} className="dark:text-slate-300"/></button>
+        </div>
+
+        <form onSubmit={handleSave} className="space-y-6" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+          {/* 1. الأمراض المزمنة */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+            <label className="font-bold block mb-2 dark:text-white text-sm">{lang === 'ar' ? 'هل تعاني من أمراض مزمنة؟' : 'Do you suffer from chronic diseases?'}</label>
+            <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none mb-2 dark:bg-slate-700 dark:text-white" value={showOtherChronic ? 'أخرى' : chronic} onChange={(e) => { if(e.target.value === 'أخرى') setShowOtherChronic(true); else { setShowOtherChronic(false); setChronic(e.target.value); } }}>
+              <option value="">{lang === 'ar' ? 'لا يوجد' : 'None'}</option>
+              <option value="ضغط الدم">{lang === 'ar' ? 'ضغط الدم' : 'Blood Pressure'}</option>
+              <option value="السكري">{lang === 'ar' ? 'السكري' : 'Diabetes'}</option>
+              <option value="أمراض القلب">{lang === 'ar' ? 'أمراض القلب' : 'Heart Disease'}</option>
+              <option value="الربو">{lang === 'ar' ? 'الربو' : 'Asthma'}</option>
+              <option value="أخرى">{lang === 'ar' ? 'أخرى (يرجى التحديد)' : 'Other'}</option>
+            </select>
+            {showOtherChronic && <input type="text" placeholder={lang === 'ar' ? "اكتب اسم المرض..." : "Specify disease..."} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none dark:bg-slate-700 dark:text-white mt-2" value={otherChronicVal} onChange={e => setOtherChronicVal(e.target.value)} required />}
+          </div>
+
+          {/* 2. الحساسية */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+            <label className="font-bold block mb-2 dark:text-white text-sm">{lang === 'ar' ? 'هل لديك حساسية (أدوية/أطعمة)؟' : 'Do you have allergies?'}</label>
+            <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none mb-2 dark:bg-slate-700 dark:text-white" value={showOtherAllergy ? 'أخرى' : allergies} onChange={(e) => { if(e.target.value === 'أخرى') setShowOtherAllergy(true); else { setShowOtherAllergy(false); setAllergies(e.target.value); } }}>
+              <option value="">{lang === 'ar' ? 'لا يوجد' : 'None'}</option>
+              <option value="حساسية بنسلين">{lang === 'ar' ? 'حساسية بنسلين' : 'Penicillin'}</option>
+              <option value="حساسية أسبرين">{lang === 'ar' ? 'حساسية أسبرين' : 'Aspirin'}</option>
+              <option value="حساسية أطعمة (مكسرات/سمك)">{lang === 'ar' ? 'حساسية أطعمة (مكسرات/سمك)' : 'Food (Nuts/Fish)'}</option>
+              <option value="أخرى">{lang === 'ar' ? 'أخرى (يرجى التحديد)' : 'Other'}</option>
+            </select>
+            {showOtherAllergy && <input type="text" placeholder={lang === 'ar' ? "اكتب نوع الحساسية..." : "Specify allergy..."} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none dark:bg-slate-700 dark:text-white mt-2" value={otherAllergyVal} onChange={e => setOtherAllergyVal(e.target.value)} required />}
+          </div>
+
+          {/* 3. العمليات والأدوية والتاريخ العائلي */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'العمليات الجراحية السابقة' : 'Past Surgeries'}</label>
+              <textarea placeholder={lang === 'ar' ? "اذكرها إن وجدت..." : "If any..."} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none dark:bg-slate-700 dark:text-white" rows={2} value={form.past_surgeries} onChange={e => setForm({...form, past_surgeries: e.target.value})}></textarea>
+            </div>
+            <div>
+              <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الأدوية التي تتناولها بانتظام' : 'Regular Medications'}</label>
+              <textarea placeholder={lang === 'ar' ? "اسم الدواء والجرعة..." : "Medication & dose..."} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none dark:bg-slate-700 dark:text-white" rows={2} value={form.regular_medications} onChange={e => setForm({...form, regular_medications: e.target.value})}></textarea>
+            </div>
+            <div className="md:col-span-2">
+              <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'التاريخ العائلي (أمراض وراثية للوالدين/الأشقاء)' : 'Family History (Hereditary diseases)'}</label>
+              <textarea placeholder={lang === 'ar' ? "مثل: سكري، ضغط، أمراض قلب..." : "e.g. Diabetes, Heart disease..."} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-600 outline-none dark:bg-slate-700 dark:text-white" rows={2} value={form.family_history} onChange={e => setForm({...form, family_history: e.target.value})}></textarea>
+            </div>
+          </div>
+
+          {/* 4. التاريخ الشخصي والاجتماعي */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div>
+              <label className="font-bold text-xs block mb-1 dark:text-white">{lang === 'ar' ? 'التدخين' : 'Smoking'}</label>
+              <select className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 outline-none text-sm dark:bg-slate-700 dark:text-white" value={form.smoking_status} onChange={e => setForm({...form, smoking_status: e.target.value})}>
+                <option value="لا أدخن">{lang === 'ar' ? 'لا أدخن' : 'Non-smoker'}</option>
+                <option value="مدخن">{lang === 'ar' ? 'مدخن' : 'Smoker'}</option>
+                <option value="مدخن سابق">{lang === 'ar' ? 'مدخن سابق' : 'Ex-smoker'}</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-bold text-xs block mb-1 dark:text-white">{lang === 'ar' ? 'الكحول' : 'Alcohol'}</label>
+              <select className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 outline-none text-sm dark:bg-slate-700 dark:text-white" value={form.alcohol_status} onChange={e => setForm({...form, alcohol_status: e.target.value})}>
+                <option value="لا أشرب">{lang === 'ar' ? 'لا أشرب' : 'Never'}</option>
+                <option value="أحياناً">{lang === 'ar' ? 'أحياناً' : 'Occasionally'}</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-bold text-xs block mb-1 dark:text-white">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</label>
+              <select className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 outline-none text-sm dark:bg-slate-700 dark:text-white" value={form.marital_status} onChange={e => setForm({...form, marital_status: e.target.value})}>
+                <option value="أعزب">{lang === 'ar' ? 'أعزب' : 'Single'}</option>
+                <option value="متزوج">{lang === 'ar' ? 'متزوج' : 'Married'}</option>
+                <option value="مطلق">{lang === 'ar' ? 'مطلق' : 'Divorced'}</option>
+                <option value="أرمل">{lang === 'ar' ? 'أرمل' : 'Widowed'}</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-bold text-xs block mb-1 dark:text-white">{lang === 'ar' ? 'طبيعة العمل' : 'Occupation'}</label>
+              <input type="text" placeholder={lang === 'ar' ? "المهنة..." : "Job title..."} className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 outline-none text-sm dark:bg-slate-700 dark:text-white" value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} />
+            </div>
+          </div>
+
+          <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-emerald-700 transition-colors shadow-lg flex justify-center items-center">
+            {loading ? <span className="animate-spin h-6 w-6 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'حفظ السجل الطبي واعتماده' : 'Save Medical Record')}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
 
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
@@ -85,15 +218,17 @@ export default function App() {
   const [availablePharmacies, setAvailablePharmacies] = useState<any[]>([]);
   const [selectedRxForDispense, setSelectedRxForDispense] = useState<any>(null);
 
+  // 🟢 إضافة المتغيرات الخاصة بالسجل الطبي
+  const [hasMedicalRecord, setHasMedicalRecord] = useState(true);
+  const [showMedicalRecordFormModal, setShowMedicalRecordFormModal] = useState(false);
+
   const t = translations[lang] || translations['ar'];
 
-
-// أضف هذه المتغيرات
-const [showPasswordChange, setShowPasswordChange] = useState(false);
-const [currentPassword, setCurrentPassword] = useState('');
-const [newPassword, setNewPassword] = useState('');
-const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
@@ -130,6 +265,15 @@ const [showNewPassword, setShowNewPassword] = useState(false);
     }).catch(() => setView('public')).finally(() => setLoading(false));
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
+
+  // 🟢 جلب حالة السجل الطبي للمريض للتحكم بظهور الشريط الأصفر
+  useEffect(() => {
+    if (user?.role === 'patient') {
+      api.get(`/api/medical-records/${user.id}`)
+        .then((res: any) => { setHasMedicalRecord(!!res.id); })
+        .catch(() => setHasMedicalRecord(false));
+    }
+  }, [user]);
 
   const fetchNotifications = () => { api.get('/api/notifications').then(setNotifications).catch(() => {}); };
   useEffect(() => { if (!user) return; const interval = setInterval(fetchNotifications, 30000); return () => clearInterval(interval); }, [user]);
@@ -182,6 +326,7 @@ const [showNewPassword, setShowNewPassword] = useState(false);
   const handleLogout = async () => { 
     await api.post('/api/auth/logout', {}); 
     setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false); setShowRecordsModal(false);
+    setHasMedicalRecord(true); // إعادة الضبط
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
@@ -192,33 +337,30 @@ const [showNewPassword, setShowNewPassword] = useState(false);
   };
 
   const handleUpdateProfile = async (e) => {
-  e.preventDefault();
-  setIsUpdatingProfile(true);
-  try {
-    const payload = {
-      name: profileForm.name,
-      email: profileForm.email.toLowerCase().trim(), // 🟢 تحويل للأحرف الصغيرة
-      current_password: currentPassword, // 🟢 إرسال كلمة المرور الحالية
-      new_password: newPassword          // 🟢 إرسال كلمة المرور الجديدة
-    };
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    try {
+      const payload = {
+        name: profileForm.name,
+        email: profileForm.email.toLowerCase().trim(),
+        current_password: currentPassword,
+        new_password: newPassword
+      };
 
-    await api.post('/api/auth/update-profile', payload);
-    
-    toast.success(lang === 'ar' ? 'تم حفظ التغييرات بنجاح!' : 'Profile updated successfully!');
-    
-    // إخفاء وتصفير حقول كلمة المرور بعد النجاح
-    setShowPasswordChange(false);
-    setCurrentPassword('');
-    setNewPassword('');
-    setShowProfileModal(false);
-    
-    // إذا كان لديك دالة لتحديث بيانات المستخدم محلياً استدعها هنا مثل refreshUser()
-  } catch (err) {
-    toast.error(err.error || 'حدث خطأ أثناء التحديث');
-  } finally {
-    setIsUpdatingProfile(false);
-  }
-};
+      await api.post('/api/auth/update-profile', payload);
+      
+      toast.success(lang === 'ar' ? 'تم حفظ التغييرات بنجاح!' : 'Profile updated successfully!');
+      
+      setShowPasswordChange(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setShowProfileModal(false);
+    } catch (err: any) {
+      toast.error(err.error || 'حدث خطأ أثناء التحديث');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true);
@@ -265,9 +407,9 @@ const [showNewPassword, setShowNewPassword] = useState(false);
       {view !== 'dashboard' && (
         <nav className="bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md shadow-sm transition-colors duration-300">
           <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white hover:opacity-80 transition-opacity"> 
-  <img src="/logo.png" alt="Taiba Health Logo" className="w-9 h-9 md:w-10 md:h-10 object-contain drop-shadow-sm" />
-  <span className="text-lg md:text-xl">Taiba Health</span>
-</button>
+            <img src="/logo.png" alt="Taiba Health Logo" className="w-9 h-9 md:w-10 md:h-10 object-contain drop-shadow-sm" />
+            <span className="text-lg md:text-xl">Taiba Health</span>
+          </button>
           
           <div className="flex gap-2 md:gap-3 items-center">
 
@@ -354,6 +496,13 @@ const [showNewPassword, setShowNewPassword] = useState(false);
                           </button>
                         )}
 
+                        {/* 🟢 زر استكمال السجل الطبي المضاف حديثاً */}
+                        {user.role === 'patient' && (
+                          <button onClick={() => { setShowMedicalRecordFormModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors mt-1">
+                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? 'استكمال السجل الطبي' : 'Complete Medical Record'}
+                          </button>
+                        )}
+
                         <button onClick={openMyRecords} className="w-full text-start px-4 py-2.5 text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 flex items-center gap-3 transition-colors">
                           <FileSignature size={16} /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'My EHR & Prescriptions'}
                         </button>
@@ -381,6 +530,20 @@ const [showNewPassword, setShowNewPassword] = useState(false);
         </nav>
       )}
 
+      {/* 🟢 التنبيه العلوي للمرضى الذين لم يكملوا السجل الطبي */}
+      {view !== 'dashboard' && user?.role === 'patient' && !hasMedicalRecord && (
+        <div className="bg-yellow-500 text-slate-900 px-4 py-3 text-center font-bold text-sm flex justify-center items-center gap-2 z-30 sticky top-[72px] shadow-md">
+          <ShieldAlert size={18} />
+          <span>{lang === 'ar' ? 'يرجى استكمال سجلك الطبي لمرة واحدة لتسهيل تشخيصك من قبل أطبائنا.' : 'Please complete your medical record to help our doctors.'}</span>
+          <button 
+            onClick={() => setShowMedicalRecordFormModal(true)} 
+            className="bg-slate-900 text-yellow-400 px-4 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-xs whitespace-nowrap"
+          >
+            {lang === 'ar' ? 'إنشاء السجل الآن' : 'Create Record'}
+          </button>
+        </div>
+      )}
+
       <main className="flex-1">
         {view === 'public' && (
           <PublicView 
@@ -393,36 +556,36 @@ const [showNewPassword, setShowNewPassword] = useState(false);
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
       
       <AnimatePresence>
-  {showWalletModal && (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
-        <button onClick={() => setShowWalletModal(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20}/></button>
-        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Wallet size={32}/></div>
-        <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{lang === 'ar' ? 'شحن رصيد المحفظة' : 'Top up Wallet'}</h3>
-        <p className="text-sm text-slate-500 text-center mb-6">{lang === 'ar' ? 'أدخل المبلغ الذي تود شحنه، وسيقوم المسؤول بتأكيد الطلب فور الاستلام.' : 'Enter the amount you want to top up.'}</p>
-        
-        <form onSubmit={submitWalletRequest} className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
-            <div className="relative">
-              <input 
-                required type="number" 
-                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-blue-600 outline-none text-lg font-bold transition-all dark:text-white" 
-                placeholder="0.00" 
-                value={walletAmount} 
-                onChange={e => setWalletAmount(e.target.value)} 
-              />
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
-            </div>
+        {showWalletModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
+              <button onClick={() => setShowWalletModal(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20}/></button>
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Wallet size={32}/></div>
+              <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{lang === 'ar' ? 'شحن رصيد المحفظة' : 'Top up Wallet'}</h3>
+              <p className="text-sm text-slate-500 text-center mb-6">{lang === 'ar' ? 'أدخل المبلغ الذي تود شحنه، وسيقوم المسؤول بتأكيد الطلب فور الاستلام.' : 'Enter the amount you want to top up.'}</p>
+              
+              <form onSubmit={submitWalletRequest} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
+                  <div className="relative">
+                    <input 
+                      required type="number" 
+                      className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-blue-600 outline-none text-lg font-bold transition-all dark:text-white" 
+                      placeholder="0.00" 
+                      value={walletAmount} 
+                      onChange={e => setWalletAmount(e.target.value)} 
+                    />
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
+                  </div>
+                </div>
+                <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                  {isSubmittingWallet ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request')}
+                </button>
+              </form>
+            </motion.div>
           </div>
-          <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-            {isSubmittingWallet ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request')}
-          </button>
-        </form>
-      </motion.div>
-    </div>
-  )}
-</AnimatePresence>
+        )}
+      </AnimatePresence>
       </main>
 
       <AnimatePresence>
@@ -713,6 +876,13 @@ const [showNewPassword, setShowNewPassword] = useState(false);
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🟢 نافذة السجل الطبي */}
+      <AnimatePresence>
+        {showMedicalRecordFormModal && user && (
+          <MedicalRecordFormModal user={user} lang={lang} onClose={() => setShowMedicalRecordFormModal(false)} onSaved={() => setHasMedicalRecord(true)} />
         )}
       </AnimatePresence>
 

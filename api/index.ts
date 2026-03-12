@@ -70,6 +70,13 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS regular_medications TEXT;`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS vaccinations TEXT;`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS family_history TEXT;`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS smoking_status VARCHAR(50);`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS alcohol_status VARCHAR(50);`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS marital_status VARCHAR(50);`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS occupation VARCHAR(255);`); } catch(e){}
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     // 🟢 إضافة جدول تقييمات الدعم الفني
     await pool.query(`
@@ -277,7 +284,19 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
 });
 
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId])).rows || {}); } catch(err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes } = req.body; try { res.json({ success: true, record: (await pool.query(`INSERT INTO medical_records (patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (patient_id) DO UPDATE SET blood_type=$2, allergies=$3, chronic_diseases=$4, past_surgeries=$5, notes=$6, updated_at=CURRENT_TIMESTAMP RETURNING *`, [patient_id, blood_type, allergies, chronic_diseases, past_surgeries, notes])).rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
+  const { patient_id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes } = req.body; 
+  try { 
+    res.json({ success: true, record: (await pool.query(`
+      INSERT INTO medical_records (patient_id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+      ON CONFLICT (patient_id) DO UPDATE SET 
+      blood_type=$2, allergies=$3, chronic_diseases=$4, past_surgeries=$5, regular_medications=$6, vaccinations=$7, family_history=$8, smoking_status=$9, alcohol_status=$10, marital_status=$11, occupation=$12, notes=$13, updated_at=CURRENT_TIMESTAMP 
+      RETURNING *`, 
+      [patient_id || req.user.id, blood_type, allergies, chronic_diseases, past_surgeries, regular_medications, vaccinations, family_history, smoking_status, alcohol_status, marital_status, occupation, notes]
+    )).rows[0] }); 
+  } catch(err: any) { res.status(500).json({ error: err.message }); } 
+});
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => { 
