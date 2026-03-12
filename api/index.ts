@@ -107,16 +107,16 @@ app.post('/api/chat/support/request', authenticateToken, async (req: any, res: a
     const existing = await pool.query(`SELECT id, status FROM conversations WHERE user1_id = $1 AND type = 'support' AND status IN ('pending', 'active')`, [patientId]);
     let convId;
     if (existing.rows.length > 0) {
-      if (existing.rows.status === 'pending') return res.status(400).json({ error: 'لديك طلب دعم فني قيد الانتظار بالفعل.' });
-      convId = existing.rows.id;
+      if (existing.rows[0].status === 'pending') return res.status(400).json({ error: 'لديك طلب دعم فني قيد الانتظار بالفعل.' });
+      convId = existing.rows[0].id;
     } else {
       const closed = await pool.query(`SELECT id FROM conversations WHERE user1_id = $1 AND type = 'support'`, [patientId]);
       if (closed.rows.length > 0) {
-        await pool.query(`UPDATE conversations SET status = 'pending', user2_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [closed.rows.id]);
-        convId = closed.rows.id;
+        await pool.query(`UPDATE conversations SET status = 'pending', user2_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [closed.rows[0].id]);
+        convId = closed.rows[0].id;
       } else {
         const newConv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, NULL, 'support', 'pending') RETURNING id`, [patientId]);
-        convId = newConv.rows.id;
+        convId = newConv.rows[0].id;
       }
     }
     res.json({ success: true, conversation_id: convId, message: 'تم إرسال طلبك لخدمة العملاء.' });
@@ -138,7 +138,7 @@ app.post('/api/chat/support/accept/:id', authenticateToken, async (req: any, res
     await client.query('BEGIN');
     const conv = await client.query('SELECT status, user1_id FROM conversations WHERE id = $1 FOR UPDATE', [req.params.id]);
     if (conv.rows.length === 0) throw new Error('الطلب غير موجود.');
-    if (conv.rows.status !== 'pending') throw new Error('عذراً، تم قبول هذا الطلب مسبقاً من موظف آخر.');
+    if (conv.rows[0].status !== 'pending') throw new Error('عذراً، تم قبول هذا الطلب مسبقاً من موظف آخر.');
     await client.query(`UPDATE conversations SET user2_id = $1, status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [req.user.id, req.params.id]);
     await client.query('COMMIT');
     res.json({ success: true, conversation_id: req.params.id });
@@ -153,7 +153,7 @@ app.post('/api/chat/end/:id', authenticateToken, async (req: any, res: any) => {
     const convId = req.params.id;
     const conv = await pool.query('SELECT * FROM conversations WHERE id = $1', [convId]);
     if (conv.rows.length === 0) return res.status(400).json({ error: 'المحادثة غير موجودة في قاعدة البيانات!' });
-    const { user1_id, user2_id, type } = conv.rows;
+    const { user1_id, user2_id, type } = conv.rows[0];
     const currentUserId = String(req.user.id);
     const u1 = String(user1_id);
     const u2 = String(user2_id);
@@ -235,11 +235,11 @@ app.get('/api/chat/messages/:otherUserId', authenticateToken, async (req: any, r
       ORDER BY updated_at DESC LIMIT 1
     `, [userId, otherId]);
 
-    if (conv.rows.length === 0 || conv.rows.status === 'closed') {
-      return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows.id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows.status : 'closed' }); 
+    if (conv.rows.length === 0 || conv.rows[0].status === 'closed') {
+      return res.json({ conversation_id: conv.rows.length > 0 ? conv.rows[0].id : 0, messages: [], status: conv.rows.length > 0 ? conv.rows[0].status : 'closed' }); 
     }
     
-    const convId = conv.rows.id;
+    const convId = conv.rows[0].id;
     await pool.query('UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id = $2', [convId, otherId]);
     const messages = await pool.query('SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convId]);
     res.json({ conversation_id: convId, messages: messages.rows, status: 'active' });
@@ -264,11 +264,11 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
       const user1 = Math.min(numSender, numReceiver); 
       const user2 = Math.max(numSender, numReceiver);
       conv = await pool.query(`INSERT INTO conversations (user1_id, user2_id, type, status) VALUES ($1, $2, 'direct', 'active') RETURNING id, status`, [user1, user2]);
-    } else if (conv.rows.status === 'closed') {
-      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [conv.rows.id]);
+    } else if (conv.rows[0].status === 'closed') {
+      await pool.query(`UPDATE conversations SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [conv.rows[0].id]);
     }
     
-    const convId = conv.rows.id;
+    const convId = conv.rows[0].id;
     const newMsg = await pool.query('INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *', [convId, numSender, content]);
     await pool.query('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [convId]);
 
@@ -301,14 +301,14 @@ app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req
 });
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows[0]; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => { const { doctor_id, facility_id, appointment_date } = req.body; const patient_id = req.user.id; try { await pool.query('INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date) VALUES ($1, $2, $3, $4)', [patient_id, doctor_id, facility_id, appointment_date]); res.json({ success: true }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'حجزت مسبقاً.' : err.message }); } });
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT a.*, p.name as patient_name, p.phone as patient_phone FROM appointments a JOIN users p ON a.patient_id = p.id WHERE a.doctor_id = $1 AND a.appointment_date = $2 ORDER BY a.created_at ASC`, [req.user.id, req.query.date])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows[0]?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
-// 🟢 جلب الإحصائيات الحقيقية للعدادات في الصفحة الرئيسية
+// 🟢 الإحصائيات مع التصحيح [0]
 app.get('/api/public/stats', async (req: any, res: any) => {
   try {
     const clinics = await pool.query(`SELECT COUNT(*) FROM pharmacies WHERE type = 'clinic'`);
@@ -318,11 +318,11 @@ app.get('/api/public/stats', async (req: any, res: any) => {
     const patients = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'patient'`);
 
     res.json({
-      clinics: parseInt(clinics.rows?.count || clinics.rows.count || '0'),
-      dental_clinics: parseInt(dental.rows?.count || dental.rows.count || '0'),
-      pharmacies: parseInt(pharmacies.rows?.count || pharmacies.rows.count || '0'),
-      bookings: parseInt(bookings.rows?.count || bookings.rows.count || '0'),
-      patients: parseInt(patients.rows?.count || patients.rows.count || '0')
+      clinics: parseInt(clinics.rows[0]?.count || '0'),
+      dental_clinics: parseInt(dental.rows[0]?.count || '0'),
+      pharmacies: parseInt(pharmacies.rows[0]?.count || '0'),
+      bookings: parseInt(bookings.rows[0]?.count || '0'),
+      patients: parseInt(patients.rows[0]?.count || '0')
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -341,7 +341,6 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res: any) => { res.j
 
 app.post('/api/auth/update-profile', authenticateToken, async (req: any, res: any) => { const { name, phone, notes } = req.body; try { await pool.query('UPDATE users SET name=$1, phone=$2, notes=$3 WHERE id=$4', [name, phone, notes, req.user.id]); res.json({ message: 'تم التحديث' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 
-// 🟢 هذا هو المسار الجديد الذي كان مفقوداً وسبب الخطأ 404
 app.put('/api/user', authenticateToken, async (req: any, res: any) => {
   try {
     const { profile_picture } = req.body;
@@ -362,7 +361,7 @@ app.post('/api/doctor/update-profile', authenticateToken, async (req: any, res: 
 app.get('/api/pharmacies', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(req.user.role === 'admin' ? 'SELECT * FROM pharmacies ORDER BY id DESC' : 'SELECT * FROM pharmacies WHERE doctor_id = $1 ORDER BY id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/pharmacies/:id/status', authenticateToken, async (req: any, res: any) => { try { await pool.query(req.user.role === 'admin' ? 'UPDATE pharmacies SET manual_status = $1 WHERE id = $2' : 'UPDATE pharmacies SET manual_status = $1 WHERE id = $2 AND doctor_id = $3', req.user.role === 'admin' ? [req.body.manual_status, req.params.id] : [req.body.manual_status, req.params.id, req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/pharmacies/:id/ecommerce', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('UPDATE pharmacies SET is_ecommerce_enabled = $1 WHERE id = $2', [req.body.is_ecommerce_enabled, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/pharmacies', authenticateToken, async (req: any, res: any) => { const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty, services, consultation_fee, waiting_time } = req.body; try { res.json({ id: (await pool.query(`INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status, specialty, services, consultation_fee, waiting_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto', $13, $14, $15, $16) RETURNING id`, [name, address, phone, latitude, longitude, req.user.id, req.user.role === 'admin' ? (doctor_id || req.user.id) : req.user.id, pharmacist_name || null, whatsapp_phone || null, image_url || null, req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'dentist' ? 'dental_clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'))), working_hours || {}, specialty || null, services || null, consultation_fee || 0, waiting_time || '15 دقيقة'])).rows.id }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/pharmacies', authenticateToken, async (req: any, res: any) => { const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty, services, consultation_fee, waiting_time } = req.body; try { res.json({ id: (await pool.query(`INSERT INTO pharmacies (name, address, phone, latitude, longitude, created_by, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, manual_status, specialty, services, consultation_fee, waiting_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'auto', $13, $14, $15, $16) RETURNING id`, [name, address, phone, latitude, longitude, req.user.id, req.user.role === 'admin' ? (doctor_id || req.user.id) : req.user.id, pharmacist_name || null, whatsapp_phone || null, image_url || null, req.user.role === 'doctor' ? 'clinic' : (req.user.role === 'dentist' ? 'dental_clinic' : (req.user.role === 'pharmacist' ? 'pharmacy' : (type || 'pharmacy'))), working_hours || {}, specialty || null, services || null, consultation_fee || 0, waiting_time || '15 دقيقة'])).rows[0].id }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.put('/api/pharmacies/:id', authenticateToken, async (req: any, res: any) => { const { name, address, phone, latitude, longitude, doctor_id, pharmacist_name, whatsapp_phone, image_url, type, working_hours, specialty, services, consultation_fee, waiting_time } = req.body; try { let q = `UPDATE pharmacies SET name=$1, address=$2, phone=$3, latitude=$4, longitude=$5, pharmacist_name=$6, whatsapp_phone=$7, image_url=$8, working_hours=$9, specialty=$10, services=$11, consultation_fee=$12, waiting_time=$13`; let p = [name, address, phone, latitude, longitude, pharmacist_name || null, whatsapp_phone || null, image_url || null, working_hours || {}, specialty || null, services || null, consultation_fee || 0, waiting_time || '15 دقيقة']; if (req.user.role === 'admin') { q += `, doctor_id=$14, type=$15 WHERE id=$16`; p.push(doctor_id, type, req.params.id); } else { q += ` WHERE id=$14 AND doctor_id=$15`; p.push(req.params.id, req.user.id); } await pool.query(q, p); res.json({ message: 'تم' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/pharmacies/:id', authenticateToken, async (req: any, res: any) => { try { await pool.query('DELETE FROM products WHERE pharmacy_id = $1', [req.params.id]); await pool.query('DELETE FROM pharmacies WHERE id = $1', [req.params.id]); res.json({ message: 'تم' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/products', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(req.user.role === 'admin' ? 'SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id ORDER BY p.id DESC' : 'SELECT p.*, ph.name as pharmacy_name FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY p.id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
