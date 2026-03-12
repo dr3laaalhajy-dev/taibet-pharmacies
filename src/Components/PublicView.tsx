@@ -812,6 +812,53 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
             </div>
 
             <div className="flex flex-col gap-12 md:gap-16 mb-16">
+            {/* 🟢 قسم الخريطة التفاعلية الشاملة */}
+              {processedFacilities.length > 0 && (
+                <div className="w-full bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative z-0">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                    <MapPin className="text-blue-500" size={28} />
+                    {lang === 'ar' 
+                      ? 'مواقع ' + (activeTab === 'pharmacy' ? 'الصيدليات' : activeTab === 'clinic' ? 'العيادات الطبية' : 'عيادات الأسنان') + ' على الخريطة' 
+                      : 'Locations on Map'}
+                  </h2>
+                  <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 relative z-0">
+                    <MapContainer
+                      // نأخذ إحداثيات أول عنصر في القائمة كمركز للخريطة
+                      center={[parseFloat(processedFacilities[0]?.latitude || '35.1318'), parseFloat(processedFacilities[0]?.longitude || '36.7578')]}
+                      zoom={14}
+                      style={{ height: '100%', width: '100%', zIndex: 1 }}
+                    >
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      
+                      {/* رسم الدبابيس لكل عيادة/صيدلية مفلترة */}
+                      {processedFacilities.map((f) => {
+                        if (!f.latitude || !f.longitude) return null;
+                        return (
+                          <Marker
+                            key={`map-marker-${f.id}`}
+                            position={[parseFloat(f.latitude), parseFloat(f.longitude)]}
+                          >
+                            <Popup>
+                              <div className="text-center min-w-[150px] p-1">
+                                <strong className="block mb-1 text-sm text-slate-800">{f.name}</strong>
+                                {(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && (
+                                  <span className="text-[11px] font-bold text-blue-600 block mb-1">{f.specialty}</span>
+                                )}
+                                <span className="text-xs text-slate-500 block mb-3 line-clamp-2">{f.address}</span>
+                                <div className="flex gap-2 justify-center">
+                                  <a href={`tel:${f.phone}`} className="bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold no-underline hover:bg-emerald-600 transition-colors w-full">
+                                    {lang === 'ar' ? 'اتصال' : 'Call'}
+                                  </a>
+                                </div>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                    </MapContainer>
+                  </div>
+                </div>
+              )}
               {/* قسم المناوبين الآن */}
               <div className="w-full">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
