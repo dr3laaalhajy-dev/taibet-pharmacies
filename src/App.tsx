@@ -235,6 +235,21 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
             <h3 className="text-lg font-bold mb-4 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'البيانات الأساسية' : 'Basic Info'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الاسم الثلاثي' : 'Full Name'}</label><input required type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} /></div>
+              {/* أضف هذا الحقل تحت حقل "الجنس" أو "الحالة الاجتماعية" مباشرة */}
+              <div>
+                <label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</label>
+                <select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.blood_type} onChange={e => setForm({...form, blood_type: e.target.value})}>
+                  <option value="">{lang === 'ar' ? 'غير محدد' : 'Unknown'}</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'العمر' : 'Age'}</label><input required type="number" min="1" max="120" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.age} onChange={e => setForm({...form, age: e.target.value})} /></div>
                 <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الجنس' : 'Gender'}</label><select required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}><option value="">{lang === 'ar' ? 'اختر...' : 'Select...'}</option><option value="ذكر">{lang === 'ar' ? 'ذكر' : 'Male'}</option><option value="أنثى">{lang === 'ar' ? 'أنثى' : 'Female'}</option></select></div>
@@ -873,13 +888,20 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6">
                 {loadingRecords ? (
                   <div className="flex justify-center py-20"><span className="animate-spin h-8 w-8 border-4 border-emerald-500 rounded-full border-t-transparent"></span></div>
-                ) : recordsTab === 'ehr' ? (
+               ) : recordsTab === 'ehr' ? (
                   <div className="space-y-4">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400">{patientEHR?.blood_type || '---'}</p></div>
+                      
+                      {/* البيانات الأساسية وفصيلة الدم */}
+                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400">{patientEHR?.blood_type || (lang==='ar'?'غير محدد':'N/A')}</p></div>
                       <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية' : 'Allergies'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.allergies || (lang==='ar'?'لا يوجد سجل':'None recorded')}</p></div>
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض المزمنة' : 'Chronic Diseases'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.chronic_diseases || '---'}</p></div>
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_surgeries || '---'}</p></div>
+                      
+                      {/* الأمراض والعمليات والتاريخ العائلي (تم تحديث المتغيرات هنا) */}
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض السابقة والمزمنة' : 'Past Medical History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_medical_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_surgeries || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'التاريخ العائلي' : 'Family History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.family_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'العادات الخاصة (تدخين / كحول)' : 'Special Habits'}</h4><p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{patientEHR?.special_habits || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
+                      
                     </div>
                   </div>
                 ) : (
@@ -1138,9 +1160,19 @@ export default function App() {
       </AnimatePresence>
 
       {/* 🟢 نافذة السجل الطبي */}
+      {/* 🟢 نافذة السجل الطبي */}
       <AnimatePresence>
         {showMedicalRecordFormModal && user && (
-          <MedicalRecordFormModal user={user} lang={lang} onClose={() => setShowMedicalRecordFormModal(false)} onSaved={() => setHasMedicalRecord(true)} />
+          <MedicalRecordFormModal 
+            user={user} 
+            lang={lang} 
+            onClose={() => setShowMedicalRecordFormModal(false)} 
+            onSaved={() => {
+              setHasMedicalRecord(true);
+              // 🟢 الإضافة السحرية: جلب البيانات فوراً في الخلفية لكي تظهر في شاشة العرض بدون تحديث الصفحة
+              api.get(`/api/medical-records/${user.id}`).then((res: any) => setPatientEHR(res || {}));
+            }} 
+          />
         )}
       </AnimatePresence>
 
