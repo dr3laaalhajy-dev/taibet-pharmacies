@@ -340,7 +340,7 @@ app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => {
   const cleanEmail = email ? email.toLowerCase().trim() : '';
 
   try { 
-// 🟢 استخدمنا LOWER(email) لكي نطلب من قاعدة البيانات تجاهل الأحرف الكبيرة أثناء البحث
+// 🟢 استخدمنا LOWER(email) لكي نطلب من قاعدة البيانات تجاهل الأحرف  الكبيرة أثناء البحث
 const user = (await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [cleanEmail])).rows[0];
     if (user && user.password && bcrypt.compareSync(password, user.password)) { 
       if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' }); 
