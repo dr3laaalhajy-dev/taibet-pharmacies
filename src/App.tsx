@@ -429,11 +429,18 @@ export default function App() {
     api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
-  // 🟢 جلب حالة السجل الطبي للمريض للتحكم بظهور الشريط الأصفر
+  // 🟢 جلب حالة السجل الطبي للمريض للتحكم بظهور الشريط الأصفر بدقة
   useEffect(() => {
     if (user?.role === 'patient') {
       api.get(`/api/medical-records/${user.id}`)
-        .then((res: any) => { setHasMedicalRecord(!!res.id); })
+        .then((res: any) => { 
+          // التحقق مما إذا كان السجل يحتوي على بيانات فعلاً
+          if (res && (res.patient_id || res.id || Object.keys(res).length > 0)) {
+            setHasMedicalRecord(true);
+          } else {
+            setHasMedicalRecord(false);
+          }
+        })
         .catch(() => setHasMedicalRecord(false));
     }
   }, [user]);
