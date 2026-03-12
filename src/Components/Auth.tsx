@@ -24,16 +24,30 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
     e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true); 
     try { 
       if (isLogin) { 
-        const data = await api.post('/api/auth/login', { email, password }); onLogin(data.user); 
+        // 🟢 الإضافة هنا: تحويل الأحرف إلى صغيرة وإزالة المسافات المخفية
+        const cleanEmail = email.toLowerCase().trim();
+        const data = await api.post('/api/auth/login', { email: cleanEmail, password }); 
+        onLogin(data.user); 
       } else { 
         const domain = role === 'patient' ? '@taiba.user.sy' : (role === 'dentist' ? '@taiba.dental.sy' : (role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy')); 
-        const fullEmail = `${emailPrefix}${domain}`; 
+        // 🟢 الإضافة هنا أيضاً: تنظيف اسم المستخدم قبل دمجه مع الدومين
+        const fullEmail = `${emailPrefix.toLowerCase().trim()}${domain}`; 
         const res = await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role, activationKey }); 
-        if (res.isActive) { setSuccessMsg('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.'); setIsActivatedByKey(true); } 
-        else { setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى التواصل مع الإدارة لتفعيل حسابك (للكوادر الطبية).'); setIsActivatedByKey(false); } 
+        
+        if (res.isActive) { 
+          setSuccessMsg('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.'); 
+          setIsActivatedByKey(true); 
+        } else { 
+          setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى التواصل مع الإدارة لتفعيل حسابك (للكوادر الطبية).'); 
+          setIsActivatedByKey(false); 
+        } 
         setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey(''); 
       } 
-    } catch (err: any) { setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); } finally { setLoading(false); } 
+    } catch (err: any) { 
+      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); 
+    } finally { 
+      setLoading(false); 
+    } 
   };
 
   return (
