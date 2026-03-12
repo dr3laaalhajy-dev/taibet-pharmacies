@@ -991,8 +991,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
 
               <div className="flex flex-col sm:flex-row gap-4 mb-8 w-full justify-center lg:justify-start">
                 <a 
-                  href="/taiba-health-v2.apk" 
-                  download="taiba-health-v2.apk" 
+                  href="/taiba-health-v3.apk" 
+                  download="taiba-health-v3.apk" 
                   className="flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto"
                 >
                   <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
