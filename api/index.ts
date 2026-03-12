@@ -294,7 +294,6 @@ app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, r
   }
 });
 
-// 🟢 2. حفظ السجل الطبي (مع صيانة قاعدة البيانات تلقائياً)
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
   const { 
     patient_id, full_name, age, gender, marital_status, children_count, 
@@ -302,57 +301,58 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
     past_surgeries, allergies, family_history, medication_list, blood_type 
   } = req.body; 
 
+  // أخذ رقم المريض
+  const pId = patient_id || req.user.id;
+
   try { 
-    // إنشاء الجدول الأساسي إذا لم يكن موجوداً لضمان عدم حدوث أخطاء
+    // 1. التأكد من هيكل الجدول لضمان عدم حدوث أي خطأ
     await pool.query(`
       CREATE TABLE IF NOT EXISTS medical_records (
         id SERIAL PRIMARY KEY,
-        patient_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE
+        patient_id INT REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 
-    // التأكد الإجباري من أن المريض لا يملك سوى سجل واحد (مهم جداً للحفظ)
-    try { await pool.query(`ALTER TABLE medical_records ADD CONSTRAINT unique_patient_id UNIQUE (patient_id);`); } catch(e){}
-
-    // إضافة الأعمدة الجديدة إذا كانت غير موجودة
+    // 2. إضافة كافة الأعمدة الطبية (إن لم تكن موجودة)
     const columns = [
       'full_name VARCHAR(255)', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
       'children_count INT', 'occupation VARCHAR(255)', 'special_habits TEXT', 'menstrual_history TEXT', 
       'medication_list JSONB', 'past_medical_history TEXT', 'past_surgeries TEXT', 
-      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)',
-      'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)'
     ];
     for (let col of columns) {
       try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
     }
 
-    // أمر الإدخال والتحديث معاً
+    // 🟢 3. (الضربة القاضية للمشكلة): مسح أي سجلات قديمة أو معلقة لهذا المريض
+    await pool.query('DELETE FROM medical_records WHERE patient_id = $1', [pId]);
+
+    // 🟢 4. إدخال السجل الجديد نظيفاً وسليماً 100%
     const query = `
       INSERT INTO medical_records (
         patient_id, full_name, age, gender, marital_status, children_count, 
         occupation, special_habits, menstrual_history, past_medical_history, 
-        past_surgeries, allergies, family_history, medication_list, blood_type
+        past_surgeries, allergies, family_history, medication_list, blood_type,
+        created_at, updated_at
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
-      ON CONFLICT (patient_id) DO UPDATE SET 
-        full_name=$2, age=$3, gender=$4, marital_status=$5, children_count=$6, 
-        occupation=$7, special_habits=$8, menstrual_history=$9, past_medical_history=$10, 
-        past_surgeries=$11, allergies=$12, family_history=$13, medication_list=$14, 
-        blood_type=$15, updated_at=CURRENT_TIMESTAMP 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
       RETURNING *`;
       
     const values = [
-      patient_id || req.user.id, full_name, age || null, gender, marital_status || 'أعزب', 
+      pId, full_name, age || null, gender, marital_status || 'أعزب', 
       children_count || 0, occupation || '', special_habits || '', menstrual_history || '', 
       past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
       JSON.stringify(medication_list || []), blood_type || ''
     ];
 
     const result = await pool.query(query, values);
+    
+    // إرسال رسالة النجاح
     res.json({ success: true, record: result.rows[0] }); 
+
   } catch(err: any) { 
-    console.error("Database Error:", err);
-    res.status(500).json({ error: err.message }); 
+    console.error("Medical Record Save Error:", err.message);
+    res.status(500).json({ error: 'حدث خطأ في قاعدة البيانات أثناء الحفظ: ' + err.message }); 
   } 
 });
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });

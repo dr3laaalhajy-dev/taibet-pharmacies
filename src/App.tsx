@@ -757,7 +757,7 @@ export default function App() {
                         {/* 🟢 زر استكمال السجل الطبي المضاف حديثاً */}
                         {user.role === 'patient' && (
                           <button onClick={() => { setShowMedicalRecordFormModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors mt-1">
-                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? ' السجل الطبي' : 'Complete Medical Record'}
+                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Complete Medical Record'}
                           </button>
                         )}
 
