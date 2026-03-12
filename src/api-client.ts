@@ -1,5 +1,5 @@
 // 🟢 الرابط الأساسي للباك إند: الآن يسحب الرابط من ملف .env تلقائياً للعمل على الموبايل!
-const BASE_URL = 'https://taibet-pharmacies.vercel.app';
+const BASE_URL = '';
 
 export const api = {
   get: async (endpoint: string) => {
