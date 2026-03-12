@@ -871,6 +871,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      /* 🟢 نافذة عرض السجل الطبي للمريض ووصفاته (تم التحديث لتقرأ الحقول الجديدة) */
       <AnimatePresence>
         {showRecordsModal && user && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
@@ -888,20 +889,37 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6">
                 {loadingRecords ? (
                   <div className="flex justify-center py-20"><span className="animate-spin h-8 w-8 border-4 border-emerald-500 rounded-full border-t-transparent"></span></div>
-               ) : recordsTab === 'ehr' ? (
+                ) : recordsTab === 'ehr' ? (
                   <div className="space-y-4">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
                       
-                      {/* البيانات الأساسية وفصيلة الدم */}
-                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400">{patientEHR?.blood_type || (lang==='ar'?'غير محدد':'N/A')}</p></div>
-                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية' : 'Allergies'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.allergies || (lang==='ar'?'لا يوجد سجل':'None recorded')}</p></div>
+                      {/* 1. البيانات الأساسية وفصيلة الدم */}
+                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400" dir="ltr">{patientEHR?.blood_type || (lang==='ar'?'غير محدد':'N/A')}</p></div>
+                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية (أدوية/أطعمة)' : 'Allergies'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.allergies || (lang==='ar'?'لا يوجد سجل':'None recorded')}</p></div>
                       
-                      {/* الأمراض والعمليات والتاريخ العائلي (تم تحديث المتغيرات هنا) */}
+                      {/* 2. الأمراض والعمليات والتاريخ العائلي */}
                       <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض السابقة والمزمنة' : 'Past Medical History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_medical_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
                       <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_surgeries || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
                       <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'التاريخ العائلي' : 'Family History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.family_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
                       <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'العادات الخاصة (تدخين / كحول)' : 'Special Habits'}</h4><p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{patientEHR?.special_habits || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
                       
+                      {/* 3. الأدوية المجدولة */}
+                      <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-700 pt-4">
+                        <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase">{lang === 'ar' ? 'الأدوية التي يتناولها بانتظام' : 'Regular Medications'}</h4>
+                        {patientEHR?.medication_list && Array.isArray(patientEHR.medication_list) && patientEHR.medication_list.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {patientEHR.medication_list.map((med: any, idx: number) => (
+                              <div key={idx} className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl border border-slate-100 dark:border-slate-600 flex justify-between items-center">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{med.name}</span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{med.dose} - {med.freq}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm font-bold text-slate-400 dark:text-slate-500">{lang === 'ar' ? 'لا توجد أدوية مسجلة' : 'No medications recorded'}</p>
+                        )}
+                      </div>
+
                     </div>
                   </div>
                 ) : (
@@ -951,7 +969,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
       <AnimatePresence>
         {showPharmacyPicker && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
