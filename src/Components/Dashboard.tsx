@@ -38,15 +38,30 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   const [notes, setNotes] = useState('');
   const [medicines, setMedicines] = useState([{ id: Date.now(), name: '', dosage: '', frequency: '', duration: '' }]);
 
-  // 🟢 حساب العمر تلقائياً من تاريخ الميلاد
-  const calculateAge = (dob: string) => {
-    if (!dob) return 'غير محدد';
+  // 🟢 حساب العمر الذكي (بالسنوات للبالغين، وبالأيام للرضع)
+  const calculateAge = (dob: string, fallbackAge: any) => {
+    if (!dob) return fallbackAge ? `${fallbackAge} ${lang === 'ar' ? 'سنة' : 'Yrs'}` : (lang === 'ar' ? 'غير محدد' : 'N/A');
+    
     const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return fallbackAge ? `${fallbackAge} ${lang === 'ar' ? 'سنة' : 'Yrs'}` : (lang === 'ar' ? 'غير محدد' : 'N/A');
+    
     const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
+    let ageYears = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-    return age + ' سنة';
+    
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      ageYears--;
+    }
+
+    if (ageYears >= 1) {
+      return lang === 'ar' ? `${ageYears} سنة` : `${ageYears} Yrs`;
+    } else {
+      // حساب الأيام للرضع الذين أعمارهم أقل من سنة
+      const diffTime = today.getTime() - birthDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) return lang === 'ar' ? 'حديث الولادة' : 'Newborn';
+      return lang === 'ar' ? `${diffDays} يوم` : `${diffDays} Days`;
+    }
   };
 
   useEffect(() => {
@@ -103,8 +118,13 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
               ) : (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'العمر' : 'Age'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{calculateAge(ehr.dob) || ehr.age}</h4></div>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الجنس' : 'Gender'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{ehr.gender || '---'}</h4></div>
+<div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
+   <p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'العمر' : 'Age'}</p>
+   {/* 🟢 تم التحديث لاستدعاء دالة العمر الذكية */}
+   <h4 className="font-black text-slate-800 dark:text-white text-lg">
+     {calculateAge(ehr.dob, ehr.age)}
+   </h4>
+</div>                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الجنس' : 'Gender'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{ehr.gender || '---'}</h4></div>
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</p><h4 className="font-black text-red-600 dark:text-red-400 text-xl" dir="ltr">{ehr.blood_type || '---'}</h4></div>
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</p><h4 className="font-bold text-slate-800 dark:text-white text-md">{ehr.marital_status || '---'} {ehr.children_count > 0 ? `(${ehr.children_count} أولاد)` : ''}</h4></div>
                   </div>
