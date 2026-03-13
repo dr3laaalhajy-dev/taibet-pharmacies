@@ -4,6 +4,7 @@ import { SuccessModal } from './SuccessModal';
 import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse, PieChart, Mic, Image as ImageIcon, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { PrescriptionPrintTemplate } from './PrescriptionPrintTemplate';
+import { PatientMedicalRecord } from './PatientMedicalRecord';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -46,7 +47,13 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
 
   // 🟢 ميزة طباعة الوصفة الطبية
   const printRef = React.useRef(null);
-  const handlePrint = useReactToPrint({ contentRef: () => printRef.current });
+  const handlePrint = useReactToPrint({ 
+    contentRef: () => printRef.current,
+    onAfterPrint: () => {
+      setShowPrintTemplate(false);
+      onClose(); // إغلاق النافذة بعد الطباعة
+    }
+  });
   const [showPrintTemplate, setShowPrintTemplate] = useState(false);
   const [prescriptionId, setPrescriptionId] = useState<number | string>(0);
 
@@ -54,9 +61,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
     if (showPrintTemplate && prescriptionId) {
       setTimeout(() => {
         handlePrint();
-        setShowPrintTemplate(false);
-        onClose(); // إغلاق النافذة بعد الطباعة
-      }, 300);
+      }, 500); // Wait for QR code and layout to render fully
     }
   }, [showPrintTemplate, prescriptionId]);
 
@@ -464,7 +469,7 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void }) => {
- const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
+ const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]); 
@@ -877,9 +882,14 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           {isSuperAdmin && <button onClick={() => { setActiveTab('super_settings'); fetchSuperAdmins(); }} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'super_settings' ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><ShieldAlert size={18} /> {lang === 'ar' ? 'غرفة السوبر آدمن' : 'Super Admins'}</button>}
           
           {user.role === 'patient' && (
-            <button onClick={() => setActiveTab('patient_orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'patient_orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-              <FileText size={18} /> {lang === 'ar' ? 'طلباتي' : 'My Orders'}
-            </button>
+            <>
+              <button onClick={() => setActiveTab('patient_orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'patient_orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                <FileText size={18} /> {lang === 'ar' ? 'طلباتي' : 'My Orders'}
+              </button>
+              <button onClick={() => setActiveTab('ehr')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'ehr' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                <HeartPulse size={18} /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'Medical Record & Prescriptions'}
+              </button>
+            </>
           )}
 
           <button onClick={() => setActiveTab('profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Settings size={18} /> {t?.profileSettings || 'الإعدادات الشخصية'}</button>
@@ -1217,6 +1227,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           {activeTab === 'products' && (<div className="animate-in fade-in duration-300"><ProductsManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
           {activeTab === 'orders' && (<div className="animate-in fade-in duration-300"><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
           {activeTab === 'patient_orders' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><h2 className="text-2xl font-bold mb-6 dark:text-white">{lang === 'ar' ? 'طلباتي والأدوية' : 'My Orders & Medications'}</h2><PatientOrdersManager lang={lang} /></div>)}
+          {activeTab === 'ehr' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><PatientMedicalRecord user={user} lang={lang} /></div>)}
           {activeTab === 'wallet_requests' && (<div className="animate-in fade-in duration-300"><WalletRequestsManager user={user} lang={lang} /></div>)}
           
           {activeTab === 'super_settings' && isSuperAdmin && (

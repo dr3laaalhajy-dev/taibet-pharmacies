@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star , Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart} from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -11,29 +11,29 @@ import { api } from './api-client';
 import { PublicView } from './Components/PublicView';
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
-import { Chat } from './Components/Chat'; 
+import { Chat } from './Components/Chat';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { requestForToken } from './firebase';
-import { Eye, EyeOff } from 'lucide-react'; 
+import { Eye, EyeOff } from 'lucide-react';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({ 
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png', 
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png' 
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 });
 
-const uploadImageToImgBB = async (file: File) => { 
-  const base64 = await new Promise<string>((resolve, reject) => { 
-    const reader = new FileReader(); reader.readAsDataURL(file); 
-    reader.onload = () => resolve(reader.result as string); 
-    reader.onerror = e => reject(e); 
-  }); 
-  const f = new FormData(); f.append('image', base64.split(',')[1]); 
-  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f }); 
-  const d = await r.json(); if (d.success) return d.data.url; 
-  throw new Error(d.error?.message || 'فشل الرفع'); 
+const uploadImageToImgBB = async (file: File) => {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader(); reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = e => reject(e);
+  });
+  const f = new FormData(); f.append('image', base64.split(',')[1]);
+  const r = await fetch('https://api.imgbb.com/1/upload?key=6c2a41bd40fa2cde82b95b871c26b527', { method: 'POST', body: f });
+  const d = await r.json(); if (d.success) return d.data.url;
+  throw new Error(d.error?.message || 'فشل الرفع');
 };
 
 // 🟢 مكون نموذج السجل الطبي المطور الشامل (يدعم التعديل وتاريخ الميلاد)
@@ -50,9 +50,9 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
   const [habits, setHabits] = useState({ smoking: 'لا', alcohol: 'لا', drugs: 'لا' });
   const [womenHealth, setWomenHealth] = useState({ cycle: 'منتظمة', cycle_length: '', flow_duration: '', pads_per_day: '', gravida: '0', LMP: '' });
   const [pmh, setPmh] = useState<string[]>([]);
-  const [pmhOtherVal, setPmhOtherVal] = useState(''); 
+  const [pmhOtherVal, setPmhOtherVal] = useState('');
   const [fmh, setFmh] = useState<string[]>([]);
-  const [fmhOtherVal, setFmhOtherVal] = useState(''); 
+  const [fmhOtherVal, setFmhOtherVal] = useState('');
   const [medications, setMedications] = useState([{ name: '', dose: '', freq: '' }]);
 
   const pmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'الربو', 'الغدة الدرقية', 'الكلى', 'الكبد', 'لا يوجد', 'أخرى'];
@@ -65,23 +65,23 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
       try {
         // 🟢 السر هنا: إضافة `?t=${Date.now()}` تجبر المتصفح على جلب أحدث بيانات وتجاهل الكاش القديم
         const res = await api.get(`/api/medical-records/${user.id}?t=${Date.now()}`);
-        
+
         if (res && (res.id || res.patient_id)) {
-          
+
           // 🟢 معالجة تاريخ الميلاد بأمان شديد حتى لا يوقف عمل الشاشة
           let safeDob = '';
           if (res.dob) {
-            try { safeDob = new Date(res.dob).toISOString().split('T')[0]; } catch(e) {}
+            try { safeDob = new Date(res.dob).toISOString().split('T')[0]; } catch (e) { }
           }
 
           setForm(prev => ({
             ...prev,
-            full_name: res.full_name || user?.name || '', 
-            dob: safeDob, 
-            gender: res.gender || '', 
+            full_name: res.full_name || user?.name || '',
+            dob: safeDob,
+            gender: res.gender || '',
             marital_status: res.marital_status || 'أعزب',
-            children_count: res.children_count?.toString() || '0', 
-            occupation: res.occupation || '', 
+            children_count: res.children_count?.toString() || '0',
+            occupation: res.occupation || '',
             blood_type: res.blood_type || '',
             surgeries: res.past_surgeries && res.past_surgeries !== 'لا يوجد' ? 'نعم' : 'لا',
             surgeries_details: res.past_surgeries !== 'لا يوجد' ? res.past_surgeries : '',
@@ -91,24 +91,24 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
 
           if (res.special_habits) {
             const parts = res.special_habits.split(' | ');
-            setHabits({ 
-              smoking: parts[0]?.replace('تدخين: ', '') || 'لا', 
-              alcohol: parts[1]?.replace('كحول: ', '') || 'لا', 
-              drugs: parts[2]?.replace('ممنوعات: ', '') || 'لا' 
+            setHabits({
+              smoking: parts[0]?.replace('تدخين: ', '') || 'لا',
+              alcohol: parts[1]?.replace('كحول: ', '') || 'لا',
+              drugs: parts[2]?.replace('ممنوعات: ', '') || 'لا'
             });
           }
 
-          if (res.menstrual_history) { 
-            try { setWomenHealth(JSON.parse(res.menstrual_history)); } catch (e) {} 
+          if (res.menstrual_history) {
+            try { setWomenHealth(JSON.parse(res.menstrual_history)); } catch (e) { }
           }
 
           if (res.past_medical_history) {
             const pmhArr = res.past_medical_history.split('، ').filter(Boolean);
             const standardPmh: string[] = [];
             pmhArr.forEach((item: string) => {
-              if (item.startsWith('أخرى (')) { 
-                standardPmh.push('أخرى'); 
-                setPmhOtherVal(item.replace('أخرى (', '').replace(')', '')); 
+              if (item.startsWith('أخرى (')) {
+                standardPmh.push('أخرى');
+                setPmhOtherVal(item.replace('أخرى (', '').replace(')', ''));
               } else { standardPmh.push(item); }
             });
             setPmh(standardPmh);
@@ -118,22 +118,22 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
             const fmhArr = res.family_history.split('، ').filter(Boolean);
             const standardFmh: string[] = [];
             fmhArr.forEach((item: string) => {
-              if (item.startsWith('أخرى (')) { 
-                standardFmh.push('أخرى'); 
-                setFmhOtherVal(item.replace('أخرى (', '').replace(')', '')); 
+              if (item.startsWith('أخرى (')) {
+                standardFmh.push('أخرى');
+                setFmhOtherVal(item.replace('أخرى (', '').replace(')', ''));
               } else { standardFmh.push(item); }
             });
             setFmh(standardFmh);
           }
 
-          if (res.medication_list && Array.isArray(res.medication_list) && res.medication_list.length > 0) { 
-            setMedications(res.medication_list); 
+          if (res.medication_list && Array.isArray(res.medication_list) && res.medication_list.length > 0) {
+            setMedications(res.medication_list);
           }
         }
-      } catch (error) { 
-        console.error("Fetch Error:", error); 
-      } finally { 
-        setIsFetching(false); 
+      } catch (error) {
+        console.error("Fetch Error:", error);
+      } finally {
+        setIsFetching(false);
       }
     };
     fetchMyRecord();
@@ -165,17 +165,17 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
         menstrual_history: form.gender === 'أنثى' ? JSON.stringify(womenHealth) : null,
         past_medical_history: finalPmh, past_surgeries: form.surgeries === 'نعم' ? form.surgeries_details : 'لا يوجد',
         allergies: form.allergies === 'نعم' ? form.allergies_details : 'لا يوجد', family_history: finalFmh,
-        medication_list: medications.filter(m => m.name.trim() !== '') 
+        medication_list: medications.filter(m => m.name.trim() !== '')
       });
       toast.success(lang === 'ar' ? 'تم حفظ السجل الطبي بنجاح!' : 'Saved successfully!');
       onSaved(); onClose();
-    } catch (err: any) { 
+    } catch (err: any) {
       // 🟢 هنا يكمن السر: سيظهر لك الخطأ الذي تخفيه قاعدة البيانات!
       const dbError = err.response?.data?.error || err.message || 'خطأ غير معروف';
       alert(`فشل الحفظ بسبب قاعدة البيانات:\n\n${dbError}`);
-      toast.error('حدث خطأ أثناء الحفظ'); 
-    } finally { 
-      setLoading(false); 
+      toast.error('حدث خطأ أثناء الحفظ');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -194,7 +194,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[150] p-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b dark:border-slate-800 p-6">
-          <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold flex items-center gap-2 dark:text-white"><Heart className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Medical Record'}</h2><button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200"><X size={20} className="dark:text-slate-300"/></button></div>
+          <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold flex items-center gap-2 dark:text-white"><Heart className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Medical Record'}</h2><button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200"><X size={20} className="dark:text-slate-300" /></button></div>
           <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-xl flex items-center gap-3 text-sm font-bold"><ShieldAlert size={24} className="shrink-0" /><p>{lang === 'ar' ? 'جميع معلوماتك الطبية مشفرة وسرية تماماً.' : 'Your info is encrypted and confidential.'}</p></div>
         </div>
 
@@ -202,16 +202,16 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
           <section>
             <h3 className="text-lg font-bold mb-4 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'البيانات الأساسية' : 'Basic Info'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الاسم الثلاثي' : 'Full Name'}</label><input required type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})} /></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الاسم الثلاثي' : 'Full Name'}</label><input required type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
                 {/* 🟢 حقل تاريخ الميلاد الجديد */}
-                <div><label className="font-bold text-sm block mb-1 dark:text-white" title="لحساب العمر تلقائياً">{lang === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</label><input required type="date" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.dob} onChange={e => setForm({...form, dob: e.target.value})} /></div>
-                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الجنس' : 'Gender'}</label><select required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}><option value="">{lang === 'ar' ? 'اختر...' : 'Select...'}</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option></select></div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white" title="لحساب العمر تلقائياً">{lang === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</label><input required type="date" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.dob} onChange={e => setForm({ ...form, dob: e.target.value })} /></div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الجنس' : 'Gender'}</label><select required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}><option value="">{lang === 'ar' ? 'اختر...' : 'Select...'}</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option></select></div>
               </div>
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.marital_status} onChange={e => setForm({...form, marital_status: e.target.value})}><option value="أعزب">أعزب</option><option value="متزوج">متزوج</option><option value="مطلق">مطلق</option><option value="أرمل">أرمل</option></select></div>
-              {form.marital_status === 'متزوج' && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأولاد' : 'Children'}</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.children_count} onChange={e => setForm({...form, children_count: e.target.value})} /></motion.div>)}
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.blood_type} onChange={e => setForm({...form, blood_type: e.target.value})}><option value="">{lang === 'ar' ? 'غير محدد' : 'Unknown'}</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'طبيعة العمل (المهنة)' : 'Occupation'}</label><input type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" placeholder={lang === 'ar' ? 'مثال: مهندس، معلم...' : 'e.g. Engineer...'} value={form.occupation} onChange={e => setForm({...form, occupation: e.target.value})} /></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.marital_status} onChange={e => setForm({ ...form, marital_status: e.target.value })}><option value="أعزب">أعزب</option><option value="متزوج">متزوج</option><option value="مطلق">مطلق</option><option value="أرمل">أرمل</option></select></div>
+              {form.marital_status === 'متزوج' && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'عدد الأولاد' : 'Children'}</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.children_count} onChange={e => setForm({ ...form, children_count: e.target.value })} /></motion.div>)}
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.blood_type} onChange={e => setForm({ ...form, blood_type: e.target.value })}><option value="">{lang === 'ar' ? 'غير محدد' : 'Unknown'}</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">{lang === 'ar' ? 'طبيعة العمل (المهنة)' : 'Occupation'}</label><input type="text" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" placeholder={lang === 'ar' ? 'مثال: مهندس، معلم...' : 'e.g. Engineer...'} value={form.occupation} onChange={e => setForm({ ...form, occupation: e.target.value })} /></div>
             </div>
           </section>
 
@@ -220,18 +220,18 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
             <motion.section initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-pink-50 dark:bg-pink-900/10 p-5 rounded-2xl border border-pink-100 dark:border-pink-900/30">
               <h3 className="text-lg font-bold mb-4 text-pink-600 dark:text-pink-400">{lang === 'ar' ? 'التاريخ الصحي النسائي' : 'Women Health'}</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div><label className="font-bold text-sm block mb-1 dark:text-white">انتظام الدورة</label><select className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle} onChange={e => setWomenHealth({...womenHealth, cycle: e.target.value, LMP: ''})}><option value="منتظمة">منتظمة كل شهر</option><option value="غير منتظمة">غير منتظمة</option><option value="منقطعة">منقطعة (سن اليأس)</option></select></div>
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">انتظام الدورة</label><select className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle} onChange={e => setWomenHealth({ ...womenHealth, cycle: e.target.value, LMP: '' })}><option value="منتظمة">منتظمة كل شهر</option><option value="غير منتظمة">غير منتظمة</option><option value="منقطعة">منقطعة (سن اليأس)</option></select></div>
                 {womenHealth.cycle !== 'منقطعة' && (
                   <>
-                    <div><label className="font-bold text-sm block mb-1 dark:text-white">طول الدورة (بالأيام)</label><input type="number" placeholder="مثال: 28" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle_length} onChange={e => setWomenHealth({...womenHealth, cycle_length: e.target.value})} /></div>
-                    <div><label className="font-bold text-sm block mb-1 dark:text-white">مدة النزيف (بالأيام)</label><input type="number" placeholder="مثال: 5" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.flow_duration} onChange={e => setWomenHealth({...womenHealth, flow_duration: e.target.value})} />{Number(womenHealth.flow_duration) > 7 && <p className="text-xs text-red-500 mt-1 font-bold">⚠️ تزيد عن 7 أيام</p>}</div>
+                    <div><label className="font-bold text-sm block mb-1 dark:text-white">طول الدورة (بالأيام)</label><input type="number" placeholder="مثال: 28" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.cycle_length} onChange={e => setWomenHealth({ ...womenHealth, cycle_length: e.target.value })} /></div>
+                    <div><label className="font-bold text-sm block mb-1 dark:text-white">مدة النزيف (بالأيام)</label><input type="number" placeholder="مثال: 5" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.flow_duration} onChange={e => setWomenHealth({ ...womenHealth, flow_duration: e.target.value })} />{Number(womenHealth.flow_duration) > 7 && <p className="text-xs text-red-500 mt-1 font-bold">⚠️ تزيد عن 7 أيام</p>}</div>
                   </>
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {womenHealth.cycle !== 'منقطعة' && (<div><label className="font-bold text-sm block mb-1 dark:text-white">عدد الفوط المستخدمة يومياً</label><input type="number" placeholder="العدد التقريبي" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.pads_per_day} onChange={e => setWomenHealth({...womenHealth, pads_per_day: e.target.value})} /></div>)}
-                <div><label className="font-bold text-sm block mb-1 dark:text-white">عدد الأحمال السابقة</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({...womenHealth, gravida: e.target.value})} /></div>
-                <div>{womenHealth.cycle === 'منقطعة' ? (<><label className="font-bold text-sm block mb-1 dark:text-white">منذ متى انقطعت الدورة تقريباً؟</label><input type="text" placeholder="مثال: منذ 5 سنوات..." className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} /></>) : (<><label className="font-bold text-sm block mb-1 dark:text-white">تاريخ أول يوم لآخر دورة</label><input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({...womenHealth, LMP: e.target.value})} /></>)}</div>
+                {womenHealth.cycle !== 'منقطعة' && (<div><label className="font-bold text-sm block mb-1 dark:text-white">عدد الفوط المستخدمة يومياً</label><input type="number" placeholder="العدد التقريبي" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.pads_per_day} onChange={e => setWomenHealth({ ...womenHealth, pads_per_day: e.target.value })} /></div>)}
+                <div><label className="font-bold text-sm block mb-1 dark:text-white">عدد الأحمال السابقة</label><input type="number" min="0" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.gravida} onChange={e => setWomenHealth({ ...womenHealth, gravida: e.target.value })} /></div>
+                <div>{womenHealth.cycle === 'منقطعة' ? (<><label className="font-bold text-sm block mb-1 dark:text-white">منذ متى انقطعت الدورة تقريباً؟</label><input type="text" placeholder="مثال: منذ 5 سنوات..." className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({ ...womenHealth, LMP: e.target.value })} /></>) : (<><label className="font-bold text-sm block mb-1 dark:text-white">تاريخ أول يوم لآخر دورة</label><input type="date" className="w-full p-3 rounded-xl border border-pink-200 dark:border-pink-800 outline-none dark:bg-slate-800 dark:text-white" value={womenHealth.LMP} onChange={e => setWomenHealth({ ...womenHealth, LMP: e.target.value })} /></>)}</div>
               </div>
             </motion.section>
           )}
@@ -239,9 +239,9 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
           <section>
             <h3 className="text-lg font-bold mb-4 text-emerald-600 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">{lang === 'ar' ? 'العادات الخاصة' : 'Habits'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">التدخين بأنواعه</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.smoking} onChange={e => setHabits({...habits, smoking: e.target.value})}><option value="لا">لا أدخن</option><option value="سجائر">سجائر عادية</option><option value="شيشة">أرجيلة (شيشة)</option><option value="إلكترونية">سيجارة إلكترونية/فيب</option><option value="سابق">مدخن سابق</option></select></div>
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">الكحول</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.alcohol} onChange={e => setHabits({...habits, alcohol: e.target.value})}><option value="لا">لا أشرب أبداً</option><option value="نعم">نعم</option></select></div>
-              <div><label className="font-bold text-sm block mb-1 dark:text-white">مواد ممنوعة / منبهات</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.drugs} onChange={e => setHabits({...habits, drugs: e.target.value})}><option value="لا">لا يوجد</option><option value="نعم">نعم</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">التدخين بأنواعه</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.smoking} onChange={e => setHabits({ ...habits, smoking: e.target.value })}><option value="لا">لا أدخن</option><option value="سجائر">سجائر عادية</option><option value="شيشة">أرجيلة (شيشة)</option><option value="إلكترونية">سيجارة إلكترونية/فيب</option><option value="سابق">مدخن سابق</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">الكحول</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.alcohol} onChange={e => setHabits({ ...habits, alcohol: e.target.value })}><option value="لا">لا أشرب أبداً</option><option value="نعم">نعم</option></select></div>
+              <div><label className="font-bold text-sm block mb-1 dark:text-white">مواد ممنوعة / منبهات</label><select className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={habits.drugs} onChange={e => setHabits({ ...habits, drugs: e.target.value })}><option value="لا">لا يوجد</option><option value="نعم">نعم</option></select></div>
             </div>
           </section>
 
@@ -253,13 +253,13 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div>
                   <label className="font-bold text-sm block mb-2 dark:text-white">هل أجريت عمليات جراحية سابقاً؟ (حتى لو بسيطة)</label>
-                  <div className="flex gap-4 mb-2"><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.surgeries === 'لا'} onChange={() => setForm({...form, surgeries: 'لا'})} /> لا</label><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.surgeries === 'نعم'} onChange={() => setForm({...form, surgeries: 'نعم'})} /> نعم</label></div>
-                  {form.surgeries === 'نعم' && <input type="text" placeholder="اذكر نوع العملية ومتى..." className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.surgeries_details} onChange={e => setForm({...form, surgeries_details: e.target.value})} required />}
+                  <div className="flex gap-4 mb-2"><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.surgeries === 'لا'} onChange={() => setForm({ ...form, surgeries: 'لا' })} /> لا</label><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.surgeries === 'نعم'} onChange={() => setForm({ ...form, surgeries: 'نعم' })} /> نعم</label></div>
+                  {form.surgeries === 'نعم' && <input type="text" placeholder="اذكر نوع العملية ومتى..." className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.surgeries_details} onChange={e => setForm({ ...form, surgeries_details: e.target.value })} required />}
                 </div>
                 <div>
                   <label className="font-bold text-sm block mb-2 dark:text-white">هل لديك حساسية (أدوية/طعام)؟</label>
-                  <div className="flex gap-4 mb-2"><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.allergies === 'لا'} onChange={() => setForm({...form, allergies: 'لا'})} /> لا</label><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.allergies === 'نعم'} onChange={() => setForm({...form, allergies: 'نعم'})} /> نعم</label></div>
-                  {form.allergies === 'نعم' && <input type="text" placeholder="مما تتحسس؟" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.allergies_details} onChange={e => setForm({...form, allergies_details: e.target.value})} required />}
+                  <div className="flex gap-4 mb-2"><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.allergies === 'لا'} onChange={() => setForm({ ...form, allergies: 'لا' })} /> لا</label><label className="flex items-center gap-2 cursor-pointer dark:text-slate-300"><input type="radio" checked={form.allergies === 'نعم'} onChange={() => setForm({ ...form, allergies: 'نعم' })} /> نعم</label></div>
+                  {form.allergies === 'نعم' && <input type="text" placeholder="مما تتحسس؟" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:bg-slate-800 dark:text-white" value={form.allergies_details} onChange={e => setForm({ ...form, allergies_details: e.target.value })} required />}
                 </div>
               </div>
             </div>
@@ -304,18 +304,18 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
-  
+
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   const [isSubmittingWallet, setIsSubmittingWallet] = useState(false);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isAddingAddress, setIsAddingAddress] = useState(false);
-  
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'currency' | 'addresses'>('currency');
-  
+
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [walletAmount, setWalletAmount] = useState('');
@@ -383,22 +383,22 @@ export default function App() {
   useEffect(() => { document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'; document.documentElement.lang = lang; }, [lang]);
 
   useEffect(() => {
-    api.get('/api/auth/me').then(data => { 
-      setUser(data.user); 
+    api.get('/api/auth/me').then(data => {
+      setUser(data.user);
       setView(data.user.role === 'patient' ? 'public' : 'dashboard');
       const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${data.user.id}`) || '[]');
       const savedDefault = localStorage.getItem(`defAddr_${data.user.id}`) || savedAddresses[0] || '';
       setAddresses(savedAddresses); setDefaultAddress(savedDefault);
-      fetchNotifications(); 
+      fetchNotifications();
     }).catch(() => setView('public')).finally(() => setLoading(false));
-    api.get('/api/public/settings').then(data => { if(Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
+    api.get('/api/public/settings').then(data => { if (Object.keys(data).length > 0) setFooterData(data); }).catch(console.error);
   }, []);
 
   // 🟢 جلب حالة السجل الطبي للمريض للتحكم بظهور الشريط الأصفر بدقة
   useEffect(() => {
     if (user?.role === 'patient') {
       api.get(`/api/medical-records/${user.id}`)
-        .then((res: any) => { 
+        .then((res: any) => {
           // التحقق مما إذا كان السجل يحتوي على بيانات فعلاً
           if (res && (res.patient_id || res.id || Object.keys(res).length > 0)) {
             setHasMedicalRecord(true);
@@ -410,11 +410,11 @@ export default function App() {
     }
   }, [user]);
 
-  const fetchNotifications = () => { api.get('/api/notifications').then(setNotifications).catch(() => {}); };
+  const fetchNotifications = () => { api.get('/api/notifications').then(setNotifications).catch(() => { }); };
   useEffect(() => { if (!user) return; const interval = setInterval(fetchNotifications, 30000); return () => clearInterval(interval); }, [user]);
 
   const handleOpenNotifications = () => {
-    setIsNotifMenuOpen(!isNotifMenuOpen); setIsMenuOpen(false); 
+    setIsNotifMenuOpen(!isNotifMenuOpen); setIsMenuOpen(false);
     if (!isNotifMenuOpen && unreadCount > 0) { api.patch('/api/notifications/read').then(() => { setNotifications(prev => prev.map(n => ({ ...n, is_read: true }))); }).catch(console.error); }
   };
 
@@ -424,50 +424,50 @@ export default function App() {
     if (!user) return;
     setIsMenuOpen(false); setShowRecordsModal(true); setLoadingRecords(true);
     try {
-      const [rxRes, ehrRes] = await Promise.all([ api.get(`/api/prescriptions/patient/${user.id}`), api.get(`/api/medical-records/${user.id}`) ]);
+      const [rxRes, ehrRes] = await Promise.all([api.get(`/api/prescriptions/patient/${user.id}`), api.get(`/api/medical-records/${user.id}`)]);
       setPatientPrescriptions(rxRes || []); setPatientEHR(ehrRes || {});
-    } catch(err) { console.error(err); } finally { setLoadingRecords(false); }
+    } catch (err) { console.error(err); } finally { setLoadingRecords(false); }
   };
 
   const handleDispenseClick = async (rx: any) => {
     setSelectedRxForDispense(rx);
-    try { const facs = await api.get('/api/public/facilities'); setAvailablePharmacies(facs.filter((f: any) => f.type === 'pharmacy' && f.doctor_id)); setShowPharmacyPicker(true); } 
-    catch(e) { toast.error(lang === 'ar' ? 'حدث خطأ في جلب الصيدليات' : 'Error fetching pharmacies'); }
+    try { const facs = await api.get('/api/public/facilities'); setAvailablePharmacies(facs.filter((f: any) => f.type === 'pharmacy' && f.doctor_id)); setShowPharmacyPicker(true); }
+    catch (e) { toast.error(lang === 'ar' ? 'حدث خطأ في جلب الصيدليات' : 'Error fetching pharmacies'); }
   };
 
   const confirmDispenseToPharmacy = async (pharmacy: any) => {
-    const msg = `مرحباً، أود صرف الوصفة الطبية التالية من خلال صيدليتكم الموقرة:\n\n👨‍⚕️ الطبيب المعالج: ${selectedRxForDispense.doctor_name} (${selectedRxForDispense.doctor_specialty || 'طبيب'})\n🩺 التشخيص: ${selectedRxForDispense.diagnosis}\n\n💊 الأدوية المطلوبة:\n${selectedRxForDispense.medicines.map((m: any, i:number) => `${i+1}. ${m.name} - الجرعة: ${m.dosage}`).join('\n')}\n\nهل الأدوية متوفرة وكم تكلفتها الإجمالية؟`;
+    const msg = `مرحباً، أود صرف الوصفة الطبية التالية من خلال صيدليتكم الموقرة:\n\n👨‍⚕️ الطبيب المعالج: ${selectedRxForDispense.doctor_name} (${selectedRxForDispense.doctor_specialty || 'طبيب'})\n🩺 التشخيص: ${selectedRxForDispense.diagnosis}\n\n💊 الأدوية المطلوبة:\n${selectedRxForDispense.medicines.map((m: any, i: number) => `${i + 1}. ${m.name} - الجرعة: ${m.dosage}`).join('\n')}\n\nهل الأدوية متوفرة وكم تكلفتها الإجمالية؟`;
     try {
       await api.post('/api/chat/messages', { receiver_id: pharmacy.doctor_id, content: msg });
       setShowPharmacyPicker(false); setShowRecordsModal(false);
       toast.success(lang === 'ar' ? 'تم إرسال الوصفة للصيدلية بنجاح!' : 'Prescription sent successfully!');
-      setTimeout(() => { openChatWithUser(pharmacy.doctor_id); }, 500); 
+      setTimeout(() => { openChatWithUser(pharmacy.doctor_id); }, 500);
     } catch (err) { toast.error(lang === 'ar' ? 'فشل إرسال الوصفة' : 'Failed to send'); }
   };
 
   const handleCurrencyChange = (newCurr: 'old' | 'new') => { setCurrency(newCurr); localStorage.setItem('currency', newCurr); };
 
-  useEffect(() => { if(user) setProfileForm({ name: user.name, email: user.email, password: '', profile_picture: (user as any).profile_picture || '' }); }, [user, showProfileModal]);
+  useEffect(() => { if (user) setProfileForm({ name: user.name, email: user.email, password: '', profile_picture: (user as any).profile_picture || '' }); }, [user, showProfileModal]);
 
   const refreshUser = () => { api.get('/api/auth/me').then(data => setUser(data.user)).catch(console.error); };
-  
-  const handleLogin = (u: UserType) => { 
-    setUser(u); setView(u.role === 'patient' ? 'public' : 'dashboard'); 
+
+  const handleLogin = (u: UserType) => {
+    setUser(u); setView(u.role === 'patient' ? 'public' : 'dashboard');
     const savedAddresses = JSON.parse(localStorage.getItem(`addrs_${u.id}`) || '[]');
     setAddresses(savedAddresses); setDefaultAddress(localStorage.getItem(`defAddr_${u.id}`) || savedAddresses[0] || '');
     fetchNotifications();
   };
 
-  const handleLogout = async () => { 
-    await api.post('/api/auth/logout', {}); 
+  const handleLogout = async () => {
+    await api.post('/api/auth/logout', {});
     setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false); setShowRecordsModal(false);
     setHasMedicalRecord(true); // إعادة الضبط
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
     e.preventDefault(); if (isSubmittingWallet) return; setIsSubmittingWallet(true);
-    try { await api.post('/api/wallet/request', { type: 'deposit', amount: parseFloat(walletAmount) * 100 }); setShowSuccess(true); setShowWalletModal(false); setWalletAmount(''); } 
-    catch(err: any) { toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); } 
+    try { await api.post('/api/wallet/request', { type: 'deposit', amount: parseFloat(walletAmount) * 100 }); setShowSuccess(true); setShowWalletModal(false); setWalletAmount(''); }
+    catch (err: any) { toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred')); }
     finally { setIsSubmittingWallet(false); }
   };
 
@@ -483,9 +483,9 @@ export default function App() {
       };
 
       await api.post('/api/auth/update-profile', payload);
-      
+
       toast.success(lang === 'ar' ? 'تم حفظ التغييرات بنجاح!' : 'Profile updated successfully!');
-      
+
       setShowPasswordChange(false);
       setCurrentPassword('');
       setNewPassword('');
@@ -499,22 +499,22 @@ export default function App() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; setUploadingImage(true);
-    try { const url = await uploadImageToImgBB(file); setProfileForm({ ...profileForm, profile_picture: url }); } 
+    try { const url = await uploadImageToImgBB(file); setProfileForm({ ...profileForm, profile_picture: url }); }
     catch (err: any) { toast.error('فشل الرفع'); } finally { setUploadingImage(false); }
   };
 
   const addAddress = async () => {
-    if(!newAddress.trim() || isAddingAddress) return; setIsAddingAddress(true);
+    if (!newAddress.trim() || isAddingAddress) return; setIsAddingAddress(true);
     try {
       const updated = [...addresses, newAddress.trim()]; setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
-      if(!defaultAddress) { setDefaultAddress(newAddress.trim()); localStorage.setItem(`defAddr_${user?.id}`, newAddress.trim()); }
+      if (!defaultAddress) { setDefaultAddress(newAddress.trim()); localStorage.setItem(`defAddr_${user?.id}`, newAddress.trim()); }
       setNewAddress(''); toast.success(lang === 'ar' ? 'تمت الإضافة' : 'Added');
     } finally { setIsAddingAddress(false); }
   };
 
   const removeAddress = (addr: string) => {
     const updated = addresses.filter(a => a !== addr); setAddresses(updated); localStorage.setItem(`addrs_${user?.id}`, JSON.stringify(updated));
-    if(defaultAddress === addr) { setDefaultAddress(updated[0] || ''); localStorage.setItem(`defAddr_${user?.id}`, updated[0] || ''); }
+    if (defaultAddress === addr) { setDefaultAddress(updated[0] || ''); localStorage.setItem(`defAddr_${user?.id}`, updated[0] || ''); }
   };
 
   const enableNotifications = async () => {
@@ -538,14 +538,14 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 bg-slate-50 dark:bg-slate-950 dark:text-slate-100 relative transition-colors duration-300">
       <Toaster position="top-center" reverseOrder={false} />
-      
+
       {view !== 'dashboard' && (
         <nav className="bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-40 backdrop-blur-md shadow-sm transition-colors duration-300">
-          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white hover:opacity-80 transition-opacity"> 
+          <button onClick={() => setView('public')} className="text-xl font-bold flex items-center gap-2 dark:text-white hover:opacity-80 transition-opacity">
             <img src="/logo.png" alt="Taiba Health Logo" className="w-9 h-9 md:w-10 md:h-10 object-contain drop-shadow-sm" />
             <span className="text-lg md:text-xl">Taiba Health</span>
           </button>
-          
+
           <div className="flex gap-2 md:gap-3 items-center">
 
             <button onClick={toggleDarkMode} className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors" title={lang === 'ar' ? 'الوضع الليلي' : 'Dark Mode'}>
@@ -554,23 +554,21 @@ export default function App() {
 
             {user && (
               <button onClick={() => setShowWalletModal(true)} className="hidden sm:flex bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-3 py-1.5 rounded-full items-center gap-2 text-sm font-bold border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                <Wallet size={16}/> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                <Wallet size={16} /> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
                 <Plus size={14} className="bg-blue-600 text-white rounded-full p-0.5 ml-1" />
               </button>
             )}
-            
+
             <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">{lang === 'ar' ? 'English' : 'العربية'}</button>
-            
+
             {user ? (
               <div className="flex items-center gap-2 md:gap-3">
-                {user.role !== 'patient' && (
-                  <button onClick={() => setView('dashboard')} className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors shadow-md">
-                    <LayoutDashboard size={16} />
-                    <span>{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
-                  </button>
-                )}
+                <button onClick={() => setView('dashboard')} className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors shadow-md">
+                  <LayoutDashboard size={16} />
+                  <span>{lang === 'ar' ? (user.role === 'patient' ? 'معلوماتي' : 'لوحة التحكم') : (user.role === 'patient' ? 'My Information' : 'Dashboard')}</span>
+                </button>
 
-                
+
                 <div className="relative">
                   <button onClick={handleOpenNotifications} className="relative p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                     <Bell size={22} />
@@ -607,7 +605,7 @@ export default function App() {
                 </div>
 
                 <div className="relative">
-                  <button onClick={() => {setIsMenuOpen(!isMenuOpen); setIsNotifMenuOpen(false);}} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
+                  <button onClick={() => { setIsMenuOpen(!isMenuOpen); setIsNotifMenuOpen(false); }} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
                     {(user as any).profile_picture ? (
                       <img src={(user as any).profile_picture} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
                     ) : (
@@ -624,28 +622,24 @@ export default function App() {
                           <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.name}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                         </div>
-                        
-                        {user.role !== 'patient' && (
-                          <button onClick={() => { setView('dashboard'); setIsMenuOpen(false); }} className="w-full lg:hidden text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors">
-                            <LayoutDashboard size={16} /> {lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
-                          </button>
-                        )}
+
+                        <button onClick={() => { setView('dashboard'); setIsMenuOpen(false); }} className="w-full lg:hidden text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors">
+                          <LayoutDashboard size={16} /> {lang === 'ar' ? (user.role === 'patient' ? 'معلوماتي' : 'لوحة التحكم') : (user.role === 'patient' ? 'My Information' : 'Dashboard')}
+                        </button>
 
                         {/* 🟢 زر استكمال السجل الطبي المضاف حديثاً */}
                         {user.role === 'patient' && (
                           <button onClick={() => { setShowMedicalRecordFormModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors mt-1">
-                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي الشامل' : 'Complete Medical Record'}
+                            <Heart size={16} className="text-emerald-500" /> {lang === 'ar' ? 'استكمال سجلي الطبي ' : 'Complete Medical Record'}
                           </button>
                         )}
 
-                        <button onClick={openMyRecords} className="w-full text-start px-4 py-2.5 text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 flex items-center gap-3 transition-colors">
-                          <FileSignature size={16} /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'My EHR & Prescriptions'}
-                        </button>
+
 
                         <button onClick={() => { setShowProfileModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors mt-1">
                           <User size={16} /> {lang === 'ar' ? 'الملف الشخصي' : 'Profile'}
                         </button>
-                        
+
                         <button onClick={() => { setShowSettingsModal(true); setIsMenuOpen(false); }} className="w-full text-start px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-700 dark:hover:text-blue-400 flex items-center gap-3 transition-colors">
                           <Settings size={16} /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}
                         </button>
@@ -670,8 +664,8 @@ export default function App() {
         <div className="bg-yellow-500 text-slate-900 px-4 py-3 text-center font-bold text-sm flex justify-center items-center gap-2 z-30 sticky top-[72px] shadow-md">
           <ShieldAlert size={18} />
           <span>{lang === 'ar' ? 'يرجى استكمال سجلك الطبي لمرة واحدة لتسهيل تشخيصك من قبل أطبائنا.' : 'Please complete your medical record to help our doctors.'}</span>
-          <button 
-            onClick={() => setShowMedicalRecordFormModal(true)} 
+          <button
+            onClick={() => setShowMedicalRecordFormModal(true)}
             className="bg-slate-900 text-yellow-400 px-4 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-xs whitespace-nowrap"
           >
             {lang === 'ar' ? 'إنشاء السجل الآن' : 'Create Record'}
@@ -681,46 +675,46 @@ export default function App() {
 
       <main className="flex-1">
         {view === 'public' && (
-          <PublicView 
+          <PublicView
             user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
           />
         )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} openChatWithUser={openChatWithUser} lang={lang} t={t} />}
-        
+
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
-      
-      <AnimatePresence>
-        {showWalletModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
-              <button onClick={() => setShowWalletModal(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20}/></button>
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Wallet size={32}/></div>
-              <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{lang === 'ar' ? 'شحن رصيد المحفظة' : 'Top up Wallet'}</h3>
-              <p className="text-sm text-slate-500 text-center mb-6">{lang === 'ar' ? 'أدخل المبلغ الذي تود شحنه، وسيقوم المسؤول بتأكيد الطلب فور الاستلام.' : 'Enter the amount you want to top up.'}</p>
-              
-              <form onSubmit={submitWalletRequest} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
-                  <div className="relative">
-                    <input 
-                      required type="number" 
-                      className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-blue-600 outline-none text-lg font-bold transition-all dark:text-white" 
-                      placeholder="0.00" 
-                      value={walletAmount} 
-                      onChange={e => setWalletAmount(e.target.value)} 
-                    />
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
+
+        <AnimatePresence>
+          {showWalletModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
+                <button onClick={() => setShowWalletModal(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20} /></button>
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Wallet size={32} /></div>
+                <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{lang === 'ar' ? 'شحن رصيد المحفظة' : 'Top up Wallet'}</h3>
+                <p className="text-sm text-slate-500 text-center mb-6">{lang === 'ar' ? 'أدخل المبلغ الذي تود شحنه، وسيقوم المسؤول بتأكيد الطلب فور الاستلام.' : 'Enter the amount you want to top up.'}</p>
+
+                <form onSubmit={submitWalletRequest} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
+                    <div className="relative">
+                      <input
+                        required type="number"
+                        className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:border-blue-600 outline-none text-lg font-bold transition-all dark:text-white"
+                        placeholder="0.00"
+                        value={walletAmount}
+                        onChange={e => setWalletAmount(e.target.value)}
+                      />
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
+                    </div>
                   </div>
-                </div>
-                <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-                  {isSubmittingWallet ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request')}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                    {isSubmittingWallet ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : (lang === 'ar' ? 'إرسال طلب الشحن' : 'Submit Request')}
+                  </button>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </main>
 
       <AnimatePresence>
@@ -740,12 +734,12 @@ export default function App() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-slate-50 dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
               <div className="bg-white dark:bg-slate-800 p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center z-10">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Activity className="text-emerald-500" /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'My Health Records & Rx'}</h2>
-                <button onClick={() => setShowRecordsModal(false)} className="p-2 bg-slate-50 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-500 hover:text-red-500 rounded-full transition-colors"><X size={20}/></button>
+                <button onClick={() => setShowRecordsModal(false)} className="p-2 bg-slate-50 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-500 hover:text-red-500 rounded-full transition-colors"><X size={20} /></button>
               </div>
-              
+
               <div className="flex bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
-                <button onClick={() => setRecordsTab('rx')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'rx' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><FileSignature size={18}/> {lang === 'ar' ? 'الوصفات الطبية (الروشتات)' : 'Prescriptions'}</button>
-                <button onClick={() => setRecordsTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><Activity size={18}/> {lang === 'ar' ? 'السجل الطبي (EHR)' : 'Medical Record'}</button>
+                <button onClick={() => setRecordsTab('rx')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'rx' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><FileSignature size={18} /> {lang === 'ar' ? 'الوصفات الطبية (الروشتات)' : 'Prescriptions'}</button>
+                <button onClick={() => setRecordsTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${recordsTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}><Activity size={18} /> {lang === 'ar' ? 'السجل الطبي (EHR)' : 'Medical Record'}</button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
@@ -754,17 +748,17 @@ export default function App() {
                 ) : recordsTab === 'ehr' ? (
                   <div className="space-y-4">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
-                      
+
                       {/* 1. البيانات الأساسية وفصيلة الدم */}
-                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400" dir="ltr">{patientEHR?.blood_type || (lang==='ar'?'غير محدد':'N/A')}</p></div>
-                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية (أدوية/أطعمة)' : 'Allergies'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.allergies || (lang==='ar'?'لا يوجد سجل':'None recorded')}</p></div>
-                      
+                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</h4><p className="text-lg font-bold text-red-600 dark:text-red-400" dir="ltr">{patientEHR?.blood_type || (lang === 'ar' ? 'غير محدد' : 'N/A')}</p></div>
+                      <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية (أدوية/أطعمة)' : 'Allergies'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.allergies || (lang === 'ar' ? 'لا يوجد سجل' : 'None recorded')}</p></div>
+
                       {/* 2. الأمراض والعمليات والتاريخ العائلي */}
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض السابقة والمزمنة' : 'Past Medical History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_medical_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_surgeries || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'التاريخ العائلي' : 'Family History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.family_history || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
-                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'العادات الخاصة (تدخين / كحول)' : 'Special Habits'}</h4><p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{patientEHR?.special_habits || (lang==='ar'?'لا يوجد سجل':'None')}</p></div>
-                      
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض السابقة والمزمنة' : 'Past Medical History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_medical_history || (lang === 'ar' ? 'لا يوجد سجل' : 'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.past_surgeries || (lang === 'ar' ? 'لا يوجد سجل' : 'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'التاريخ العائلي' : 'Family History'}</h4><p className="text-base font-medium text-slate-800 dark:text-slate-200">{patientEHR?.family_history || (lang === 'ar' ? 'لا يوجد سجل' : 'None')}</p></div>
+                      <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'العادات الخاصة (تدخين / كحول)' : 'Special Habits'}</h4><p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed">{patientEHR?.special_habits || (lang === 'ar' ? 'لا يوجد سجل' : 'None')}</p></div>
+
                       {/* 3. الأدوية المجدولة */}
                       <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-700 pt-4">
                         <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase">{lang === 'ar' ? 'الأدوية التي يتناولها بانتظام' : 'Regular Medications'}</h4>
@@ -799,7 +793,7 @@ export default function App() {
                               <h3 className="font-bold text-slate-900 dark:text-white text-lg">د. {rx.doctor_name}</h3>
                               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block">{rx.doctor_specialty}</span>
                             </div>
-                            <span className="text-xs font-mono text-slate-500 bg-white dark:bg-slate-700 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600" dir="ltr">{new Date(rx.created_at).toLocaleDateString(lang==='ar'?'ar-EG':'en-US')}</span>
+                            <span className="text-xs font-mono text-slate-500 bg-white dark:bg-slate-700 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600" dir="ltr">{new Date(rx.created_at).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
                           </div>
                           <div className="p-5 space-y-4">
                             <div>
@@ -809,16 +803,16 @@ export default function App() {
                             <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                               <h4 className="text-xs font-bold text-slate-400 mb-3">{lang === 'ar' ? 'الأدوية الموصوفة' : 'Medicines'}</h4>
                               <div className="space-y-2">
-                                {rx.medicines.map((med:any, idx:number) => (
+                                {rx.medicines.map((med: any, idx: number) => (
                                   <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
                                     <div className="font-bold text-slate-800 dark:text-slate-200 text-sm" dir="ltr">{med.name}</div>
-                                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 text-right">{med.dosage} - {med.frequency} <br/> <span className="text-[10px]">{med.duration}</span></div>
+                                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 text-right">{med.dosage} - {med.frequency} <br /> <span className="text-[10px]">{med.duration}</span></div>
                                   </div>
                                 ))}
                               </div>
                             </div>
                             <button onClick={() => handleDispenseClick(rx)} className="w-full mt-4 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-sm hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2">
-                              <Store size={18}/> {lang === 'ar' ? 'صرف الوصفة من صيدلية' : 'Dispense from Pharmacy'}
+                              <Store size={18} /> {lang === 'ar' ? 'صرف الوصفة من صيدلية' : 'Dispense from Pharmacy'}
                             </button>
                           </div>
                         </div>
@@ -835,16 +829,16 @@ export default function App() {
         {showPharmacyPicker && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
-              <button onClick={() => setShowPharmacyPicker(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20}/></button>
-              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Store size={32}/></div>
+              <button onClick={() => setShowPharmacyPicker(false)} className="absolute top-4 left-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><X size={20} /></button>
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><Store size={32} /></div>
               <h3 className="text-xl font-black text-center text-slate-900 dark:text-white mb-2">{lang === 'ar' ? 'اختر صيدلية لصرف الوصفة' : 'Select Pharmacy'}</h3>
-              
+
               <div className="max-h-64 overflow-y-auto space-y-3 pr-2 mb-6 mt-6">
                 {availablePharmacies.map(pharmacy => (
                   <button key={pharmacy.id} onClick={() => confirmDispenseToPharmacy(pharmacy)} className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-slate-700 transition-all text-right group">
                     <div>
                       <span className="font-bold text-slate-800 dark:text-slate-200 block text-base group-hover:text-emerald-700 dark:group-hover:text-emerald-400">{pharmacy.name}</span>
-                      <span className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {pharmacy.address}</span>
+                      <span className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12} /> {pharmacy.address}</span>
                     </div>
                     <ChevronRight size={20} className="text-slate-300 group-hover:text-emerald-500 rtl:rotate-180" />
                   </button>
@@ -862,11 +856,11 @@ export default function App() {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold dark:text-white">{lang === 'ar' ? 'الملف الشخصي' : 'Profile'}</h3>
                 <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                  <X size={20} className="dark:text-slate-300"/>
+                  <X size={20} className="dark:text-slate-300" />
                 </button>
               </div>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                
+
                 {/* 🟢 قسم الصورة الشخصية */}
                 <div className="flex flex-col items-center mb-6">
                   <div className="relative group cursor-pointer">
@@ -887,20 +881,20 @@ export default function App() {
                 {/* 🟢 حقل الاسم */}
                 <div>
                   <label className="block text-sm font-bold mb-1 dark:text-slate-300 text-right">{lang === 'ar' ? 'الاسم' : 'Name'}</label>
-                  <input required className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white transition-colors" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} disabled={isUpdatingProfile} />
+                  <input required className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white transition-colors" value={profileForm.name} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} disabled={isUpdatingProfile} />
                 </div>
 
                 {/* 🟢 حقل الإيميل */}
                 <div>
                   <label className="block text-sm font-bold mb-1 dark:text-slate-300 text-right">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
-                  <input required type="email" className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white text-left transition-colors" dir="ltr" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} disabled={isUpdatingProfile} />
+                  <input required type="email" className="w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-700 dark:text-white text-left transition-colors" dir="ltr" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} disabled={isUpdatingProfile} />
                 </div>
 
                 {/* 🟢 زر التبديل لتغيير كلمة المرور */}
                 <div className="border-t border-slate-100 dark:border-slate-700 pt-4 mt-2 text-right">
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPasswordChange(!showPasswordChange)} 
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordChange(!showPasswordChange)}
                     className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                   >
                     {showPasswordChange ? (lang === 'ar' ? 'إلغاء تغيير كلمة المرور' : 'Cancel Password Change') : (lang === 'ar' ? 'تغيير كلمة المرور؟' : 'Change Password?')}
@@ -910,19 +904,19 @@ export default function App() {
                 {/* 🟢 حقول كلمة المرور الجديدة (تظهر بلمسة أنيقة) */}
                 {showPasswordChange && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl space-y-4 border border-slate-100 dark:border-slate-700">
-                    
+
                     {/* كلمة المرور الحالية */}
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 dark:text-slate-400 text-right">
                         {lang === 'ar' ? 'كلمة المرور الحالية (لتأكيد التغيير)' : 'Current Password (required)'}
                       </label>
                       <div className="relative">
-                        <input 
-                          type={showCurrentPassword ? "text" : "password"} 
-                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors" 
-                          dir="ltr" 
-                          value={currentPassword} 
-                          onChange={(e) => setCurrentPassword(e.target.value)} 
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors"
+                          dir="ltr"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
                           disabled={isUpdatingProfile}
                         />
                         <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors">
@@ -937,12 +931,12 @@ export default function App() {
                         {lang === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}
                       </label>
                       <div className="relative">
-                        <input 
-                          type={showNewPassword ? "text" : "password"} 
-                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors" 
-                          dir="ltr" 
-                          value={newPassword} 
-                          onChange={(e) => setNewPassword(e.target.value)} 
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-blue-500 dark:bg-slate-800 dark:text-white text-left transition-colors"
+                          dir="ltr"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
                           disabled={isUpdatingProfile}
                         />
                         <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors">
@@ -969,13 +963,13 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 p-0 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
               <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
-                <h3 className="text-xl font-bold dark:text-white flex items-center gap-2"><Settings className="text-blue-600"/> {lang === 'ar' ? 'الإعدادات' : 'Settings'}</h3>
-                <button onClick={() => setShowSettingsModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} className="dark:text-slate-300"/></button>
+                <h3 className="text-xl font-bold dark:text-white flex items-center gap-2"><Settings className="text-blue-600" /> {lang === 'ar' ? 'الإعدادات' : 'Settings'}</h3>
+                <button onClick={() => setShowSettingsModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} className="dark:text-slate-300" /></button>
               </div>
 
               <div className="flex border-b border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-slate-900">
-                <button onClick={() => setSettingsTab('addresses')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'addresses' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><MapPin size={18}/> {lang === 'ar' ? 'عناوين التوصيل' : 'Addresses'}</button>
-                <button onClick={() => setSettingsTab('currency')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'currency' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><CreditCard size={18}/> {lang === 'ar' ? 'العملة والإشعارات' : 'General'}</button>
+                <button onClick={() => setSettingsTab('addresses')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'addresses' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><MapPin size={18} /> {lang === 'ar' ? 'عناوين التوصيل' : 'Addresses'}</button>
+                <button onClick={() => setSettingsTab('currency')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${settingsTab === 'currency' ? 'border-blue-600 text-blue-600 bg-white dark:bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><CreditCard size={18} /> {lang === 'ar' ? 'العملة والإشعارات' : 'General'}</button>
               </div>
 
               <div className="p-6 overflow-y-auto flex-1">
@@ -983,7 +977,7 @@ export default function App() {
                   <div className="space-y-8">
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md flex items-center justify-between gap-4">
                       <div>
-                        <h4 className="font-bold flex items-center gap-2 mb-1"><Bell size={18}/> {lang === 'ar' ? 'الإشعارات المباشرة' : 'Push Notifications'}</h4>
+                        <h4 className="font-bold flex items-center gap-2 mb-1"><Bell size={18} /> {lang === 'ar' ? 'الإشعارات المباشرة' : 'Push Notifications'}</h4>
                         <p className="text-xs text-blue-100">{lang === 'ar' ? 'تلقى تنبيهات فورية بحالة طلباتك ووصفاتك الطبية.' : 'Get instant alerts for your orders.'}</p>
                       </div>
                       <button onClick={enableNotifications} className="shrink-0 bg-white text-blue-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-50 active:scale-95 transition-all">
@@ -1008,21 +1002,21 @@ export default function App() {
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'أضف عنوان توصيل جديد' : 'Add New Address'}</label>
                     <div className="flex gap-2 mb-6">
                       <input type="text" className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-blue-500 bg-slate-50 dark:bg-slate-950 dark:text-white" placeholder={lang === 'ar' ? "مثال: دمشق، المزة، شارع 1..." : "e.g. Damascus, Mazzeh..."} value={newAddress} onChange={e => setNewAddress(e.target.value)} disabled={isAddingAddress} />
-                      <button onClick={addAddress} disabled={isAddingAddress || !newAddress.trim()} className="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"><Plus size={20}/></button>
+                      <button onClick={addAddress} disabled={isAddingAddress || !newAddress.trim()} className="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"><Plus size={20} /></button>
                     </div>
 
                     <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-3">{lang === 'ar' ? 'عناويني المحفوظة:' : 'Saved Addresses:'}</h4>
                     {addresses.length === 0 ? (
-                      <div className="text-center py-8 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700"><MapPin className="mx-auto mb-2 opacity-50" size={32}/> {lang === 'ar' ? 'لا توجد عناوين محفوظة.' : 'No saved addresses.'}</div>
+                      <div className="text-center py-8 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700"><MapPin className="mx-auto mb-2 opacity-50" size={32} /> {lang === 'ar' ? 'لا توجد عناوين محفوظة.' : 'No saved addresses.'}</div>
                     ) : (
                       <div className="space-y-3">
                         {addresses.map((addr, idx) => (
                           <div key={idx} className={`p-4 border-2 rounded-2xl flex items-center justify-between gap-3 transition-colors cursor-pointer ${defaultAddress === addr ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600'}`} onClick={() => { setDefaultAddress(addr); localStorage.setItem(`defAddr_${user?.id}`, addr); }}>
                             <div className="flex items-start gap-3 flex-1">
-                              <div className={`mt-0.5 ${defaultAddress === addr ? 'text-emerald-500' : 'text-slate-400'}`}>{defaultAddress === addr ? <CheckCircle size={20}/> : <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}</div>
+                              <div className={`mt-0.5 ${defaultAddress === addr ? 'text-emerald-500' : 'text-slate-400'}`}>{defaultAddress === addr ? <CheckCircle size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}</div>
                               <p className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{addr}</p>
                             </div>
-                            <button onClick={(e) => { e.stopPropagation(); removeAddress(addr); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                            <button onClick={(e) => { e.stopPropagation(); removeAddress(addr); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 size={18} /></button>
                           </div>
                         ))}
                       </div>
@@ -1042,15 +1036,15 @@ export default function App() {
       {/* 🟢 نافذة السجل الطبي */}
       <AnimatePresence>
         {showMedicalRecordFormModal && user && (
-          <MedicalRecordFormModal 
-            user={user} 
-            lang={lang} 
-            onClose={() => setShowMedicalRecordFormModal(false)} 
+          <MedicalRecordFormModal
+            user={user}
+            lang={lang}
+            onClose={() => setShowMedicalRecordFormModal(false)}
             onSaved={() => {
               setHasMedicalRecord(true);
               // 🟢 الإضافة السحرية: جلب البيانات فوراً في الخلفية لكي تظهر في شاشة العرض بدون تحديث الصفحة
               api.get(`/api/medical-records/${user.id}`).then((res: any) => setPatientEHR(res || {}));
-            }} 
+            }}
           />
         )}
       </AnimatePresence>
@@ -1060,12 +1054,12 @@ export default function App() {
         onClick={() => {
           if (!user) {
             toast.error(
-              lang === 'ar' 
-                ? 'يرجى تسجيل الدخول أولاً للتواصل مع خدمة العملاء' 
+              lang === 'ar'
+                ? 'يرجى تسجيل الدخول أولاً للتواصل مع خدمة العملاء'
                 : 'Please login first to contact support'
             );
           } else {
-            openChatWithUser(null); 
+            openChatWithUser(null);
           }
         }}
         className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full shadow-2xl hover:bg-green-700 hover:scale-110 transition-all duration-300 group cursor-pointer"
