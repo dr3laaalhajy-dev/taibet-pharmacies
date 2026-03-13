@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { SuccessModal } from './SuccessModal';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -27,22 +27,33 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
   return ( <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md text-center max-h-[90vh] overflow-y-auto"><div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 size={32} /></div><h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{title}</h3><p className="text-slate-500 dark:text-slate-400 mb-8">{body}</p><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">{t?.cancel || 'إلغاء'}</button><button onClick={() => { onConfirm(); onClose(); }} className="flex-1 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">{t?.deleteBtn || 'حذف'}</button></div></motion.div></div> );
 };
 
-// 🟢 مكون السجل الطبي والوصفة الطبية متوافق مع الدارك مود
+// 🟢 مكون السجل الطبي والوصفة الطبية (تم تطويره ليعرض السجل الطبي الشامل الجديد)
 const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patientName, lang }: { isOpen: boolean, onClose: () => void, patientId: number, appointmentId: number, patientName: string, lang: string }) => {
   const [activeTab, setActiveTab] = useState<'ehr' | 'prescription'>('prescription');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  const [ehr, setEhr] = useState({ blood_type: '', allergies: '', chronic_diseases: '', past_surgeries: '', notes: '' });
+  const [ehr, setEhr] = useState<any>({});
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
   const [medicines, setMedicines] = useState([{ id: Date.now(), name: '', dosage: '', frequency: '', duration: '' }]);
+
+  // 🟢 حساب العمر تلقائياً من تاريخ الميلاد
+  const calculateAge = (dob: string) => {
+    if (!dob) return 'غير محدد';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age + ' سنة';
+  };
 
   useEffect(() => {
     if (isOpen && patientId) {
       setLoading(true);
       api.get(`/api/medical-records/${patientId}`).then(res => {
-        if(res && res.patient_id) setEhr(res);
+        if(res && res.id) setEhr(res);
       }).catch(() => {}).finally(() => setLoading(false));
     }
   }, [isOpen, patientId]);
@@ -52,12 +63,6 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   const addMedicine = () => setMedicines([...medicines, { id: Date.now(), name: '', dosage: '', frequency: '', duration: '' }]);
   const updateMedicine = (id: number, field: string, value: string) => setMedicines(medicines.map(m => m.id === id ? { ...m, [field]: value } : m));
   const removeMedicine = (id: number) => setMedicines(medicines.filter(m => m.id !== id));
-
-  const saveEHR = async (e: React.FormEvent) => {
-    e.preventDefault(); setSubmitting(true);
-    try { await api.post('/api/medical-records', { patient_id: patientId, ...ehr }); toast.success(lang === 'ar' ? 'تم حفظ السجل الطبي بنجاح' : 'EHR saved successfully'); } 
-    catch(err) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Failed to save'); } finally { setSubmitting(false); }
-  };
 
   const savePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +74,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[80]">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-50 dark:bg-slate-950 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-50 dark:bg-slate-950 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="bg-white dark:bg-slate-900 p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center z-10 shadow-sm">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><User className="text-blue-600 dark:text-blue-400"/> {patientName}</h2>
@@ -78,25 +83,86 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
           <button onClick={onClose} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-500 hover:text-red-500 rounded-full transition-colors"><X size={20}/></button>
         </div>
 
-        <div className="flex bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-          <button onClick={() => setActiveTab('prescription')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'prescription' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><FileText size={18}/> {lang === 'ar' ? 'كتابة وصفة طبية (روشتة)' : 'Write Prescription'}</button>
-          <button onClick={() => setActiveTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Activity size={18}/> {lang === 'ar' ? 'السجل الطبي (EHR)' : 'Medical Record'}</button>
+        <div className="flex bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
+          <button onClick={() => setActiveTab('prescription')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'prescription' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><FileText size={18}/> {lang === 'ar' ? 'إصدار وصفة (روشتة)' : 'Write Prescription'}</button>
+          <button onClick={() => setActiveTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><HeartPulse size={18}/> {lang === 'ar' ? 'عرض السجل الشامل (EHR)' : 'View Full EHR'}</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex justify-center py-20"><span className="animate-spin h-8 w-8 border-4 border-blue-600 rounded-full border-t-transparent"></span></div>
           ) : activeTab === 'ehr' ? (
-            <form id="ehrForm" onSubmit={saveEHR} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</label><select className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-white" value={ehr.blood_type} onChange={e => setEhr({...ehr, blood_type: e.target.value})}><option value="">{lang === 'ar'?'غير محدد':'Unknown'}</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
-                <div><label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'الحساسية (أدوية/أطعمة)' : 'Allergies'}</label><input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" placeholder={lang==='ar'?'مثال: بنسيلين، فراولة':'e.g. Penicillin'} value={ehr.allergies} onChange={e => setEhr({...ehr, allergies: e.target.value})} /></div>
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'الأمراض المزمنة' : 'Chronic Diseases'}</label><input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" placeholder={lang==='ar'?'مثال: سكري، ضغط':'e.g. Diabetes, Hypertension'} value={ehr.chronic_diseases} onChange={e => setEhr({...ehr, chronic_diseases: e.target.value})} /></div>
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</label><textarea rows={2} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" value={ehr.past_surgeries} onChange={e => setEhr({...ehr, past_surgeries: e.target.value})} /></div>
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'ملاحظات الطبيب السرية' : 'Private Doctor Notes'}</label><textarea rows={3} className="w-full p-3 border border-yellow-200 dark:border-yellow-900/50 rounded-xl outline-none focus:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/10 dark:text-yellow-100 placeholder:text-slate-400 dark:placeholder:text-slate-600" placeholder={lang==='ar'?'هذه الملاحظات تراها أنت فقط...':'Notes visible only to doctors...'} value={ehr.notes} onChange={e => setEhr({...ehr, notes: e.target.value})} /></div>
-              </div>
-            </form>
+            
+            // 🟢 شاشة عرض السجل الطبي الشامل للطبيب (للقراءة فقط)
+            <div className="space-y-6">
+              {!ehr.id ? (
+                <div className="text-center py-16 text-slate-400">
+                  <ShieldAlert size={56} className="mx-auto mb-4 opacity-50 text-orange-400" />
+                  <p className="font-bold text-lg">{lang === 'ar' ? 'هذا المريض لم يقم بإنشاء سجله الطبي بعد.' : 'This patient has not created a medical record yet.'}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'العمر' : 'Age'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{calculateAge(ehr.dob) || ehr.age}</h4></div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الجنس' : 'Gender'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{ehr.gender || '---'}</h4></div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'فصيلة الدم' : 'Blood Type'}</p><h4 className="font-black text-red-600 dark:text-red-400 text-xl" dir="ltr">{ehr.blood_type || '---'}</h4></div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{lang === 'ar' ? 'الحالة الاجتماعية' : 'Marital Status'}</p><h4 className="font-bold text-slate-800 dark:text-white text-md">{ehr.marital_status || '---'} {ehr.children_count > 0 ? `(${ehr.children_count} أولاد)` : ''}</h4></div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الأمراض السابقة والمزمنة' : 'Past Medical History'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.past_medical_history || 'لا يوجد'}</p></div>
+                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'عمليات جراحية سابقة' : 'Past Surgeries'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.past_surgeries || 'لا يوجد'}</p></div>
+                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'الحساسية (أدوية/أطعمة)' : 'Allergies'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.allergies || 'لا يوجد'}</p></div>
+                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{lang === 'ar' ? 'التاريخ العائلي' : 'Family History'}</h4><p className="text-sm font-medium text-slate-800 dark:text-slate-300">{ehr.family_history || 'لا يوجد'}</p></div>
+                    
+                    {ehr.special_habits && (
+                      <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <h4 className="text-xs font-bold text-slate-400 mb-2 uppercase">{lang === 'ar' ? 'العادات الخاصة (تدخين / كحول / منبهات)' : 'Special Habits'}</h4>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{ehr.special_habits}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {ehr.gender === 'أنثى' && ehr.menstrual_history && (
+                    <div className="bg-pink-50 dark:bg-pink-900/10 border border-pink-100 dark:border-pink-900/30 p-5 rounded-2xl">
+                      <h4 className="text-sm font-bold text-pink-600 dark:text-pink-400 mb-3">{lang === 'ar' ? 'التاريخ الصحي النسائي' : 'Women Health'}</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        {(() => {
+                          try {
+                            const wh = typeof ehr.menstrual_history === 'string' ? JSON.parse(ehr.menstrual_history) : ehr.menstrual_history;
+                            return (
+                              <>
+                                <div><span className="block text-xs text-pink-500/70 mb-1">انتظام الدورة</span><span className="font-bold dark:text-white">{wh.cycle}</span></div>
+                                <div><span className="block text-xs text-pink-500/70 mb-1">تاريخ آخر دورة / انقطاع</span><span className="font-bold dark:text-white">{wh.LMP || '---'}</span></div>
+                                <div><span className="block text-xs text-pink-500/70 mb-1">مدة النزيف</span><span className="font-bold dark:text-white">{wh.flow_duration ? wh.flow_duration + ' أيام' : '---'}</span></div>
+                                <div><span className="block text-xs text-pink-500/70 mb-1">عدد الأحمال</span><span className="font-bold dark:text-white">{wh.gravida || 0}</span></div>
+                              </>
+                            );
+                          } catch(e) { return <p>خطأ في قراءة البيانات</p>; }
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {ehr.medication_list && Array.isArray(ehr.medication_list) && ehr.medication_list.length > 0 && (
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-5 rounded-2xl">
+                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3">{lang === 'ar' ? 'الأدوية التي يتناولها المريض حالياً' : 'Current Medications'}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {ehr.medication_list.map((med: any, idx: number) => (
+                          <div key={idx} className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm flex justify-between items-center border border-blue-50 dark:border-slate-700">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-sm" dir="ltr">{med.name}</span>
+                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{med.dose} - {med.freq}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            
           ) : (
+            // 🟢 شاشة كتابة الوصفة الطبية (لم تتغير)
             <form id="prescriptionForm" onSubmit={savePrescription} className="space-y-6">
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
                 <label className="block text-sm font-bold text-emerald-900 dark:text-emerald-400 mb-2 flex items-center gap-2"><Stethoscope size={16}/> {lang === 'ar' ? 'التشخيص الطبي' : 'Diagnosis'}</label>
@@ -110,7 +176,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
                 </div>
                 
                 <div className="space-y-3">
-                  {medicines.map((med, index) => (
+                  {medicines.map((med) => (
                     <div key={med.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row gap-3 relative group">
                       {medicines.length > 1 && <button type="button" onClick={() => removeMedicine(med.id)} className="absolute top-2 left-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"><Trash2 size={16}/></button>}
                       <div className="flex-1"><label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">{lang==='ar'?'اسم الدواء':'Medicine Name'}</label><input required className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500 font-bold text-slate-800 dark:text-white dark:bg-slate-800" value={med.name} onChange={e => updateMedicine(med.id, 'name', e.target.value)} placeholder="Panadol 500mg" dir="ltr" /></div>
@@ -131,11 +197,9 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
         </div>
 
         <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex gap-3">
-          <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
-          {activeTab === 'ehr' ? (
-            <button type="submit" form="ehrForm" disabled={submitting} className="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 flex justify-center items-center gap-2">{submitting ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : null}{lang === 'ar' ? 'حفظ السجل الطبي' : 'Save EHR'}</button>
-          ) : (
-            <button type="submit" form="prescriptionForm" disabled={submitting} className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-200 dark:shadow-none flex justify-center items-center gap-2">{submitting ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <FileText size={18}/>}{lang === 'ar' ? 'إصدار الوصفة (روشتة)' : 'Issue Prescription'}</button>
+          <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">{lang === 'ar' ? 'إغلاق' : 'Close'}</button>
+          {activeTab === 'prescription' && (
+            <button type="submit" form="prescriptionForm" disabled={submitting} className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-200 dark:shadow-none flex justify-center items-center gap-2">{submitting ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <FileText size={18}/>}{lang === 'ar' ? 'اعتماد وإصدار الوصفة' : 'Issue Prescription'}</button>
           )}
         </div>
       </motion.div>

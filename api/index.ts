@@ -294,28 +294,22 @@ app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, r
   }
 });
 
+// 🟢 حفظ وتحديث السجل الطبي
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
   const { 
-    patient_id, full_name, age, gender, marital_status, children_count, 
+    patient_id, full_name, dob, gender, marital_status, children_count, 
     occupation, special_habits, menstrual_history, past_medical_history, 
     past_surgeries, allergies, family_history, medication_list, blood_type 
   } = req.body; 
 
-  // أخذ رقم المريض
   const pId = patient_id || req.user.id;
 
   try { 
-    // 1. التأكد من هيكل الجدول لضمان عدم حدوث أي خطأ
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS medical_records (
-        id SERIAL PRIMARY KEY,
-        patient_id INT REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    // 2. إضافة كافة الأعمدة الطبية (إن لم تكن موجودة)
+    await pool.query(`CREATE TABLE IF NOT EXISTS medical_records (id SERIAL PRIMARY KEY, patient_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE)`);
+    
+    // 🟢 تمت إضافة حقل dob (تاريخ الميلاد) هنا
     const columns = [
-      'full_name VARCHAR(255)', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
+      'full_name VARCHAR(255)', 'dob DATE', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
       'children_count INT', 'occupation VARCHAR(255)', 'special_habits TEXT', 'menstrual_history TEXT', 
       'medication_list JSONB', 'past_medical_history TEXT', 'past_surgeries TEXT', 
       'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)'
@@ -324,13 +318,11 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
     }
 
-    // 🟢 3. (الضربة القاضية للمشكلة): مسح أي سجلات قديمة أو معلقة لهذا المريض
     await pool.query('DELETE FROM medical_records WHERE patient_id = $1', [pId]);
 
-    // 🟢 4. إدخال السجل الجديد نظيفاً وسليماً 100%
     const query = `
       INSERT INTO medical_records (
-        patient_id, full_name, age, gender, marital_status, children_count, 
+        patient_id, full_name, dob, gender, marital_status, children_count, 
         occupation, special_habits, menstrual_history, past_medical_history, 
         past_surgeries, allergies, family_history, medication_list, blood_type,
         created_at, updated_at
@@ -338,16 +330,15 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
       RETURNING *`;
       
+    // تمرير dob بدلاً من age
     const values = [
-      pId, full_name, age || null, gender, marital_status || 'أعزب', 
+      pId, full_name, dob || null, gender, marital_status || 'أعزب', 
       children_count || 0, occupation || '', special_habits || '', menstrual_history || '', 
       past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
       JSON.stringify(medication_list || []), blood_type || ''
     ];
 
     const result = await pool.query(query, values);
-    
-    // إرسال رسالة النجاح
     res.json({ success: true, record: result.rows[0] }); 
 
   } catch(err: any) { 
