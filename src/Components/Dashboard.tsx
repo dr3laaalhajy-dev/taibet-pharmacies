@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { SuccessModal } from './SuccessModal';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse, PieChart, Mic, Image as ImageIcon, Printer } from 'lucide-react';
+import { useReactToPrint } from 'react-to-print';
+import { PrescriptionPrintTemplate } from './PrescriptionPrintTemplate';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -12,6 +14,7 @@ import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 import { requestForToken, onMessageListener } from '../firebase';
+import { PatientOrdersManager } from './PatientOrdersManager';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -28,15 +31,34 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
 };
 
 // 🟢 مكون السجل الطبي والوصفة الطبية (تم تطويره ليعرض السجل الطبي الشامل الجديد)
-const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patientName, lang }: { isOpen: boolean, onClose: () => void, patientId: number, appointmentId: number, patientName: string, lang: string }) => {
+const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patientName, lang, user, facility }: any) => {
   const [activeTab, setActiveTab] = useState<'ehr' | 'prescription'>('prescription');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   
   const [ehr, setEhr] = useState<any>({});
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
   const [medicines, setMedicines] = useState([{ id: Date.now(), name: '', dosage: '', frequency: '', duration: '' }]);
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  // 🟢 ميزة طباعة الوصفة الطبية
+  const printRef = React.useRef(null);
+  const handlePrint = useReactToPrint({ contentRef: () => printRef.current });
+  const [showPrintTemplate, setShowPrintTemplate] = useState(false);
+  const [prescriptionId, setPrescriptionId] = useState<number | string>(0);
+
+  useEffect(() => {
+    if (showPrintTemplate && prescriptionId) {
+      setTimeout(() => {
+        handlePrint();
+        setShowPrintTemplate(false);
+        onClose(); // إغلاق النافذة بعد الطباعة
+      }, 300);
+    }
+  }, [showPrintTemplate, prescriptionId]);
 
   // 🟢 حساب العمر الذكي (بالسنوات للبالغين، وبالأيام للرضع)
   const calculateAge = (dob: string, fallbackAge: any) => {
@@ -67,11 +89,66 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   useEffect(() => {
     if (isOpen && patientId) {
       setLoading(true);
+      setAttachments([]);
       api.get(`/api/medical-records/${patientId}`).then(res => {
-        if(res && res.id) setEhr(res);
+        if(res && res.id) {
+          setEhr(res);
+          try {
+            const parsed = typeof res.attachments === 'string' ? JSON.parse(res.attachments) : res.attachments;
+            if (Array.isArray(parsed)) setAttachments(parsed);
+          } catch(e) {}
+        }
       }).catch(() => {}).finally(() => setLoading(false));
     }
   }, [isOpen, patientId]);
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAttachment(true);
+    try {
+      // 🟢 ImgBB يدعم الصور فقط - لحفظ ملفات أخرى يجب توفير Storage حقيقي (مثل AWS S3)
+      const url = await uploadImageToImgBB(file);
+      if (url) {
+        const newAttachments = [...attachments, url];
+        setAttachments(newAttachments);
+        if (appointmentId) {
+          await api.patch(`/api/appointments/${appointmentId}/attachments`, { attachments: newAttachments });
+        }
+        toast.success(lang === 'ar' ? 'تم رفع المرفق بنجاح' : 'Attachment uploaded successfully');
+      }
+    } catch (err) {
+      toast.error(lang === 'ar' ? 'فشل رفع المرفق يرجى المحاولة بصورة صالحة' : 'Failed to upload attachment');
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const startDictation = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      toast.error(lang === 'ar' ? 'متصفحك لا يدعم الإدخال الصوتي' : 'Voice dictation is not supported in this browser');
+      return;
+    }
+    
+    // @ts-ignore
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.lang = lang === 'ar' ? 'ar-SA' : 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setDiagnosis((prev) => prev ? prev + ' ' + transcript : transcript);
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast.error(lang === 'ar' ? 'حدث خطأ في الميكروفون' : 'Microphone error');
+    };
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
+  };
 
   if (!isOpen) return null;
 
@@ -83,7 +160,12 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
     e.preventDefault();
     if (medicines.length === 0 || !medicines[0].name.trim()) return toast.error(lang === 'ar' ? 'يجب إضافة دواء واحد على الأقل' : 'Add at least one medicine');
     setSubmitting(true);
-    try { await api.post('/api/prescriptions', { patient_id: patientId, appointment_id: appointmentId, diagnosis, medicines, notes }); toast.success(lang === 'ar' ? 'تم إصدار الوصفة الطبية بنجاح' : 'Prescription issued successfully'); onClose(); } 
+    try { 
+      await api.post('/api/prescriptions', { patient_id: patientId, appointment_id: appointmentId, diagnosis, medicines, notes }); 
+      toast.success(lang === 'ar' ? 'تم إصدار الوصفة الطبية بنجاح' : 'Prescription issued successfully'); 
+      setPrescriptionId(Date.now());
+      setShowPrintTemplate(true);
+    } 
     catch(err) { toast.error(lang === 'ar' ? 'فشل إصدار الوصفة' : 'Failed to issue'); } finally { setSubmitting(false); }
   };
 
@@ -101,6 +183,27 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
         <div className="flex bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <button onClick={() => setActiveTab('prescription')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'prescription' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><FileText size={18}/> {lang === 'ar' ? 'إصدار وصفة (روشتة)' : 'Write Prescription'}</button>
           <button onClick={() => setActiveTab('ehr')} className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'ehr' ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><HeartPulse size={18}/> {lang === 'ar' ? 'عرض السجل الشامل (EHR)' : 'View Full EHR'}</button>
+        </div>
+
+        <div className="hidden">
+          {showPrintTemplate && (
+            <PrescriptionPrintTemplate 
+              ref={printRef}
+              doctorName={user?.name || ''}
+              doctorSpecialty={user?.specialty || ''}
+              facilityName={facility?.name || ''}
+              facilityAddress={facility?.address || ''}
+              facilityPhone={facility?.phone || ''}
+              patientName={patientName}
+              patientAge={String(calculateAge(ehr?.dob, ehr?.age))}
+              date={new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}
+              diagnosis={diagnosis}
+              medicines={medicines}
+              notes={notes}
+              prescriptionId={prescriptionId}
+              lang={lang}
+            />
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -165,7 +268,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
                   )}
 
                   {ehr.medication_list && Array.isArray(ehr.medication_list) && ehr.medication_list.length > 0 && (
-                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-5 rounded-2xl">
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-5 rounded-2xl mt-6">
                       <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3">{lang === 'ar' ? 'الأدوية التي يتناولها المريض حالياً' : 'Current Medications'}</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {ehr.medication_list.map((med: any, idx: number) => (
@@ -177,6 +280,31 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
                       </div>
                     </div>
                   )}
+
+                  {attachments && attachments.length > 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-900/10 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl mt-6">
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2"><ImageIcon size={16}/> {lang === 'ar' ? 'المرفقات الطبية (أشعة وتحاليل)' : 'Medical Attachments'}</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {attachments.map((url, idx) => (
+                          <a key={idx} href={url} target="_blank" rel="noreferrer" className="block relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:opacity-80 transition-opacity bg-white">
+                            <img src={url} alt="Attachment" className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex justify-between items-center bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl">
+                    <div>
+                      <h4 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5"><UploadCloud size={16}/> {lang === 'ar' ? 'إضافة مرفق جديد' : 'Add New Attachment'}</h4>
+                      <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">{lang === 'ar' ? 'يمكن إضافة صور الأشعة والتحاليل' : 'Upload x-rays or lab results'}</p>
+                    </div>
+                    <label className="cursor-pointer bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
+                       {uploadingAttachment ? <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></span> : <Plus size={16}/>}
+                       {lang === 'ar' ? 'رفع ملف' : 'Upload'}
+                       <input type="file" accept="image/*" className="hidden" onChange={handleAttachmentUpload} disabled={uploadingAttachment} />
+                    </label>
+                  </div>
                 </>
               )}
             </div>
@@ -184,9 +312,14 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
           ) : (
             // 🟢 شاشة كتابة الوصفة الطبية (لم تتغير)
             <form id="prescriptionForm" onSubmit={savePrescription} className="space-y-6">
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
-                <label className="block text-sm font-bold text-emerald-900 dark:text-emerald-400 mb-2 flex items-center gap-2"><Stethoscope size={16}/> {lang === 'ar' ? 'التشخيص الطبي' : 'Diagnosis'}</label>
-                <input required className="w-full p-3 border border-emerald-200 dark:border-emerald-800 rounded-xl outline-none focus:border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 dark:text-white" placeholder={lang==='ar'?'اكتب التشخيص هنا...':'Write diagnosis...'} value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 shadow-sm relative">
+                <div className="flex justify-between items-center mb-2">
+                   <label className="text-sm font-bold text-emerald-900 dark:text-emerald-400 flex items-center gap-2"><Stethoscope size={16}/> {lang === 'ar' ? 'التشخيص الطبي' : 'Diagnosis'}</label>
+                   <button type="button" onClick={startDictation} title={lang==='ar'?'الإدخال الصوتي':'Voice Dictation'} className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50'}`}>
+                     <Mic size={18} />
+                   </button>
+                </div>
+                <textarea required rows={3} className="w-full p-3 border border-emerald-200 dark:border-emerald-800 rounded-xl outline-none focus:border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 dark:text-white" placeholder={lang==='ar'?'اكتب التشخيص هنا...':'Write diagnosis...'} value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
               </div>
 
               <div>
@@ -209,7 +342,9 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'تعليمات إضافية للمريض' : 'Additional Instructions'}</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'تعليمات إضافية للمريض' : 'Additional Instructions'}</label>
+                </div>
                 <textarea rows={2} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-white" placeholder={lang==='ar'?'نصائح، وقت المراجعة القادمة...':'Advice, next visit...'} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
             </form>
@@ -219,7 +354,12 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
         <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex gap-3">
           <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">{lang === 'ar' ? 'إغلاق' : 'Close'}</button>
           {activeTab === 'prescription' && (
-            <button type="submit" form="prescriptionForm" disabled={submitting} className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-200 dark:shadow-none flex justify-center items-center gap-2">{submitting ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <FileText size={18}/>}{lang === 'ar' ? 'اعتماد وإصدار الوصفة' : 'Issue Prescription'}</button>
+            <div className="flex-1 flex gap-2 w-full">
+              <button type="submit" form="prescriptionForm" disabled={submitting} className="flex-1 py-3 rounded-xl font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-200 dark:shadow-none flex justify-center items-center gap-2 transition-all">{submitting ? <span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> : <FileText size={18}/>}{lang === 'ar' ? 'اعتماد وإصدار الوصفة' : 'Issue Prescription'}</button>
+              <button type="button" onClick={() => { setPrescriptionId(Date.now()); setShowPrintTemplate(true); }} className="px-4 py-3 rounded-xl font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm flex items-center justify-center gap-2 transition-all shrink-0">
+                <Printer size={18} className="text-blue-500" /> <span className="hidden sm:inline">{lang === 'ar' ? 'طباعة' : 'Print'}</span>
+              </button>
+            </div>
           )}
         </div>
       </motion.div>
@@ -324,7 +464,7 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void }) => {
- const [activeTab, setActiveTab] = useState<'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews'>(user.role === 'customer_service' ? 'support' : 'facilities');
+ const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]); 
@@ -375,6 +515,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
      setIsLoadingHistory(false);
    }
  };
+
+ const [analyticsData, setAnalyticsData] = useState<{
+   totalOrders: number;
+   completedOrders: number;
+   totalSales: number;
+   todaySales: number;
+   topProducts: any[];
+   recentOrders: any[];
+ }>({ totalOrders: 0, completedOrders: 0, totalSales: 0, todaySales: 0, topProducts: [], recentOrders: [] });
+ const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
 
   
@@ -480,6 +630,49 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     if (activeTab === 'support' && (user.role === 'customer_service' || user.role === 'admin')) {
       setLoadingSupport(true);
       api.get('/api/chat/support/pending').then(setSupportRequests).finally(() => setLoadingSupport(false));
+    }
+    if (activeTab === 'analytics' && (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' || isSuperAdmin)) fetchAnalytics();
+  };
+  
+  const fetchAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const orders = await api.get('/api/orders') || [];
+      const completed = orders.filter((o: any) => o.status === 'completed');
+      
+      const totalSales = completed.reduce((sum: number, o: any) => sum + parseFloat(o.total_price || '0'), 0);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const todaySales = completed.filter((o: any) => o.created_at?.startsWith(today)).reduce((sum: number, o: any) => sum + parseFloat(o.total_price || '0'), 0);
+      
+      const productCounts: Record<string, number> = {};
+      completed.forEach((o: any) => {
+        const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+        if (Array.isArray(items)) {
+          items.forEach(i => {
+            if (i.name) {
+              productCounts[i.name] = (productCounts[i.name] || 0) + (i.qty || 1);
+            }
+          });
+        }
+      });
+      const topProducts = Object.entries(productCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      setAnalyticsData({
+        totalOrders: orders.length,
+        completedOrders: completed.length,
+        totalSales,
+        todaySales,
+        topProducts,
+        recentOrders: orders.slice(0, 5)
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
   const acceptSupportRequest = async (conversationId: number) => {
@@ -647,6 +840,12 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
             </button>
           )}
 
+          {(user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' || isSuperAdmin) && (
+            <button onClick={() => setActiveTab('analytics')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'analytics' ? 'bg-indigo-600 text-white ring-2 ring-indigo-200 dark:ring-indigo-900' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+              <PieChart size={18} /> {lang === 'ar' ? 'الإحصائيات' : 'Analytics'}
+            </button>
+          )}
+
           {user.role !== 'patient' && <button onClick={() => setActiveTab('facilities')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'facilities' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><MapPin size={18} /> {dashboardTitle}</button>}
           {(user.role === 'admin' || user.role === 'doctor' || user.role === 'dentist') && (<button onClick={() => setActiveTab('services')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'services' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Activity size={18} /> {lang === 'ar' ? 'الخدمات التي أقدمها' : 'My Services'}</button>)}
           {(user?.role === 'doctor' || user?.role === 'dentist' || isSuperAdmin) && (
@@ -676,7 +875,15 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           {isSuperAdmin && <button onClick={() => setActiveTab('wallet_requests')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'wallet_requests' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Banknote size={18} /> {lang === 'ar' ? 'طلبات المحفظة' : 'Wallet Requests'}</button>}
           {isSuperAdmin && <button onClick={() => setActiveTab('settings')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Layout size={18} /> {lang === 'ar' ? 'إعدادات الفوتر' : 'Footer Settings'}</button>}
           {isSuperAdmin && <button onClick={() => { setActiveTab('super_settings'); fetchSuperAdmins(); }} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'super_settings' ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><ShieldAlert size={18} /> {lang === 'ar' ? 'غرفة السوبر آدمن' : 'Super Admins'}</button>}
+          
+          {user.role === 'patient' && (
+            <button onClick={() => setActiveTab('patient_orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'patient_orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+              <FileText size={18} /> {lang === 'ar' ? 'طلباتي' : 'My Orders'}
+            </button>
+          )}
+
           <button onClick={() => setActiveTab('profile')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}><Settings size={18} /> {t?.profileSettings || 'الإعدادات الشخصية'}</button>
+          
           
         </nav>
         <div className="hidden md:block p-4 border-t border-slate-100 dark:border-slate-800 mt-auto"><div className="flex items-center gap-3 px-4 py-3 mb-2"><div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold shrink-0">{user.name[0]}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.name}</p><p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role === 'admin' ? (t?.admin || 'مدير') : (user.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : (user.role === 'doctor' ? (t?.doctor || 'طبيب') : (user.role === 'pharmacist' ? (t?.pharmacist || 'صيدلي') : 'مريض')))}</p></div></div><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><LogOut size={18} /> {t?.logout || 'تسجيل الخروج'}</button></div>
@@ -685,6 +892,98 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
       {/* 🟢 محتوى الصفحة الرئيسي (بدون تجميد الحركات) */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 w-full relative">
         
+        {/* -1. Analytics */}
+        {activeTab === 'analytics' && (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' || isSuperAdmin) && (
+          <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <PieChart className="text-indigo-600 dark:text-indigo-400" /> {lang === 'ar' ? 'نظرة عامة وإحصائيات' : 'Analytics & Overview'}
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{lang === 'ar' ? ((user.role === 'doctor' || user.role === 'dentist') ? 'ملخص أداء الحجوزات' : 'ملخص أداء المبيعات والطلبات للإدارة') : ((user.role === 'doctor' || user.role === 'dentist') ? 'Appointments performance summary' : 'Summary of sales and orders performance')}</p>
+              </div>
+              <button onClick={fetchAnalytics} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                <Activity size={20} className={loadingAnalytics ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {loadingAnalytics ? (
+              <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-indigo-600"></div></div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-2 h-full bg-blue-500 rounded-r-3xl hidden rtl:block"></div>
+                    <div className="absolute top-0 left-0 w-2 h-full bg-blue-500 rounded-l-3xl hidden ltr:block"></div>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">{lang === 'ar' ? ((user.role === 'doctor' || user.role === 'dentist') ? 'إجمالي الكشوفات' : 'إجمالي المبيعات') : ((user.role === 'doctor' || user.role === 'dentist') ? 'Total Consultations' : 'Total Revenue')}</p>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white" dir="ltr">{(analyticsData.totalSales / 100).toLocaleString()} <span className="text-sm">LS</span></h3>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-2 h-full bg-emerald-500 rounded-r-3xl hidden rtl:block"></div>
+                    <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500 rounded-l-3xl hidden ltr:block"></div>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">{lang === 'ar' ? ((user.role === 'doctor' || user.role === 'dentist') ? 'كشوفات اليوم' : 'مبيعات اليوم') : ((user.role === 'doctor' || user.role === 'dentist') ? 'Today Consultations' : 'Today Sales')}</p>
+                    <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400" dir="ltr">{(analyticsData.todaySales / 100).toLocaleString()} <span className="text-sm">LS</span></h3>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500 rounded-r-3xl hidden rtl:block"></div>
+                    <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 rounded-l-3xl hidden ltr:block"></div>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">{lang === 'ar' ? ((user.role === 'doctor' || user.role === 'dentist') ? 'الحجوزات المنجزة' : 'الطلبات المكتملة') : ((user.role === 'doctor' || user.role === 'dentist') ? 'Completed Appointments' : 'Completed Orders')}</p>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{analyticsData.completedOrders} <span className="text-sm text-slate-400">/ {analyticsData.totalOrders}</span></h3>
+                  </div>
+                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-3xl shadow-md relative overflow-hidden text-white flex flex-col justify-center items-center">
+                     <Activity size={32} className="opacity-50 absolute right-4 top-4" />
+                     <h3 className="text-3xl font-black">{Math.round((analyticsData.completedOrders / (analyticsData.totalOrders || 1)) * 100)}%</h3>
+                     <p className="text-sm font-bold text-indigo-100">{lang === 'ar' ? 'معدل الإنجاز' : 'Completion Rate'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top Products */}
+                  {!(user.role === 'doctor' || user.role === 'dentist') && (
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2"><Star className="text-yellow-500" size={18} /> {lang === 'ar' ? 'المنتجات الأكثر مبيعاً' : 'Top Selling Products'}</h3>
+                      {analyticsData.topProducts.length === 0 ? (
+                        <p className="text-slate-500 text-sm text-center py-8">{lang === 'ar' ? 'لا توجد بيانات كافية' : 'Not enough data'}</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {analyticsData.topProducts.map((p, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
+                              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{p.name}</span>
+                              <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-xs font-bold px-3 py-1 rounded-full">{p.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Recent Activity */}
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2"><Clock className="text-blue-500" size={18} /> {lang === 'ar' ? 'أحدث الطلبات' : 'Recent Orders'}</h3>
+                    {analyticsData.recentOrders.length === 0 ? (
+                      <p className="text-slate-500 text-sm text-center py-8">{lang === 'ar' ? 'لا توجد طلبات بعد' : 'No orders yet'}</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {analyticsData.recentOrders.map(o => (
+                          <div key={o.id} className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0">
+                            <div>
+                               <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{o.customer_name}</p>
+                               <p className="text-xs text-slate-500">{new Date(o.created_at).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
+                            </div>
+                            <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${o.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : (o.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700')}`}>
+                               {lang === 'ar' ? (o.status === 'completed' ? 'مكتمل' : (o.status === 'cancelled' ? 'ملغي' : 'قيد المعالجة')) : o.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 0. طلبات الدعم الفني (Customer Service) */}
           {activeTab === 'support' && (user.role === 'customer_service' || user.role === 'admin') && (
             <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
@@ -917,6 +1216,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           {activeTab === 'services' && (<div className="animate-in fade-in duration-300"><ServicesManager user={user} facilities={facilities.filter(f => f.type === 'clinic' || f.type === 'dental_clinic')} lang={lang} /></div>)}
           {activeTab === 'products' && (<div className="animate-in fade-in duration-300"><ProductsManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
           {activeTab === 'orders' && (<div className="animate-in fade-in duration-300"><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
+          {activeTab === 'patient_orders' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><h2 className="text-2xl font-bold mb-6 dark:text-white">{lang === 'ar' ? 'طلباتي والأدوية' : 'My Orders & Medications'}</h2><PatientOrdersManager lang={lang} /></div>)}
           {activeTab === 'wallet_requests' && (<div className="animate-in fade-in duration-300"><WalletRequestsManager user={user} lang={lang} /></div>)}
           
           {activeTab === 'super_settings' && isSuperAdmin && (
@@ -1217,7 +1517,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         )}
       </AnimatePresence>
 
-      <PatientRecordModal isOpen={patientRecordModal.isOpen} onClose={() => setPatientRecordModal({...patientRecordModal, isOpen: false})} patientId={patientRecordModal.patientId} appointmentId={patientRecordModal.appointmentId} patientName={patientRecordModal.patientName} lang={lang} />
+      <PatientRecordModal isOpen={patientRecordModal.isOpen} onClose={() => setPatientRecordModal({...patientRecordModal, isOpen: false})} patientId={patientRecordModal.patientId} appointmentId={patientRecordModal.appointmentId} patientName={patientRecordModal.patientName} lang={lang} user={user} facility={facilities.find(f => f.doctor_id === user?.id) || facilities[0] || {}} />
       
       <AnimatePresence>
         {showWalletModal && (

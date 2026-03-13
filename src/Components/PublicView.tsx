@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users, MessageSquare, FileText, ShieldAlert, Brain, Send, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -430,9 +430,14 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
   );
 };
 
+import { uploadImageToImgBB } from '../api-client';
+
 const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c:'old'|'new')=>void, defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [prescriptionImage, setPrescriptionImage] = useState<File | null>(null);
+  const [isUploadingPrescription, setIsUploadingPrescription] = useState(false);
 
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
   const ecommercePharmacies = facilities.filter(f => f.is_ecommerce_enabled); const selectedPharmacy = facilities.find(f => f.id === selectedPharmacyId);
@@ -457,6 +462,37 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
       setOrderSuccess(true); setCart([]); setShowCart(false); 
       if (paymentMethod === 'wallet') refreshUser(); 
     } catch(err: any) { toast.error(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); } 
+  };
+
+  const submitPrescriptionOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) { toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لرفع الوصفة.' : 'Please login to upload a prescription.'); return; }
+    if (!prescriptionImage) { toast.error(lang === 'ar' ? 'الرجاء اختيار صورة الوصفة' : 'Please select an image'); return; }
+
+    setIsUploadingPrescription(true);
+    try {
+      const imageUrl = await uploadImageToImgBB(prescriptionImage);
+      if (!imageUrl) throw new Error("فشل رفع الصورة");
+
+      await api.post('/api/public/orders', { 
+        pharmacy_id: selectedPharmacyId, 
+        customer_name: user.name, 
+        customer_phone: user.phone || 'بدون رقم', 
+        delivery_address: defaultAddress || 'بدون عنوان', 
+        items: [{ product_id: -1, name: lang === 'ar' ? 'وصفة طبية (صورة)' : 'Prescription (Image)', price: '0', qty: 1, image_url: imageUrl }], 
+        total_price: '0', 
+        payment_method: 'cash',
+        prescription_url: imageUrl,
+        status: 'pending_pricing'
+      }); 
+      setOrderSuccess(true);
+      setShowPrescriptionModal(false);
+      setPrescriptionImage(null);
+    } catch(err: any) {
+      toast.error(lang === 'ar' ? 'فشل إرسال الوصفة' : 'Failed to submit prescription');
+    } finally {
+      setIsUploadingPrescription(false);
+    }
   };
 
   return (
@@ -517,9 +553,50 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
           </div>
         )}
       </AnimatePresence>
+
+      {/* Prescription Modal */}
+      <AnimatePresence>
+        {showPrescriptionModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
+              <button onClick={() => setShowPrescriptionModal(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><XCircle size={24}/></button>
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100"><FileText size={32}/></div>
+                <h3 className="text-xl font-bold dark:text-white mb-2">{lang === 'ar' ? 'اطلب وصفتك بصورة' : 'Upload Prescription'}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{lang === 'ar' ? 'التقط صورة واضحة للوصفة الطبية، وسيقوم الصيدلي بتسعيرها لك.' : 'Take a clear picture of your prescription, and the pharmacist will price it for you.'}</p>
+              </div>
+              <form onSubmit={submitPrescriptionOrder}>
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center mb-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer relative overflow-hidden group">
+                  <input type="file" accept="image/*" onChange={(e) => { if(e.target.files && e.target.files[0]) setPrescriptionImage(e.target.files[0]) }} className="absolute inset-0 opacity-0 cursor-pointer z-10" required />
+                  {prescriptionImage ? (
+                    <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                      <CheckCircle className="text-emerald-500 shrink-0"/>
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate text-left w-full" dir="ltr">{prescriptionImage.name}</span>
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 dark:text-slate-400">
+                      <BriefcaseMedical className="mx-auto mb-2 text-slate-400 group-hover:text-blue-500 transition-colors" size={32}/>
+                      <p className="font-bold text-sm">{lang === 'ar' ? 'اضغط لاختيار صورة الوصفة' : 'Click to select prescription image'}</p>
+                    </div>
+                  )}
+                </div>
+                {!defaultAddress && (
+                  <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <ShieldAlert size={16}/> {lang === 'ar' ? 'يرجى إضافة عنوان أولاً للإرسال.' : 'Please add delivery address first.'}
+                  </div>
+                )}
+                <button type="submit" disabled={isUploadingPrescription || !defaultAddress || !prescriptionImage} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isUploadingPrescription ? <><span className="animate-spin h-5 w-5 border-2 border-white rounded-full border-t-transparent"></span> {lang === 'ar' ? 'جاري الرفع...' : 'Uploading...'}</> : (lang === 'ar' ? 'إرسال للصيدلية' : 'Submit to Pharmacy')}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="text-center mb-12"><div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100 dark:border-emerald-800"><ShoppingBag size={40}/></div><h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white mb-4">{lang === 'ar' ? <>السوق <span className="text-emerald-500">الطبي</span></> : <>Medical <span className="text-emerald-500">Store</span></>}</h1><p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto">{selectedPharmacy ? (lang === 'ar' ? `تسوق منتجات ${selectedPharmacy.name} واطلبها مباشرة.` : `Shop ${selectedPharmacy.name} products directly.`) : (lang === 'ar' ? 'اختر صيدلية من القائمة أدناه لبدء التسوق وتصفح المنتجات المتاحة لديها.' : 'Choose a pharmacy below to start shopping.')}</p></div>
       {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500"/><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p></div>)}
-      {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-700"/> : <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 dark:text-white line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 dark:text-indigo-300 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-700">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-transparent focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (
+      {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2"><Store className="text-indigo-500"/> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-700"/> : <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24}/></div>}<div><h3 className="font-bold text-lg text-slate-900 dark:text-white line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {ph.address}</p><span className="text-[10px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800"><div className="flex items-center gap-3"><Store className="text-indigo-500"/><h2 className="font-bold text-indigo-900 dark:text-indigo-300 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto"><button onClick={() => setShowPrescriptionModal(true)} className="text-xs font-bold bg-blue-600 text-white px-4 py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"><BriefcaseMedical size={16}/> {lang === 'ar' ? 'اطلب وصفتك بصورة' : 'Upload Prescription'}</button><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 px-4 py-2.5 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-700 w-full sm:w-auto text-center">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-transparent focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => { const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (
         <div key={p.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col">
           <div className="aspect-square bg-slate-50 dark:bg-slate-800 relative overflow-hidden">{p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/> : <div className="w-full h-full flex items-center justify-center text-slate-300 dark:text-slate-600"><Package size={48}/></div>}{isOutOfStock && <div className="absolute inset-0 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm flex items-center justify-center"><span className="bg-red-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-md rotate-[-12deg]">{lang === 'ar' ? 'نفذت الكمية' : 'Out of Stock'}</span></div>}</div>
           <div className="p-4 flex flex-col flex-1">
@@ -598,6 +675,12 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   const [loading, setLoading] = useState(true); 
   const [searchQuery, setSearchQuery] = useState(''); 
   
+  // 🤖 AI Chatbot States
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<{role: 'ai' | 'user', content: string}[]>([{ role: 'ai', content: lang === 'ar' ? 'مرحباً، أنا المساعد الطبي الذكي الخاص بك. صِف لي أعراضك الطبية وسأقوم بتوجيهك للطبيب المناسب، أو إلى قسم الطوارئ في الحالات الحرجة.' : 'Hello, I am your Medical AI Assistant. Describe your symptoms and I will guide you to the right specialist.' }]);
+  const [chatInput, setChatInput] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  
   // 🟢 الصفحة الرئيسية هي الافتراضية الآن
   const [activeTab, setActiveTab] = useState<'home' | 'pharmacy' | 'clinic' | 'dental_clinic'>('home'); 
   const [topDoctors, setTopDoctors] = useState<any[]>([]);
@@ -611,6 +694,31 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   const itemsPerPage = 6; 
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false); 
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput.trim();
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatInput('');
+    setIsAiTyping(true);
+    try {
+      const res = await api.post('/api/ai/triage', { message: userMsg });
+      if (res && res.reply) {
+        setMessages(prev => [...prev, { role: 'ai', content: res.reply }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', content: lang === 'ar' ? 'عذراً حدث خطأ بالاتصال بالذكاء الاصطناعي.' : 'Sorry, an AI connection error occurred.' }]);
+      }
+    } catch(e) {
+      setMessages(prev => [...prev, { role: 'ai', content: lang === 'ar' ? 'عذراً حدث خطأ بالاتصال بالذكاء الاصطناعي.' : 'Sorry, an AI connection error occurred.' }]);
+    } finally {
+      setIsAiTyping(false);
+      // التمرير لأسفل المحادثة تلقائياً
+      setTimeout(() => {
+        const container = document.getElementById('chat-messages-container');
+        if (container) container.scrollTop = container.scrollHeight;
+      }, 100);
+    }
+  };
 
   useEffect(() => { 
     // شاشة التحميل الأولية لمدة ثانيتين
@@ -1017,6 +1125,58 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
           </div>
         </div>
       </footer>
+
+      {/* 🤖 AI Chatbot Widget */}
+      <div className="fixed bottom-4 left-4 md:bottom-6 md:left-6 z-50 flex flex-col items-start pointer-events-none" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
+        <AnimatePresence>
+          {chatOpen && (
+            <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-blue-100 dark:border-slate-800 w-80 md:w-96 mb-4 flex flex-col overflow-hidden pointer-events-auto">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-800 dark:to-indigo-900 p-4 flex justify-between items-center text-white">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-sm"><Brain size={24} /></div>
+                  <div>
+                    <h3 className="font-bold text-sm">{lang === 'ar' ? 'المساعد الطبي الذكي' : 'AI Triage Assistant'}</h3>
+                    <p className="text-[10px] text-blue-100 font-medium">{lang === 'ar' ? 'توجيه مبدئي ذكي وسريع' : 'Smart and quick triage'}</p>
+                  </div>
+                </div>
+                <button onClick={() => setChatOpen(false)} className="hover:bg-white/20 hover:rotate-90 p-1.5 rounded-full transition-all"><X size={18}/></button>
+              </div>
+              
+              <div className="p-4 h-[350px] overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950 flex flex-col scroll-smooth" id="chat-messages-container">
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? (lang === 'ar' ? 'justify-end' : 'justify-start') : (lang === 'ar' ? 'justify-start' : 'justify-end')} w-full`}>
+                    <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm font-medium'}`}>
+                      {m.content}
+                    </div>
+                  </div>
+                ))}
+                {isAiTyping && (
+                  <div className={`flex ${lang === 'ar' ? 'justify-start' : 'justify-end'} w-full`}>
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm shadow-sm flex gap-1.5 items-center w-fit">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay: '0ms'}}></span>
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style={{animationDelay: '150ms'}}></span>
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay: '300ms'}}></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex gap-2 relative z-10">
+                <input type="text" disabled={isAiTyping} className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all dark:text-white disabled:opacity-50" placeholder={lang === 'ar' ? 'اكتب أعراضك هنا...' : 'Type symptoms...'} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendChat()} />
+                <button disabled={isAiTyping || !chatInput.trim()} onClick={handleSendChat} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all shrink-0 shadow-sm flex items-center justify-center">
+                  <Send size={18} className={lang === 'ar' ? '-scale-x-100' : ''}/>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button onClick={() => setChatOpen(!chatOpen)} className={`pointer-events-auto relative shadow-2xl p-4 md:p-5 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 ${chatOpen ? 'bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rotate-90 scale-90' : 'bg-gradient-to-tr from-blue-600 to-indigo-600 hover:shadow-blue-500/30'} text-white group`}>
+          {!chatOpen && <span className="absolute -top-1 -right-1 flex h-4 w-4"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span><span className="relative inline-flex rounded-full h-4 w-4 bg-sky-500"></span></span>}
+          {chatOpen ? <X size={26} className="animate-in fade-in spin-in" /> : <Brain size={28} className="animate-in fade-in group-hover:animate-pulse" />}
+        </button>
+      </div>
+
     </div>
   );
 };

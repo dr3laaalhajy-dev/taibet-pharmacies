@@ -1,5 +1,7 @@
 // 🟢 الرابط الأساسي للباك إند: الآن يسحب الرابط من ملف .env تلقائياً للعمل على الموبايل!
-const BASE_URL = 'https://www.taiba-health.com';
+const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+  ? 'http://localhost:3000' 
+  : 'https://www.taiba-health.com';
 
 export const api = {
   get: async (endpoint: string) => {

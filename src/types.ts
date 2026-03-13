@@ -77,8 +77,9 @@ export interface Order {
   customer_phone: string; 
   items: CartItem[]; 
   total_price: string; 
-  status: 'pending' | 'completed' | 'cancelled'; 
+  status: 'pending' | 'completed' | 'cancelled' | 'pending_pricing' | 'awaiting_approval'; 
   created_at: string; 
+  prescription_url?: string;
 }
 
 export interface FooterSettings {

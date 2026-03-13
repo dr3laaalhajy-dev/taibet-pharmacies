@@ -1,14 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Trash2, Printer } from 'lucide-react';
+import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan } from 'lucide-react';
 import { UserType, Facility, Order } from '../types';
 import { api } from '../api-client';
+import toast from 'react-hot-toast';
 
 export const OrdersManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [orders, setOrders] = useState<Order[]>([]); 
   const [loading, setLoading] = useState(true); 
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'past'>('pending'); 
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'past' | 'pricing'>('pending'); 
   const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');
   
+  const [pricingOrderId, setPricingOrderId] = useState<number | null>(null);
+  const [prescriptionItems, setPrescriptionItems] = useState([{ name: '', qty: 1, price: 0 }]);
+  const [isSubmittingPricing, setIsSubmittingPricing] = useState(false);
+
+  // 🟢 Pharmacy Scanner State
+  const [scannedQR, setScannedQR] = useState('');
+  const [scannedPrescription, setScannedPrescription] = useState<any>(null);
+
+  const handleScanQR = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scannedQR.trim()) return;
+    try {
+      const parsed = JSON.parse(scannedQR);
+      if (parsed.meds && Array.isArray(parsed.meds)) {
+        toast.success(lang === 'ar' ? `تم قراءة الوصفة للمريض: ${parsed.pid || ''}` : `Loaded Rx for: ${parsed.pid || ''}`);
+        setScannedPrescription({
+          id: parsed.id || Date.now(),
+          customer_name: parsed.pid || (lang === 'ar' ? 'مريض وافد (مراجعة للصيدلية)' : 'Walk-in Patient'),
+          items: parsed.meds.map((m: string) => ({ name: m, qty: 1, price: 0 }))
+        });
+        setScannedQR('');
+      } else {
+        toast.error(lang === 'ar' ? 'رمز QR غير صالح لمعيار الروشتات' : 'Invalid Rx QR Code protocol');
+      }
+    } catch(err) {
+      toast.error(lang === 'ar' ? 'لا يمكن قراءة الرمز الممسوح' : 'Cannot parse scanned code');
+    }
+  };
+
   const loadOrders = () => { api.get('/api/orders').then(setOrders).finally(() => setLoading(false)); };
   
   useEffect(() => { loadOrders(); }, []);
@@ -17,6 +47,28 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
     if(!window.confirm(lang === 'ar' ? `تأكيد تغيير حالة الطلب؟` : 'Confirm status change?')) return; 
     try { await api.patch(`/api/orders/${id}/status`, { status }); loadOrders(); } 
     catch(err) { alert(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } 
+  };
+
+  const submitPricing = async (orderId: number) => {
+    if (prescriptionItems.some(i => !i.name || i.price <= 0 || i.qty <= 0)) {
+      return toast.error(lang === 'ar' ? 'الرجاء تعبئة جميع الحقول بشكل صحيح' : 'Please fill all fields correctly');
+    }
+
+    setIsSubmittingPricing(true);
+    try {
+      const items = prescriptionItems.map(i => ({ ...i, product_id: -1, price: i.price.toString(), image_url: orders.find(o => o.id === orderId)?.prescription_url }));
+      const total = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
+      
+      await api.patch(`/api/orders/${orderId}/pricing`, { items, total_price: total.toString() });
+      toast.success(lang === 'ar' ? 'تم تسعير الوصفة بنجاح.' : 'Prescription priced successfully.');
+      setPricingOrderId(null);
+      setPrescriptionItems([{ name: '', qty: 1, price: 0 }]);
+      loadOrders();
+    } catch (err: any) {
+      toast.error(lang === 'ar' ? 'فشل إرسال التسعيرة' : 'Failed to submit pricing');
+    } finally {
+      setIsSubmittingPricing(false);
+    }
   };
 
   // 🟢 دالة السحر لطباعة الفاتورة وتحويلها لـ PDF
@@ -116,8 +168,9 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
 
   const filteredOrders = adminFilter === 'all' ? orders : orders.filter(o => o.pharmacy_name === facilities.find(f => f.id === adminFilter)?.name);
   const pendingOrders = filteredOrders.filter(o => o.status === 'pending'); 
-  const pastOrders = filteredOrders.filter(o => o.status !== 'pending'); 
-  const displayOrders = activeSubTab === 'pending' ? pendingOrders : pastOrders;
+  const pricingOrders = filteredOrders.filter(o => o.status === 'pending_pricing');
+  const pastOrders = filteredOrders.filter(o => o.status !== 'pending' && o.status !== 'pending_pricing'); 
+  const displayOrders = activeSubTab === 'pending' ? pendingOrders : (activeSubTab === 'pricing' ? pricingOrders : pastOrders);
   
   if (loading) return <div>{lang === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>;
 
@@ -129,10 +182,99 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
           <select className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none" value={adminFilter} onChange={e => setAdminFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}><option value="all">{lang === 'ar' ? 'عرض جميع الطلبات' : 'All Orders'}</option>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
         </div>
       )}
-      <div className="flex gap-4 mb-8">
-        <button onClick={() => setActiveSubTab('pending')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${activeSubTab === 'pending' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? `طلبات جديدة (${pendingOrders.length})` : `New Orders (${pendingOrders.length})`}</button>
-        <button onClick={() => setActiveSubTab('past')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all ${activeSubTab === 'past' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? 'طلبات سابقة' : 'Past Orders'}</button>
+      <div className="flex flex-wrap gap-4 mb-8">
+        <button onClick={() => setActiveSubTab('pending')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${activeSubTab === 'pending' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? `طلبات جديدة (${pendingOrders.length})` : `New Orders (${pendingOrders.length})`}</button>
+        <button onClick={() => setActiveSubTab('pricing')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${activeSubTab === 'pricing' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? `وصفات للتسعير (${pricingOrders.length})` : `Prescriptions (${pricingOrders.length})`}</button>
+        <button onClick={() => setActiveSubTab('past')} className={`flex-1 md:flex-none px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${activeSubTab === 'past' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{lang === 'ar' ? 'طلبات سابقة' : 'Past Orders'}</button>
       </div>
+
+      {/* 🔴 QR Code Scanner Section */}
+      <div className="mb-8 bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -z-10"></div>
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+          <div className="bg-blue-600/20 p-5 rounded-2xl border border-blue-500/30">
+            <Scan size={36} className="text-blue-400" />
+          </div>
+          <div className="flex-1 w-full relative">
+            <h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'صرف وصفة طبية (مسح QR الخاص بالطبيب)' : 'Dispense Prescription (Scan Doctor QR)'}</h3>
+            <p className="text-sm text-slate-400 mb-5 max-w-2xl">{lang === 'ar' ? 'قم بتمرير قارئ الباركود على رمز الاستجابة السريعة (QR) الموجود في الروشتة المطبوعة لجلب الأدوية فوراً دون الحاجة للكتابة.' : 'Scan the QR code on the printed prescription to price or dispense instantly without typing.'}</p>
+            <form onSubmit={handleScanQR} className="relative w-full max-w-xl">
+              <input type="text" value={scannedQR} onChange={e => setScannedQR(e.target.value)} placeholder={lang === 'ar' ? 'انقر هنا ثم استخدم قارئ الباركود (Barcode Scanner)...' : 'Focus here and use physical barcode scanner...'} className="w-full bg-slate-800 border-[3px] border-slate-700 focus:border-blue-500 rounded-xl px-5 py-3.5 outline-none text-white font-mono placeholder:text-slate-500 transition-colors shadow-inner" />
+              <button type="submit" className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-2.5 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold transition-colors">{lang === 'ar' ? 'معالجة الكود' : 'Process'}</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {scannedPrescription && (
+        <div className="mb-8 p-6 bg-white border-[3px] border-blue-400 shadow-xl shadow-blue-100 rounded-3xl relative animate-in fade-in slide-in-from-top-4">
+          <div className="absolute top-0 right-10 bg-blue-600 text-white px-4 py-1.5 rounded-b-xl text-sm font-bold font-mono tracking-wider shadow-sm">SCANNED-RX-{scannedPrescription.id}</div>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h4 className="font-bold text-2xl text-slate-900">{scannedPrescription.customer_name}</h4>
+              <p className="text-sm font-bold text-blue-600 mt-1">{lang === 'ar' ? 'وصفة ورقية ممسوحة ضوئياً - المريض داخل الصيدلية' : 'Walk-in Scanned Prescription'}</p>
+            </div>
+            <button onClick={() => setScannedPrescription(null)} className="p-2.5 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-xl transition-colors shrink-0"><Trash2 size={24}/></button>
+          </div>
+          
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+             <h6 className="font-bold mb-5 flex items-center gap-2 text-lg"><DollarSign size={20} className="text-blue-500"/> {lang === 'ar' ? 'تسعير الوصفة الممسوحة:' : 'Price Scanned Prescription:'}</h6>
+             {scannedPrescription.items.map((item: any, idx: number) => (
+                <div key={idx} className="flex flex-col md:flex-row gap-3 mb-4 p-4 md:p-0 bg-white md:bg-transparent rounded-xl border md:border-0 border-slate-200">
+                   <div className="flex-1">
+                     <label className="block text-[10px] font-bold text-slate-400 mb-1">{lang==='ar'?'اسم المادة':'Item Name'}</label>
+                     <input type="text" placeholder={lang === 'ar' ? 'اسم الدواء' : 'Medicine'} className="w-full p-3.5 text-sm border border-slate-300 rounded-xl outline-none focus:border-blue-500 font-bold bg-white shadow-sm" value={item.name} onChange={e => { const newItems = [...scannedPrescription.items]; newItems[idx].name = e.target.value; setScannedPrescription({...scannedPrescription, items: newItems}); }} />
+                   </div>
+                   <div className="w-full md:w-28">
+                     <label className="block text-[10px] font-bold text-slate-400 mb-1">{lang==='ar'?'الكمية':'Quantity'}</label>
+                     <input type="number" min="1" placeholder="Qty" className="w-full p-3.5 text-sm border border-slate-300 rounded-xl outline-none focus:border-blue-500 text-center font-bold bg-white shadow-sm" value={item.qty} onChange={e => { const newItems = [...scannedPrescription.items]; newItems[idx].qty = parseInt(e.target.value) || 1; setScannedPrescription({...scannedPrescription, items: newItems}); }} />
+                   </div>
+                   <div className="w-full md:w-36">
+                     <label className="block text-[10px] font-bold text-slate-400 mb-1">{lang==='ar'?'السعر الإفرادي':'Unit Price'}</label>
+                     <input type="number" min="0" placeholder="Price" className="w-full p-3.5 text-sm border border-slate-300 rounded-xl outline-none focus:border-blue-500 text-center font-black text-emerald-700 bg-white shadow-sm" value={item.price} onChange={e => { const newItems = [...scannedPrescription.items]; newItems[idx].price = parseFloat(e.target.value) || 0; setScannedPrescription({...scannedPrescription, items: newItems}); }} />
+                   </div>
+                   <div className="flex items-end mb-1">
+                     <button onClick={() => { if(scannedPrescription.items.length > 1) setScannedPrescription({...scannedPrescription, items: scannedPrescription.items.filter((_: any, i: number) => i !== idx)}) }} className="p-3.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors border border-transparent hover:border-red-100"><Trash2 size={20}/></button>
+                   </div>
+                </div>
+             ))}
+             <div className="flex justify-between items-center mt-6 pt-6 border-t border-slate-200">
+                <button onClick={() => setScannedPrescription({...scannedPrescription, items: [...scannedPrescription.items, { name: '', qty: 1, price: 0 }]})} className="text-sm font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-5 py-3 rounded-xl transition-colors relative top-1">+ {lang === 'ar' ? 'إضافة دواء للوصفة' : 'Add Item'}</button>
+                <div className="text-center">
+                  <span className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'المجموع الكلي المطلوب:' : 'Grand Total:'}</span>
+                  <div className="text-2xl font-bold px-6 py-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 flex items-center gap-2">
+                    {scannedPrescription.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0)} <span className="text-sm">{lang==='ar'?'ل.س':'LS'}</span>
+                  </div>
+                </div>
+             </div>
+             
+             <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col md:flex-row gap-4">
+               <button onClick={() => {
+                 if (scannedPrescription.items.some((i:any) => i.price <= 0)) return toast.error(lang === 'ar' ? 'الرجاء تسعير جميع الأدوية بصفر أو أكثر' : 'Please review pricing');
+                 if (scannedPrescription.items.length === 0) return toast.error(lang === 'ar' ? 'الروشتة فارغة' : 'Prescription empty');
+                 
+                 const facilityId = adminFilter === 'all' ? (facilities[0]?.id || null) : adminFilter;
+                 api.post('/api/orders', {
+                    pharmacy_id: facilityId,
+                    items: scannedPrescription.items.map((i:any) => ({ ...i, product_id: -1, image_url: '' })), 
+                    total_price: scannedPrescription.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0),
+                    prescription_url: '',
+                    status: 'completed',
+                    customer_name: scannedPrescription.customer_name,
+                    customer_phone: 'Walk-in (QR Scan)'
+                 }).then(() => {
+                    toast.success(lang === 'ar' ? 'تم تسجيل بيع الوصفة بنجاح وأُدرِجت في سجل الطلبات.' : 'Prescription sale recorded in Sales History.');
+                    setScannedPrescription(null);
+                    loadOrders();
+                 }).catch(() => toast.error(lang === 'ar' ? 'فشل الحفظ في السجلات' : 'Failed to save to records'));
+               }} className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-4 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all flex justify-center items-center gap-2 text-lg shadow-lg shadow-emerald-200 hover:-translate-y-0.5">
+                 <CheckCircle size={24} /> {lang === 'ar' ? 'صرف الأدوية (تسجيل مبيعة في النظام)' : 'Dispense & Record Sale'}
+               </button>
+             </div>
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {displayOrders.map(o => (
@@ -169,8 +311,42 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                 <span dir="ltr" className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{o.total_price}ل.س جديدة</span>
               </div>
             </div>
+
+            {o.status === 'pending_pricing' && o.prescription_url && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                <div className="flex justify-between items-center mb-4">
+                  <h5 className="font-bold text-blue-900 flex items-center gap-2"><Eye size={18}/> {lang === 'ar' ? 'صورة الوصفة الطبية' : 'Prescription Image'}</h5>
+                  <a href={o.prescription_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold">{lang === 'ar' ? 'تكبير' : 'Enlarge'}</a>
+                </div>
+                <img src={o.prescription_url} className="w-full max-h-48 object-contain rounded-xl bg-white border border-blue-200 mb-4" />
+                
+                {pricingOrderId === o.id ? (
+                  <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mt-4">
+                    <h6 className="font-bold mb-3">{lang === 'ar' ? 'تسعير الوصفة:' : 'Price Prescription:'}</h6>
+                    {prescriptionItems.map((item, idx) => (
+                      <div key={idx} className="flex gap-2 mb-2">
+                         <input type="text" placeholder={lang === 'ar' ? 'اسم الدواء' : 'Medicine'} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg outline-none" value={item.name} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].name = e.target.value; setPrescriptionItems(newItems); }} />
+                         <input type="number" min="1" placeholder="Qty" className="w-16 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center" value={item.qty} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].qty = parseInt(e.target.value) || 1; setPrescriptionItems(newItems); }} />
+                         <input type="number" min="0" placeholder="Price" className="w-24 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center" value={item.price} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].price = parseFloat(e.target.value) || 0; setPrescriptionItems(newItems); }} />
+                         <button onClick={() => { if(prescriptionItems.length > 1) setPrescriptionItems(prescriptionItems.filter((_, i) => i !== idx)) }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
+                      <button onClick={() => setPrescriptionItems([...prescriptionItems, { name: '', qty: 1, price: 0 }])} className="text-sm font-bold text-blue-600 hover:underline">+ {lang === 'ar' ? 'إضافة دواء' : 'Add Item'}</button>
+                      <strong dir="ltr" className="text-emerald-600">{prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0)} LS</strong>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                       <button onClick={() => submitPricing(o.id)} disabled={isSubmittingPricing} className="flex-1 bg-emerald-500 text-white py-2 rounded-lg font-bold hover:bg-emerald-600 transition-colors">{lang === 'ar' ? 'إرسال التسعيرة للمريض' : 'Submit Price'}</button>
+                       <button onClick={() => setPricingOrderId(null)} className="px-4 bg-slate-100 text-slate-600 py-2 rounded-lg font-bold hover:bg-slate-200 transition-colors">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setPricingOrderId(o.id); setPrescriptionItems([{ name: '', qty: 1, price: 0 }]); }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 transition-colors shadow-sm mt-4"><DollarSign size={18}/> {lang === 'ar' ? 'تسعير الوصفة الآن' : 'Price Now'}</button>
+                )}
+              </div>
+            )}
             
-            {o.status === 'pending' ? (
+            {o.status === 'pending' || o.status === 'awaiting_approval' ? (
               <div className="flex gap-3">
                 <button onClick={() => updateStatus(o.id, 'completed')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 flex justify-center items-center gap-2 transition-colors shadow-sm"><CheckCircle size={18}/> {lang === 'ar' ? 'قبول وإنهاء' : 'Complete'}</button>
                 <button onClick={() => updateStatus(o.id, 'cancelled')} className="px-6 bg-red-50 text-red-600 py-3 rounded-xl font-bold hover:bg-red-100 transition-colors"><Trash2 size={18}/></button>

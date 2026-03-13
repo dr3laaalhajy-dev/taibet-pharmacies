@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import admin from 'firebase-admin';
 import path from 'path';
 import fs from 'fs';
+import { GoogleGenAI } from '@google/genai';
 
 // تهيئة نظام إشعارات فايربيز
 try {
@@ -60,6 +61,7 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(patient_id, doctor_id, appointment_date));`);
+    try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch(e){}
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch(e){}
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN type VARCHAR(50) DEFAULT 'direct';`); } catch(e){}
@@ -77,6 +79,7 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS alcohol_status VARCHAR(50);`); } catch(e){}
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS marital_status VARCHAR(50);`); } catch(e){}
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS occupation VARCHAR(255);`); } catch(e){}
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]';`); } catch(e){}
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     // 🟢 إضافة جدول تقييمات الدعم الفني
     await pool.query(`
@@ -315,7 +318,7 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       'full_name VARCHAR(255)', 'dob DATE', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
       'children_count INT', 'occupation VARCHAR(255)', 'special_habits TEXT', 'menstrual_history TEXT', 
       'medication_list JSONB', 'past_medical_history TEXT', 'past_surgeries TEXT', 
-      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)',
+      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)', 'attachments JSONB',
       'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
     ];
     for (let col of columns) {
@@ -330,17 +333,17 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       INSERT INTO medical_records (
         patient_id, full_name, dob, gender, marital_status, children_count, 
         occupation, special_habits, menstrual_history, past_medical_history, 
-        past_surgeries, allergies, family_history, medication_list, blood_type,
+        past_surgeries, allergies, family_history, medication_list, blood_type, attachments,
         created_at, updated_at
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
       RETURNING *`;
       
     const values = [
       pId, full_name || '', validDob, gender || '', marital_status || 'أعزب', 
       children_count ? parseInt(children_count.toString()) : 0, occupation || '', special_habits || '', menstrual_history || '', 
       past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
-      JSON.stringify(medication_list || []), blood_type || ''
+      JSON.stringify(medication_list || []), blood_type || '', JSON.stringify(req.body.attachments || [])
     ];
 
     const result = await pool.query(query, values);
@@ -382,6 +385,18 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows[0]?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+
+// 🟢 قسم المرفقات الطبية (أشعة وتحاليل)
+app.patch('/api/appointments/:id/attachments', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { attachments } = req.body;
+  try {
+    await pool.query('UPDATE appointments SET attachments = $1 WHERE id = $2', [JSON.stringify(attachments || []), req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 🟢 الإحصائيات مع التصحيح [0]
 app.get('/api/public/stats', async (req: any, res: any) => {
@@ -516,8 +531,29 @@ app.post('/api/products', authenticateToken, async (req: any, res: any) => { con
 app.put('/api/products/:id', authenticateToken, async (req: any, res: any) => { const { name, price, quantity, image_url, max_per_user } = req.body; try { await pool.query('UPDATE products SET name = $1, price = $2, quantity = $3, image_url = $4, max_per_user = $5 WHERE id = $6', [name, price, quantity, image_url || null, max_per_user || null, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/products/:id', authenticateToken, async (req: any, res: any) => { try { await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/orders', authenticateToken, async (req: any, res: any) => { try { await pool.query("DELETE FROM orders WHERE status != 'pending' AND created_at < NOW() - INTERVAL '1 month'"); res.json((await pool.query(req.user.role === 'admin' ? 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC' : 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY o.id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => {
+  try {
+    const userPhoneResult = await pool.query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
+    if (userPhoneResult.rows.length === 0) return res.json([]);
+    const phone = userPhoneResult.rows[0].phone;
+    if (!phone) return res.json([]);
+    res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE o.customer_phone = $1 ORDER BY o.id DESC', [phone])).rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.patch('/api/orders/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE orders SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/orders/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { await pool.query('DELETE FROM orders WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.patch('/api/orders/:id/pricing', authenticateToken, async (req: any, res: any) => { 
+  if (req.user.role !== 'pharmacist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { items, total_price, status } = req.body;
+  try {
+    await pool.query('UPDATE orders SET items = $1, total_price = $2, status = $3 WHERE id = $4', [JSON.stringify(items), total_price, status, req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/wallet/request', authenticateToken, async (req: any, res: any) => { const { type, amount } = req.body; try { await pool.query(`CREATE TABLE IF NOT EXISTS wallet_requests ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user_name VARCHAR(255), user_email VARCHAR(255), type VARCHAR(50) NOT NULL, amount DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`); const userDb = (await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id])).rows.shift(); await pool.query('INSERT INTO wallet_requests (user_id, user_name, user_email, type, amount) VALUES ($1, $2, $3, $4, $5)', [req.user.id, userDb.name || 'غير معروف', userDb.email || 'غير معروف', type, amount]); res.json({ success: true }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/admin/wallet-requests', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); try { res.json((await pool.query("SELECT * FROM wallet_requests ORDER BY id DESC")).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/admin/wallet-requests/:id', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); const { action } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); const reqRes = await client.query('SELECT * FROM wallet_requests WHERE id = $1 FOR UPDATE', [req.params.id]); const request = reqRes.rows.shift(); if (action === 'approve') { const modifier = request.type === 'deposit' ? request.amount : -request.amount; await client.query('UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2', [modifier, request.user_id]); await client.query("UPDATE wallet_requests SET status = 'approved' WHERE id = $1", [req.params.id]); } else { await client.query("UPDATE wallet_requests SET status = 'rejected' WHERE id = $1", [req.params.id]); } await client.query('COMMIT'); res.json({ success: true }); } catch(err: any) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); } });
@@ -533,5 +569,44 @@ app.get('/api/admin/super-admins', authenticateToken, async (req: any, res: any)
 app.post('/api/admin/super-admins', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); await pool.query('INSERT INTO super_admins (email) VALUES ($1) ON CONFLICT DO NOTHING', [req.body.email]); res.json({ message: 'تمت الإضافة بنجاح' }); });
 app.delete('/api/admin/super-admins/:email', authenticateToken, async (req: any, res: any) => { if (!(await isSuperAdmin(req.user.email))) return res.status(403).json({ error: 'ممنوع' }); if (req.params.email === 'alaa@taiba.pharma.sy') return res.status(400).json({ error: 'لا يمكن حذف حساب المؤسس!' }); await pool.query('DELETE FROM super_admins WHERE email = $1', [req.params.email]); res.json({ message: 'تم الحذف بنجاح' }); });
 app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) => { const { fcm_token } = req.body; if (!fcm_token) return res.status(400).json({ error: 'Token is required' }); try { await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, req.user.id]); res.json({ success: true, message: 'تم ربط الهاتف بنجاح لاستلام الإشعارات.' }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+
+// 🤖 AI Triage Chatbot Endpoint
+app.post('/api/ai/triage', async (req: any, res: any) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+  
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'مفتاح API الخاص بالمساعد الذكي غير مكوّن' });
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: message,
+      config: {
+        systemInstruction: `أنت مساعد طبي (Medical Triage Assistant) وصيدلاني محترف.
+مهمتك الرئيسية هي:
+1. تحليل الأعراض التي يصفها المريض وتوجيهه إلى التخصص الطبي المناسب.
+2. تقديم معلومات دوائية عامة وموثوقة (مثل دواعي الاستعمال، الآثار الجانبية الشائعة، التداخلات الدوائية) من مصادر طبية وصيدلانية عالمية مشهورة (مثل FDA، WHO، WebMD، Mayo Clinic) عندما يسأل المريض عن دواء معين.
+
+قيود صارمة:
+- ممنوع منعاً باتاً تشخيص الحالة طبياً أو وصف أدوية كعلاج لحالة المريض.
+- عند تقديم معلومات عن دواء، أضف دائماً ملاحظة إخلاء مسؤولية قصيرة بأن هذه المعلومات تثقيفية ولا تغني عن استشارة الطبيب أو الصيدلي.
+
+اكتب ردك باللغة العربية، بأسلوب مهني، دافئ، وموجز وفي صلب الموضوع. لا تستخدم تنسيقات معقدة بل نصوص بسيطة وواضحة.`
+      }
+    });
+
+    res.json({ reply: response.text });
+  } catch (err: any) {
+    console.error('AI Error:', err);
+    res.status(500).json({ error: 'عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.' });
+  }
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(3000, () => console.log('API Server running on http://localhost:3000'));
+}
 
 export default app;
