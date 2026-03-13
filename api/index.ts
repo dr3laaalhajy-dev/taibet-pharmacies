@@ -283,18 +283,20 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
   } catch(err: any) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId])).rows || {}); } catch(err: any) { res.status(500).json({ error: err.message }); } });
-// 🟢 1. جلب السجل الطبي (للتأكد من وجوده)
+// 🟢🟢 ====== بداية نظام السجل الطبي (النسخة النهائية) ====== 🟢🟢
+
+// 1. مسار جلب البيانات (هذا ما كان ينقص الطبيب والمريض لكي يقرأوا البيانات)
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
-    const record = await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [req.params.patientId]);
+    const pId = parseInt(req.params.patientId);
+    const record = await pool.query('SELECT * FROM medical_records WHERE patient_id = $1', [pId]);
     res.json(record.rows.length > 0 ? record.rows[0] : {});
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-/// 🟢 حفظ وتحديث السجل الطبي (تم حل مشكلة نوع البيانات المرفوضة)
+// 2. مسار حفظ البيانات (محصن ضد كل أخطاء قواعد البيانات)
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
   const { 
     patient_id, full_name, dob, gender, marital_status, children_count, 
@@ -306,6 +308,7 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
   const validDob = (dob === '' || !dob) ? null : dob;
 
   try { 
+    // التأكد من الجدول والأعمدة (الصيانة الذاتية)
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records (id SERIAL PRIMARY KEY, patient_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE)`);
     
     const columns = [
@@ -319,9 +322,10 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
     }
 
+    // مسح النسخة المعلقة القديمة (لتجنب أي تضارب)
     await pool.query('DELETE FROM medical_records WHERE patient_id = $1', [pId]);
 
-    // 🟢 الضربة القاضية: إجبار قاعدة البيانات على قبول الأدوية كـ JSON باستخدام $14::jsonb
+    // إدخال السجل النظيف الجديد
     const query = `
       INSERT INTO medical_records (
         patient_id, full_name, dob, gender, marital_status, children_count, 
@@ -333,7 +337,7 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
       RETURNING *`;
       
     const values = [
-      pId, full_name, validDob, gender, marital_status || 'أعزب', 
+      pId, full_name || '', validDob, gender || '', marital_status || 'أعزب', 
       children_count ? parseInt(children_count.toString()) : 0, occupation || '', special_habits || '', menstrual_history || '', 
       past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
       JSON.stringify(medication_list || []), blood_type || ''
@@ -344,10 +348,11 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
 
   } catch(err: any) { 
     console.error("Medical Record Save Error:", err.message);
-    // إرسال الخطأ الفعلي بدقة
     res.status(500).json({ error: err.message }); 
   } 
 });
+// 🟢🟢 ====== نهاية نظام السجل الطبي ====== 🟢🟢
+
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch(err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => { 

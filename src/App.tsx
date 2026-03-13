@@ -59,47 +59,82 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
   const fmhOptions = ['الضغط', 'السكري', 'أمراض القلب', 'سرطان', 'أمراض وراثية', 'لا يوجد', 'أخرى'];
 
   // 🟢 جلب البيانات القديمة لتتمكن من تعديلها
+  // 🟢 جلب البيانات القديمة لتتمكن من تعديلها (محدث لتجاوز الكاش والقراءة الآمنة)
   useEffect(() => {
     const fetchMyRecord = async () => {
       try {
-        const res = await api.get(`/api/medical-records/${user.id}`);
+        // 🟢 السر هنا: إضافة `?t=${Date.now()}` تجبر المتصفح على جلب أحدث بيانات وتجاهل الكاش القديم
+        const res = await api.get(`/api/medical-records/${user.id}?t=${Date.now()}`);
+        
         if (res && (res.id || res.patient_id)) {
+          
+          // 🟢 معالجة تاريخ الميلاد بأمان شديد حتى لا يوقف عمل الشاشة
+          let safeDob = '';
+          if (res.dob) {
+            try { safeDob = new Date(res.dob).toISOString().split('T')[0]; } catch(e) {}
+          }
+
           setForm(prev => ({
             ...prev,
             full_name: res.full_name || user?.name || '', 
-            // 🟢 ضبط تاريخ الميلاد
-            dob: res.dob ? new Date(res.dob).toISOString().split('T')[0] : '', 
-            gender: res.gender || '', marital_status: res.marital_status || 'أعزب',
-            children_count: res.children_count?.toString() || '0', occupation: res.occupation || '', blood_type: res.blood_type || '',
+            dob: safeDob, 
+            gender: res.gender || '', 
+            marital_status: res.marital_status || 'أعزب',
+            children_count: res.children_count?.toString() || '0', 
+            occupation: res.occupation || '', 
+            blood_type: res.blood_type || '',
             surgeries: res.past_surgeries && res.past_surgeries !== 'لا يوجد' ? 'نعم' : 'لا',
             surgeries_details: res.past_surgeries !== 'لا يوجد' ? res.past_surgeries : '',
             allergies: res.allergies && res.allergies !== 'لا يوجد' ? 'نعم' : 'لا',
             allergies_details: res.allergies !== 'لا يوجد' ? res.allergies : '',
           }));
+
           if (res.special_habits) {
             const parts = res.special_habits.split(' | ');
-            setHabits({ smoking: parts[0]?.replace('تدخين: ', '') || 'لا', alcohol: parts[1]?.replace('كحول: ', '') || 'لا', drugs: parts[2]?.replace('ممنوعات: ', '') || 'لا' });
+            setHabits({ 
+              smoking: parts[0]?.replace('تدخين: ', '') || 'لا', 
+              alcohol: parts[1]?.replace('كحول: ', '') || 'لا', 
+              drugs: parts[2]?.replace('ممنوعات: ', '') || 'لا' 
+            });
           }
-          if (res.menstrual_history) { try { setWomenHealth(JSON.parse(res.menstrual_history)); } catch (e) {} }
+
+          if (res.menstrual_history) { 
+            try { setWomenHealth(JSON.parse(res.menstrual_history)); } catch (e) {} 
+          }
+
           if (res.past_medical_history) {
             const pmhArr = res.past_medical_history.split('، ').filter(Boolean);
             const standardPmh: string[] = [];
             pmhArr.forEach((item: string) => {
-              if (item.startsWith('أخرى (')) { standardPmh.push('أخرى'); setPmhOtherVal(item.replace('أخرى (', '').replace(')', '')); } else { standardPmh.push(item); }
+              if (item.startsWith('أخرى (')) { 
+                standardPmh.push('أخرى'); 
+                setPmhOtherVal(item.replace('أخرى (', '').replace(')', '')); 
+              } else { standardPmh.push(item); }
             });
             setPmh(standardPmh);
           }
+
           if (res.family_history) {
             const fmhArr = res.family_history.split('، ').filter(Boolean);
             const standardFmh: string[] = [];
             fmhArr.forEach((item: string) => {
-              if (item.startsWith('أخرى (')) { standardFmh.push('أخرى'); setFmhOtherVal(item.replace('أخرى (', '').replace(')', '')); } else { standardFmh.push(item); }
+              if (item.startsWith('أخرى (')) { 
+                standardFmh.push('أخرى'); 
+                setFmhOtherVal(item.replace('أخرى (', '').replace(')', '')); 
+              } else { standardFmh.push(item); }
             });
             setFmh(standardFmh);
           }
-          if (res.medication_list && Array.isArray(res.medication_list) && res.medication_list.length > 0) { setMedications(res.medication_list); }
+
+          if (res.medication_list && Array.isArray(res.medication_list) && res.medication_list.length > 0) { 
+            setMedications(res.medication_list); 
+          }
         }
-      } catch (error) { console.error(error); } finally { setIsFetching(false); }
+      } catch (error) { 
+        console.error("Fetch Error:", error); 
+      } finally { 
+        setIsFetching(false); 
+      }
     };
     fetchMyRecord();
   }, [user.id]);
