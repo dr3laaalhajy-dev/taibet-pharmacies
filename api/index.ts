@@ -294,7 +294,7 @@ app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, r
   }
 });
 
-// 🟢 حفظ وتحديث السجل الطبي
+/// 🟢 حفظ وتحديث السجل الطبي (تم حل مشكلة نوع البيانات المرفوضة)
 app.post('/api/medical-records', authenticateToken, async (req: any, res: any) => { 
   const { 
     patient_id, full_name, dob, gender, marital_status, children_count, 
@@ -303,16 +303,17 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
   } = req.body; 
 
   const pId = patient_id || req.user.id;
+  const validDob = (dob === '' || !dob) ? null : dob;
 
   try { 
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records (id SERIAL PRIMARY KEY, patient_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE)`);
     
-    // 🟢 تمت إضافة حقل dob (تاريخ الميلاد) هنا
     const columns = [
       'full_name VARCHAR(255)', 'dob DATE', 'age INT', 'gender VARCHAR(50)', 'marital_status VARCHAR(50)',
       'children_count INT', 'occupation VARCHAR(255)', 'special_habits TEXT', 'menstrual_history TEXT', 
       'medication_list JSONB', 'past_medical_history TEXT', 'past_surgeries TEXT', 
-      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)'
+      'allergies TEXT', 'family_history TEXT', 'blood_type VARCHAR(50)',
+      'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
     ];
     for (let col of columns) {
       try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS ${col};`); } catch(e){}
@@ -320,6 +321,7 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
 
     await pool.query('DELETE FROM medical_records WHERE patient_id = $1', [pId]);
 
+    // 🟢 الضربة القاضية: إجبار قاعدة البيانات على قبول الأدوية كـ JSON باستخدام $14::jsonb
     const query = `
       INSERT INTO medical_records (
         patient_id, full_name, dob, gender, marital_status, children_count, 
@@ -327,13 +329,12 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
         past_surgeries, allergies, family_history, medication_list, blood_type,
         created_at, updated_at
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
       RETURNING *`;
       
-    // تمرير dob بدلاً من age
     const values = [
-      pId, full_name, dob || null, gender, marital_status || 'أعزب', 
-      children_count || 0, occupation || '', special_habits || '', menstrual_history || '', 
+      pId, full_name, validDob, gender, marital_status || 'أعزب', 
+      children_count ? parseInt(children_count.toString()) : 0, occupation || '', special_habits || '', menstrual_history || '', 
       past_medical_history || '', past_surgeries || '', allergies || '', family_history || '', 
       JSON.stringify(medication_list || []), blood_type || ''
     ];
@@ -343,7 +344,8 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
 
   } catch(err: any) { 
     console.error("Medical Record Save Error:", err.message);
-    res.status(500).json({ error: 'حدث خطأ في قاعدة البيانات أثناء الحفظ: ' + err.message }); 
+    // إرسال الخطأ الفعلي بدقة
+    res.status(500).json({ error: err.message }); 
   } 
 });
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch(err: any) { res.status(500).json({ error: err.message }); } });

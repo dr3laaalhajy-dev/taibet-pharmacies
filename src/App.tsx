@@ -134,7 +134,14 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang }: any) => {
       });
       toast.success(lang === 'ar' ? 'تم حفظ السجل الطبي بنجاح!' : 'Saved successfully!');
       onSaved(); onClose();
-    } catch (err) { toast.error(lang === 'ar' ? 'حدث خطأ أثناء الحفظ' : 'Error saving record'); } finally { setLoading(false); }
+    } catch (err: any) { 
+      // 🟢 هنا يكمن السر: سيظهر لك الخطأ الذي تخفيه قاعدة البيانات!
+      const dbError = err.response?.data?.error || err.message || 'خطأ غير معروف';
+      alert(`فشل الحفظ بسبب قاعدة البيانات:\n\n${dbError}`);
+      toast.error('حدث خطأ أثناء الحفظ'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   if (isFetching) {
