@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan, Camera } from 'lucide-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { UserType, Facility, Order } from '../types';
 import { api } from '../api-client';
 import toast from 'react-hot-toast';
@@ -17,12 +18,33 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
   // 🟢 Pharmacy Scanner State
   const [scannedQR, setScannedQR] = useState('');
   const [scannedPrescription, setScannedPrescription] = useState<any>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-  const handleScanQR = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scannedQR.trim()) return;
+  useEffect(() => {
+    if (isScannerOpen) {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+        scannerRef.current.render((decodedText) => {
+          handleQRData(decodedText);
+          setIsScannerOpen(false); // Close after successful scan
+        }, (errorMessage) => {
+          // ignore background errors
+        });
+      }
+    } else {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(error => {
+          console.error("Failed to clear html5QrcodeScanner. ", error);
+        });
+        scannerRef.current = null;
+      }
+    }
+  }, [isScannerOpen]);
+
+  const handleQRData = (data: string) => {
     try {
-      const parsed = JSON.parse(scannedQR);
+      const parsed = JSON.parse(data);
       if (parsed.meds && Array.isArray(parsed.meds)) {
         toast.success(lang === 'ar' ? `تم قراءة الوصفة للمريض: ${parsed.pid || ''}` : `Loaded Rx for: ${parsed.pid || ''}`);
         setScannedPrescription({
@@ -39,9 +61,15 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
     }
   };
 
+  const handleScanQRText = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scannedQR.trim()) return;
+    handleQRData(scannedQR);
+  };
+
   const loadOrders = () => { api.get('/api/orders').then(setOrders).finally(() => setLoading(false)); };
   
-  useEffect(() => { loadOrders(); }, []);
+  useEffect(() => { loadOrders(); return () => { if (scannerRef.current) scannerRef.current.clear().catch(()=>{}); }; }, []);
   
   const updateStatus = async (id: number, status: string) => { 
     if(!window.confirm(lang === 'ar' ? `تأكيد تغيير حالة الطلب؟` : 'Confirm status change?')) return; 
@@ -198,11 +226,27 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
           </div>
           <div className="flex-1 w-full relative">
             <h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'صرف وصفة طبية (مسح QR الخاص بالطبيب)' : 'Dispense Prescription (Scan Doctor QR)'}</h3>
-            <p className="text-sm text-slate-400 mb-5 max-w-2xl">{lang === 'ar' ? 'قم بتمرير قارئ الباركود على رمز الاستجابة السريعة (QR) الموجود في الروشتة المطبوعة لجلب الأدوية فوراً دون الحاجة للكتابة.' : 'Scan the QR code on the printed prescription to price or dispense instantly without typing.'}</p>
-            <form onSubmit={handleScanQR} className="relative w-full max-w-xl">
-              <input type="text" value={scannedQR} onChange={e => setScannedQR(e.target.value)} placeholder={lang === 'ar' ? 'انقر هنا ثم استخدم قارئ الباركود (Barcode Scanner)...' : 'Focus here and use physical barcode scanner...'} className="w-full bg-slate-800 border-[3px] border-slate-700 focus:border-blue-500 rounded-xl px-5 py-3.5 outline-none text-white font-mono placeholder:text-slate-500 transition-colors shadow-inner" />
-              <button type="submit" className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-2.5 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold transition-colors">{lang === 'ar' ? 'معالجة الكود' : 'Process'}</button>
-            </form>
+            <p className="text-sm text-slate-400 mb-5 max-w-2xl">{lang === 'ar' ? 'قم بتشغيل الكاميرا لمسح الروشتة مباشرة، أو استخدم جهاز قارئ الباركود اليدوي.' : 'Open Camera to scan prescription directly, or use a physical barcode scanner.'}</p>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button 
+                onClick={() => setIsScannerOpen(!isScannerOpen)} 
+                className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold transition-all ${isScannerOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/50'}`}
+              >
+                <Camera size={20} /> {isScannerOpen ? (lang === 'ar' ? 'إغلاق الكاميرا' : 'Close Camera') : (lang === 'ar' ? 'فتح الكاميرا للمسح' : 'Open Camera to Scan')}
+              </button>
+              
+              <form onSubmit={handleScanQRText} className="relative flex-1">
+                <input type="text" value={scannedQR} onChange={e => setScannedQR(e.target.value)} placeholder={lang === 'ar' ? 'أو أدخل الكود يدوياً / قارئ ليزر...' : 'Or use physical scanner...'} className="w-full bg-slate-800 border-[3px] border-slate-700 focus:border-blue-500 rounded-xl px-5 py-3 outline-none text-white font-mono placeholder:text-slate-500 transition-colors shadow-inner" />
+                <button type="submit" className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">{lang === 'ar' ? 'إدخال' : 'Submit'}</button>
+              </form>
+            </div>
+
+            {isScannerOpen && (
+              <div className="mt-6 p-4 bg-white rounded-2xl">
+                <div id="qr-reader" className="w-full text-slate-900 overflow-hidden rounded-xl"></div>
+              </div>
+            )}
           </div>
         </div>
       </div>
