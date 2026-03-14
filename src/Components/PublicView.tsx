@@ -698,18 +698,33 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
     const userMsg = chatInput.trim();
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    const updatedMessages = [...messages, { role: 'user' as const, content: userMsg }];
+    setMessages(updatedMessages);
     setChatInput('');
     setIsAiTyping(true);
     try {
-      const res = await api.post('/api/ai/triage', { message: userMsg });
+      // 🟢 إرسال تاريخ المحادثة للخادم لضمان سياق المحادثة
+      const res = await api.post('/api/ai/triage', { 
+        message: userMsg,
+        history: messages.slice(1) // إرسال كل الرسائل باستثناء رسالة الترحيب الأولى
+      });
       if (res && res.reply) {
-        setMessages(prev => [...prev, { role: 'ai', content: res.reply }]);
+        if (res.isEmergency) {
+          // 🚨 عرض تنبيه طوارئ بطريقة واضحة
+          setMessages(prev => [...prev, { 
+            role: 'ai', 
+            content: '🚨 ' + (lang === 'ar' 
+              ? 'تحذير طوارئ! هذه حالة تستوجب إسعافاً فورياً. توجه لأقرب طوارئ أو اتصل بالإسعاف فوراً!'
+              : 'EMERGENCY! This requires immediate medical attention. Go to the nearest ER or call an ambulance NOW!')
+          }]);
+        } else {
+          setMessages(prev => [...prev, { role: 'ai', content: res.reply }]);
+        }
       } else {
         setMessages(prev => [...prev, { role: 'ai', content: lang === 'ar' ? 'عذراً حدث خطأ بالاتصال بالذكاء الاصطناعي.' : 'Sorry, an AI connection error occurred.' }]);
       }
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', content: lang === 'ar' ? 'عذراً حدث خطأ بالاتصال بالذكاء الاصطناعي.' : 'Sorry, an AI connection error occurred.' }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, { role: 'ai', content: e?.error || (lang === 'ar' ? 'عذراً حدث خطأ بالاتصال بالذكاء الاصطناعي.' : 'Sorry, an AI connection error occurred.') }]);
     } finally {
       setIsAiTyping(false);
       // التمرير لأسفل المحادثة تلقائياً
@@ -719,6 +734,18 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
       }, 100);
     }
   };
+
+  const CHAT_SUGGESTIONS = lang === 'ar' ? [
+    '🦠 عندي صداع شديد، ما التخصص المناسب?',
+    '💊 كيف آخذ دواء أوميبرازول بشكل صحيح?',
+    '🩺 كيف اتابع طلب دواءي?',
+    '🍎 نصائح لمريض سكري'
+  ] : [
+    '🦠 I have a severe headache, what specialist should I see?',
+    '💊 How do I take Omeprazole correctly?',
+    '🩺 How can I track my medication order?',
+    '🍎 Wellness tips for diabetics'
+  ];
 
   useEffect(() => {
     // شاشة التحميل الأولية لمدة ثانيتين
@@ -1143,13 +1170,33 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
 
               <div className="p-4 h-[350px] overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950 flex flex-col scroll-smooth" id="chat-messages-container">
-                {messages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? (lang === 'ar' ? 'justify-end' : 'justify-start') : (lang === 'ar' ? 'justify-start' : 'justify-end')} w-full`}>
-                    <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm font-medium'}`}>
-                      {m.content}
+                {messages.map((m, i) => {
+                  const isEmergencyMsg = m.role === 'ai' && m.content.startsWith('🚨');
+                  return (
+                    <div key={i} className={`flex ${m.role === 'user' ? (lang === 'ar' ? 'justify-end' : 'justify-start') : (lang === 'ar' ? 'justify-start' : 'justify-end')} w-full`}>
+                      <div className={`max-w-[90%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                        isEmergencyMsg 
+                          ? 'bg-red-600 text-white font-bold border-2 border-red-400 animate-pulse rounded-xl w-full text-center'
+                          : m.role === 'user' 
+                            ? 'bg-blue-600 text-white rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm' 
+                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm font-medium'
+                      }`}>
+                        {m.content}
+                      </div>
                     </div>
+                  );
+                })}
+                {/* 🟢 اقتراحات سريعة تظهر عند بداية المحادثة */}
+                {messages.length === 1 && !isAiTyping && (
+                  <div className="flex flex-col gap-2 mt-2">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-bold">{lang === 'ar' ? 'جرب السؤال عن:' : 'Or try asking:'}</p>
+                    {CHAT_SUGGESTIONS.map((s, i) => (
+                      <button key={i} onClick={() => { setChatInput(s.slice(2)); }} className="text-right rtl:text-right text-[12px] bg-white dark:bg-slate-800 border border-blue-100 dark:border-slate-700 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors font-medium shadow-sm">
+                        {s}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                )}
                 {isAiTyping && (
                   <div className={`flex ${lang === 'ar' ? 'justify-start' : 'justify-end'} w-full`}>
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm shadow-sm flex gap-1.5 items-center w-fit">

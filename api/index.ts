@@ -684,7 +684,7 @@ app.post('/api/auth/fcm-token', authenticateToken, async (req: any, res: any) =>
 
 // 🤖 AI Triage Chatbot Endpoint
 app.post('/api/ai/triage', async (req: any, res: any) => {
-  const { message } = req.body;
+  const { message, history } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -693,37 +693,66 @@ app.post('/api/ai/triage', async (req: any, res: any) => {
     return res.status(500).json({ error: 'مفتاح API الخاص بالمساعد الذكي غير مكوّن في إعدادات الخادم.' });
   }
 
+  // 🟢 إنشاء سياق المحادثة من التاريخ الممرر
+  const conversationHistory: any[] = history && Array.isArray(history)
+    ? history.map((m: any) => ({
+        role: m.role === 'ai' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }))
+    : [];
+  conversationHistory.push({ role: 'user', parts: [{ text: message }] });
+
+  const SYSTEM_PROMPT = `أنت "مساعد طيبة الصحي"، مساعد ذكي متكامل يعمل ضمن منصة "خدمات طيبة الإمام الصحية". دورك يتمحور حول أربعة محاور أساسية:
+
+---
+[المحور الأول: الطوارئ والتوجيه الطبي]
+• الأولوية القصوى: كشف كلمات الخطر (ألم في الصدر، ضيق تنفس، شلل، فقدان وعي، تقيؤ دم، حوادث سقوط). إذا اكتشفت حالة طارئة، اقطع المحادثة فوراً واعرض هذه الرسالة حصراً: "EMERGENCY: توجه لأقرب طوارئ فوراً!". لا تضف أي نص آخر.
+• تحليل الأعراض: متى يصف المريض أعراضاً، قدم تحليلاً موجزاً ووجهه للتخصص الطبي المناسب (مثلاً: طبيب أعصاب، طبيب قلب، طبيب عام) مع دعوته لحجز موعد.
+
+[المحور الثاني: مساعد صيدلاني]
+• أجب عن أسئلة طريقة استخدام الإدوية (متى، كيف، بكم جرعة).
+• اشرح التداخلات الدوائية الشائعة (مثل: هل يمكن أخذ X مع Y).
+• بسّط محتوى النشرة الطبية للمريض.
+• لا تصف أدوية كعلاج، بل أجب على أسئلة المعلومات فقط مع تحذير دائماً: “هذه معلومات تثقيفية، استشر صيدلي؟؟”.
+
+[المحور الثالث: دعم التطبيق]
+أنت خبيرب بنظام خدمات طيبة. أجب عن:
+• نظام العملة: الليرة السورية الجديدة = 100 ليرة قديمة. النظام يخزن أسعاراً بالليرة القديمة ويعرضها بالجديدة.
+• حالة الطلبات: أخبر المستخدم بأن حالة طلبه متاحة في قسم "طلباتي" عبر الداشبورد.
+• حجز المواعيد: أخبره بأن مواعيده متاحة في قسم حجوزاتي ويمكن إلغاؤها من هناك.
+
+[المحور الرابع: نصائح وقائية وصحية]
+• قدم نصائح وقائية لمرضى السكري/الضغط.
+• أجب عن جداول التطعيمات، نصائح تغذية، صحة نفسية.
+• لا تتجاوز موضوع الصحة والطب.
+---
+
+قواعد عامة:
+- اكتب بالعربية دائماً.
+- لا تشخّص طبياً ولا تصف علاجاً محدداً.
+- كن موجزاً، دافئاً، ومهنياً.
+- لا تستخدم نقاطاً أو Markdown معقداً.`;
+
   try {
     console.log('[AI Triage] Sending request to Gemini. API Key present:', !!apiKey);
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash', // 🟢 تصحيح اسم الموديل
-      contents: message,
-      config: {
-        systemInstruction: `أنت مساعد طبي (Medical Triage Assistant) وصيدلاني محترف.
-مهمتك الرئيسية هي:
-1. تحليل الأعراض التي يصفها المريض وتوجيهه إلى التخصص الطبي المناسب.
-2. تقديم معلومات دوائية عامة وموثوقة (مثل دواعي الاستعمال، الآثار الجانبية الشائعة، التداخلات الدوائية) من مصادر طبية وصيدلانية عالمية مشهورة (مثل FDA، WHO، WebMD، Mayo Clinic) عندما يسأل المريض عن دواء معين.
-
-قيود صارمة:
-- ممنوع منعاً باتاً تشخيص الحالة طبياً أو وصف أدوية كعلاج لحالة المريض.
-- عند تقديم معلومات عن دواء، أضف دائماً ملاحظة إخلاء مسؤولية قصيرة بأن هذه المعلومات ثقافية ولا تغني عن استشارة الطبيب أو الصيدلي.
-
-اكتب ردك باللغة العربية، بأسلوب مهني، دافئ، وموجز وفي صلب الموضوع. لا تستخدم تنسيقات معقدة بل نصوص بسيطة وواضحة.`
-      }
+      model: 'gemini-2.0-flash',
+      contents: conversationHistory,
+      config: { systemInstruction: SYSTEM_PROMPT }
     });
 
     console.log('[AI Triage] Response received successfully.');
-    res.json({ reply: response.text });
+    const reply = response.text || '';
+    // 🟢 كشف حالة الطوارئ من رد الذكاء الاصطناعي
+    const isEmergency = reply.trim().startsWith('EMERGENCY:');
+    res.json({ reply, isEmergency });
   } catch (err: any) {
-    // 🟢 تسجيل تفصيلي للخطأ لمساعدة التشخيص
     console.error('[AI Triage] Detailed Error:', JSON.stringify({
-      message: err.message,
-      status: err.status,
-      code: err.code,
+      message: err.message, status: err.status, code: err.code,
       details: err.errorDetails || err.response?.data
     }, null, 2));
-    res.status(500).json({ error: `عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.` });
+    res.status(500).json({ error: 'عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.' });
   }
 });
 
