@@ -48,7 +48,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   // 🟢 ميزة طباعة الوصفة الطبية
   const printRef = React.useRef(null);
   const handlePrint = useReactToPrint({ 
-    contentRef: () => printRef.current,
+    contentRef: printRef,
     onAfterPrint: () => {
       setShowPrintTemplate(false);
       onClose(); // إغلاق النافذة بعد الطباعة
