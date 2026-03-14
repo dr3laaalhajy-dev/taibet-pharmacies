@@ -437,6 +437,14 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionImage, setPrescriptionImage] = useState<File | null>(null);
   const [isUploadingPrescription, setIsUploadingPrescription] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      api.get('/api/patient/family').then(data => setFamilyMembers(Array.isArray(data) ? data : []));
+    }
+  }, [user, showPrescriptionModal]);
 
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
   const ecommercePharmacies = facilities.filter(f => f.is_ecommerce_enabled); const selectedPharmacy = facilities.find(f => f.id === selectedPharmacyId);
@@ -481,7 +489,8 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
         total_price: '0',
         payment_method: 'cash',
         prescription_image_url: imageUrl,
-        status: 'pending_pricing'
+        status: 'pending_pricing',
+        family_member_id: selectedFamilyMemberId
       });
       setOrderSuccess(true);
       setShowPrescriptionModal(false);
@@ -578,6 +587,27 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                     </div>
                   )}
                 </div>
+
+                {familyMembers.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">{lang === 'ar' ? 'الطلب مقدم لـ:' : 'Order for:'}</label>
+                    <div className="grid grid-cols-1 gap-2">
+                       <button type="button" onClick={() => setSelectedFamilyMemberId(null)} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedFamilyMemberId === null ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-100 dark:ring-blue-900/50' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedFamilyMemberId === null ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}><User size={16} /></div>
+                         <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{lang === 'ar' ? 'نفسي (صاحب الحساب)' : 'Myself'}</p></div>
+                         {selectedFamilyMemberId === null && <CheckCircle className="text-blue-600" size={18} />}
+                       </button>
+                       {familyMembers.map(m => (
+                         <button key={m.id} type="button" onClick={() => setSelectedFamilyMemberId(m.id)} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedFamilyMemberId === m.id ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedFamilyMemberId === m.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}><Users size={16} /></div>
+                           <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{m.name}</p><p className="text-[10px] text-slate-500">{m.relation}</p></div>
+                           {selectedFamilyMemberId === m.id && <CheckCircle className="text-blue-600" size={18} />}
+                         </button>
+                       ))}
+                    </div>
+                  </div>
+                )}
+
                 {!defaultAddress && (
                   <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
                     <ShieldAlert size={16} /> {lang === 'ar' ? 'يرجى إضافة عنوان أولاً للإرسال.' : 'Please add delivery address first.'}

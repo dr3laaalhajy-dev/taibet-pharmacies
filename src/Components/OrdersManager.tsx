@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan, Camera, Image, ExternalLink } from 'lucide-react';
+import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan, Camera, Image, ExternalLink, Phone, Users } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { UserType, Facility, Order } from '../types';
 import { api } from '../api-client';
@@ -119,12 +119,13 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
     if (!printWindow) return alert(lang === 'ar' ? 'يرجى السماح بالنوافذ المنبثقة (Pop-ups) للطباعة' : 'Please allow pop-ups to print');
 
     // تجهيز أسطر الأدوية
-    const itemsHtml = o.items.map(item => `
+    const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+    const itemsHtml = (Array.isArray(items) ? items : []).map(item => `
       <tr>
         <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">${item.name}</td>
         <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: center;">${item.qty}</td>
-        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left;">${formatCurrency(item.price, 'new', lang)}</td>
-        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; font-weight: bold;">${formatCurrency(parseFloat(item.price) * item.qty, 'new', lang)}</td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left;">${formatCurrency(parseFloat(item.price || '0'), 'new', lang)}</td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; font-weight: bold;">${formatCurrency(parseFloat(item.price || '0') * (item.qty || 1), 'new', lang)}</td>
       </tr>
     `).join('');
 
@@ -160,7 +161,8 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               <strong>${lang === 'ar' ? 'تاريخ الطلب:' : 'Order Date:'}</strong> <span dir="ltr">${new Date(o.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
             </div>
             <div class="details-col">
-              <strong>${lang === 'ar' ? 'اسم المريض:' : 'Patient Name:'}</strong> ${o.customer_name}<br>
+              <strong>${lang === 'ar' ? 'صاحب الطلب:' : 'Order By:'}</strong> ${o.customer_name}<br>
+              ${o.family_member_name ? `<strong>${lang === 'ar' ? 'المريض (فرد عائلة):' : 'Patient (Family):'}</strong> <span style="color: #4f46e5; font-weight: bold;">${o.family_member_name} (${o.family_member_relation})</span><br>` : ''}
               <strong>${lang === 'ar' ? 'رقم الهاتف:' : 'Phone Number:'}</strong> <span dir="ltr">${o.customer_phone}</span>
             </div>
           </div>
@@ -340,7 +342,15 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
             <div className="flex justify-between items-start border-b border-slate-100 pb-4 mb-4">
               <div>
                 <h4 className="font-bold text-lg text-slate-900">{o.customer_name}</h4>
-                <p className="text-sm font-mono text-slate-500 mt-1">{o.customer_phone}</p>
+                {o.family_member_name && (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? 'فرد عائلة' : 'Family Member'}</span>
+                    <span className="text-sm font-bold text-indigo-600">{o.family_member_name} ({o.family_member_relation})</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-slate-500 text-sm mt-1 font-mono">
+                  <Phone size={14} /> <span dir="ltr">{o.customer_phone}</span>
+                </div>
                 {user.role === 'admin' && <p className="text-[10px] bg-indigo-50 px-2 py-1 rounded text-indigo-700 mt-2 font-bold inline-block">صيدلية: {o.pharmacy_name}</p>}
               </div>
               <div className="text-right flex flex-col items-end gap-2">
@@ -376,10 +386,10 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
             </div>
             
             <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              {o.items.map((item, idx) => ( 
+              {(Array.isArray(typeof o.items === 'string' ? JSON.parse(o.items) : o.items) ? (typeof o.items === 'string' ? JSON.parse(o.items) : o.items) : []).map((item: any, idx: number) => ( 
                 <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                   <span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span>
-                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{formatCurrency(parseFloat(item.price) * item.qty, 'new', lang)}</span>
+                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{formatCurrency(parseFloat(item.price || '0') * (item.qty || 1), 'new', lang)}</span>
                 </div> 
               ))}
               <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg">

@@ -71,6 +71,8 @@ const initDB = async () => {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
+    try { await pool.query(`ALTER TABLE family_members ADD COLUMN IF NOT EXISTS gender VARCHAR(20);`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE SET NULL;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS regular_medications TEXT;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS vaccinations TEXT;`); } catch (e) { }
@@ -448,7 +450,7 @@ app.get('/api/public/stats', async (req: any, res: any) => {
 
 app.get('/api/public/products', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, ph.name as pharmacy_name, ph.whatsapp_phone FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.is_ecommerce_enabled = true ORDER BY p.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/orders', async (req: any, res: any) => {
-  const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method, delivery_address, prescription_image_url, status } = req.body;
+  const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method, delivery_address, prescription_image_url, status, family_member_id } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -483,9 +485,10 @@ app.post('/api/public/orders', async (req: any, res: any) => {
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;');
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;');
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';');
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS family_member_id INT;');
     await client.query(
-      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id, delivery_address, prescription_image_url, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId, delivery_address || null, prescription_image_url || null, status || 'pending']
+      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id, delivery_address, prescription_image_url, status, family_member_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId, delivery_address || null, prescription_image_url || null, status || 'pending', family_member_id || null]
     );
     await client.query('COMMIT');
     res.json({ success: true });
@@ -618,14 +621,19 @@ app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
     const q = req.user.role === 'admin'
       ? `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
                COALESCE(o.status, 'pending') as status, o.created_at,
-               o.prescription_image_url, o.delivery_address,
-               ph.name as pharmacy_name
-         FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC`
+               o.prescription_image_url, o.delivery_address, o.family_member_id,
+               ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
+         FROM orders o 
+         JOIN pharmacies ph ON o.pharmacy_id = ph.id 
+         LEFT JOIN family_members fm ON o.family_member_id = fm.id
+         ORDER BY o.id DESC`
       : `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
                COALESCE(o.status, 'pending') as status, o.created_at,
-               o.prescription_image_url, o.delivery_address,
-               ph.name as pharmacy_name
-         FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id
+               o.prescription_image_url, o.delivery_address, o.family_member_id,
+               ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
+         FROM orders o 
+         JOIN pharmacies ph ON o.pharmacy_id = ph.id
+         LEFT JOIN family_members fm ON o.family_member_id = fm.id
          WHERE ph.doctor_id = $1 ORDER BY o.id DESC`;
     const result = await pool.query(q, req.user.role === 'admin' ? [] : [req.user.id]);
     console.log('[GET /api/orders] sample row:', JSON.stringify(result.rows[0]));
@@ -634,6 +642,33 @@ app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: err.message });
   }
 });
+// 👪 Family Members Routes
+app.get('/api/patient/family', authenticateToken, async (req: any, res: any) => {
+  try {
+    const family = await pool.query('SELECT * FROM family_members WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+    res.json(family.rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/patient/family', authenticateToken, async (req: any, res: any) => {
+  const { name, relation, birth_date, gender } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  try {
+    const newMember = await pool.query(
+      'INSERT INTO family_members (user_id, name, relation, birth_date, gender) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.user.id, name, relation, birth_date || null, gender || null]
+    );
+    res.json(newMember.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/patient/family/:id', authenticateToken, async (req: any, res: any) => {
+  try {
+    await pool.query('DELETE FROM family_members WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => {
   try {
     const userPhoneResult = await pool.query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
@@ -641,9 +676,10 @@ app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => 
     
     // 🟢 البحث عن الطلبات المرتبطة بـ user_id الجديد أو رقم الهاتف القديم لضمان عدم ضياع التاريخ
     const query = `
-      SELECT o.*, ph.name as pharmacy_name 
+      SELECT o.*, ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
       FROM orders o 
       LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id 
+      LEFT JOIN family_members fm ON o.family_member_id = fm.id
       WHERE (o.user_id = $1 ${phone ? 'OR o.customer_phone = $2' : ''})
       AND o.created_at >= NOW() - INTERVAL '30 days'
       ORDER BY o.id DESC

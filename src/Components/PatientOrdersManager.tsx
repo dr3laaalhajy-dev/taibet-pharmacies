@@ -70,8 +70,14 @@ export const PatientOrdersManager = ({ lang, currency }: { lang: 'ar' | 'en', cu
         return (
           <div key={order.id} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex justify-between items-start mb-4 border-b dark:border-slate-800 pb-4">
-              <div>
+               <div>
                 <h3 className="font-bold text-lg dark:text-white">{order.pharmacy_name || (lang === 'ar' ? 'صيدلية' : 'Pharmacy')}</h3>
+                {order.family_member_name && (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? 'فرد عائلة' : 'Family Member'}</span>
+                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{order.family_member_name} ({order.family_member_relation})</span>
+                  </div>
+                )}
                 <p className="text-xs text-slate-500 mt-1">{new Date(order.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
               </div>
               <div className="text-right">

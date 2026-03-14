@@ -72,15 +72,20 @@ export interface CartItem extends Product {
 
 export interface Order { 
   id: number; 
+  pharmacy_id: number;
   pharmacy_name: string; 
   customer_name: string; 
   customer_phone: string; 
-  items: CartItem[]; 
+  items: CartItem[] | string; 
   total_price: string; 
   status: 'pending' | 'completed' | 'cancelled' | 'pending_pricing' | 'accepted' | 'awaiting_approval'; 
   created_at: string; 
   prescription_url?: string;
   prescription_image_url?: string;
+  delivery_address?: string;
+  family_member_id?: number | null;
+  family_member_name?: string | null;
+  family_member_relation?: string | null;
 }
 
 export interface FooterSettings {
