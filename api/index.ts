@@ -618,7 +618,7 @@ app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => 
     if (userPhoneResult.rows.length === 0) return res.json([]);
     const phone = userPhoneResult.rows[0].phone;
     if (!phone) return res.json([]);
-    res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE o.customer_phone = $1 ORDER BY o.id DESC', [phone])).rows);
+    res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE o.customer_phone = $1 ORDER BY o.id DESC', [phone])).rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

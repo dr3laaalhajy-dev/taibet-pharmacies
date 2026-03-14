@@ -5,7 +5,7 @@ import { Clock, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Order } from '../types';
 import { formatCurrency } from '../utils/currency';
 
-export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
+export const PatientOrdersManager = ({ lang, currency }: { lang: 'ar' | 'en', currency: 'old' | 'new' }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,13 +57,13 @@ export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   return (
     <div className="space-y-4">
       {orders.map(order => {
-        const isAwaitingApproval = order.status === 'awaiting_approval';
+        const isAwaitingApproval = order.status === 'accepted';
         let statusBadge = null;
-        if (order.status === 'pending') statusBadge = <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">{lang === 'ar' ? 'قيد التجهيز' : 'Processing'}</span>;
-        if (order.status === 'completed') statusBadge = <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">{lang === 'ar' ? 'مكتمل' : 'Completed'}</span>;
-        if (order.status === 'cancelled') statusBadge = <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">{lang === 'ar' ? 'ملغي' : 'Cancelled'}</span>;
-        if (order.status === 'pending_pricing') statusBadge = <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">{lang === 'ar' ? 'قيد التسعير' : 'Pending Pricing'}</span>;
-        if (order.status === 'awaiting_approval') statusBadge = <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">{lang === 'ar' ? 'بانتظار موافقتك' : 'Awaiting Approval'}</span>;
+        if (order.status === 'pending') statusBadge = <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold flex items-center gap-1">{lang === 'ar' ? '🟡 قيد الانتظار' : '🟡 Pending'}</span>;
+        else if (order.status === 'pending_pricing') statusBadge = <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold flex items-center gap-1">{lang === 'ar' ? '🔵 بانتظار التسعير' : '🔵 Needs Pricing'}</span>;
+        else if (order.status === 'accepted') statusBadge = <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold flex items-center gap-1">{lang === 'ar' ? '🟣 بانتظار الدفع' : '🟣 Awaiting Payment'}</span>;
+        else if (order.status === 'completed') statusBadge = <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold flex items-center gap-1">{lang === 'ar' ? '🟢 مكتمل' : '🟢 Completed'}</span>;
+        else if (order.status === 'cancelled') statusBadge = <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1">{lang === 'ar' ? '🔴 ملغي' : '🔴 Cancelled'}</span>;
 
         const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
 
@@ -76,7 +76,7 @@ export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
               </div>
               <div className="text-right">
                 {statusBadge}
-                <div className="font-black text-xl text-indigo-600 dark:text-indigo-400 mt-2" dir="ltr">{formatCurrency(parseFloat(order.total_price || '0'), 'new', lang)}</div>
+                <div className="font-black text-xl text-indigo-600 dark:text-indigo-400 mt-2" dir="ltr">{formatCurrency(parseFloat(order.total_price || '0'), currency, lang)}</div>
               </div>
             </div>
 
@@ -86,22 +86,25 @@ export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
                 {Array.isArray(items) && items.map((item, idx) => (
                   <li key={idx} className="text-sm flex justify-between bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
                     <span className="dark:text-white">{item.name} <span className="text-slate-500">x{item.qty}</span></span>
-                    <span className="font-bold dark:text-white" dir="ltr">{formatCurrency(parseFloat(item.price || '0') * (item.qty || 1), 'new', lang)}</span>
+                    <span className="font-bold dark:text-white" dir="ltr">{formatCurrency(parseFloat(item.price || '0') * (item.qty || 1), currency, lang)}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {(order.prescription_image_url || order.prescription_url) && (
+            {Boolean(order.prescription_image_url || order.prescription_url) && (
               <div className="mb-4">
-                <a href={order.prescription_image_url || order.prescription_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm font-bold flex items-center gap-1"><FileText size={16}/> {lang === 'ar' ? 'عرض الوصفة المرفقة' : 'View Attached Prescription'}</a>
+                <a href={'/'} onClick={(e) => { e.preventDefault(); window.open(order.prescription_image_url || order.prescription_url, '_blank'); }} className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors">
+                  <FileText size={16}/> {lang === 'ar' ? '🔍 عرض الوصفة' : '🔍 View Prescription'}
+                </a>
               </div>
             )}
 
             {isAwaitingApproval && (
               <div className="flex gap-3 pt-4 border-t dark:border-slate-800">
                 <button onClick={() => handleAction(order.id, 'accept')} disabled={isSubmitting} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
-                  <CheckCircle size={18} /> {lang === 'ar' ? 'تأكيد الطلب بهذا السعر' : 'Accept Price & Order'}
+                  <span className="text-xl">💳</span>
+                  {lang === 'ar' ? 'الدفع وتأكيد الطلب' : 'Pay and Confirm'}
                 </button>
                 <button onClick={() => handleAction(order.id, 'reject')} disabled={isSubmitting} className="flex-1 py-3 bg-red-100 text-red-700 rounded-xl font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2">
                   <XCircle size={18} /> {lang === 'ar' ? 'رفض السعر وإلغاء' : 'Reject & Cancel'}

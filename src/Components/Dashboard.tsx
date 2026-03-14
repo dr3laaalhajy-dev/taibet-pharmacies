@@ -1227,7 +1227,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         {activeTab === 'services' && (<div className="animate-in fade-in duration-300"><ServicesManager user={user} facilities={facilities.filter(f => f.type === 'clinic' || f.type === 'dental_clinic')} lang={lang} /></div>)}
         {activeTab === 'products' && (<div className="animate-in fade-in duration-300"><ProductsManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
         {activeTab === 'orders' && (<div className="animate-in fade-in duration-300"><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
-        {activeTab === 'patient_orders' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><h2 className="text-2xl font-bold mb-6 dark:text-white">{lang === 'ar' ? 'طلباتي والأدوية' : 'My Orders & Medications'}</h2><PatientOrdersManager lang={lang} /></div>)}
+        {activeTab === 'patient_orders' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><h2 className="text-2xl font-bold mb-6 dark:text-white">{lang === 'ar' ? 'طلباتي والأدوية' : 'My Orders & Medications'}</h2><PatientOrdersManager lang={lang} currency={currency} /></div>)}
         {activeTab === 'ehr' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><PatientMedicalRecord user={user} lang={lang} /></div>)}
         {activeTab === 'wallet_requests' && (<div className="animate-in fade-in duration-300"><WalletRequestsManager user={user} lang={lang} /></div>)}
 

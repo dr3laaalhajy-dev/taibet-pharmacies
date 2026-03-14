@@ -123,8 +123,8 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
       <tr>
         <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">${item.name}</td>
         <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: center;">${item.qty}</td>
-        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left;" dir="ltr">${item.price}</td>
-        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; font-weight: bold;" dir="ltr">${parseFloat(item.price) * item.qty}</td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left;">${formatCurrency(item.price, 'new', lang)}</td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; font-weight: bold;">${formatCurrency(parseFloat(item.price) * item.qty, 'new', lang)}</td>
       </tr>
     `).join('');
 
@@ -181,14 +181,14 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
 
           <div class="total-box">
             ${lang === 'ar' ? 'المبلغ الإجمالي المطلـوب:' : 'Grand Total:'} 
-            <span dir="ltr" style={{ color: '#4f46e5', background: '#e0e7ff', padding: '5px 15px', borderRadius: '8px', marginLeft: '10px' }}>
+            <span dir="ltr" style="color: #4f46e5; background: #e0e7ff; padding: 5px 15px; border-radius: 8px; margin-left: 10px; display: inline-block;">
               ${formatCurrency(parseFloat(o.total_price || '0'), 'new', lang)}
             </span>
           </div>
 
           <div class="footer">
             ${lang === 'ar' ? 'نشكر لكم ثقتكم بخدماتنا الطبية. مع تمنياتنا لكم بالصحة والعافية.' : 'Thank you for trusting our medical services. Wishing you good health.'}
-            <br>taibet-pharmacies.vercel.app
+            <br>https://www.taiba-health.com/
           </div>
 
           <script>
