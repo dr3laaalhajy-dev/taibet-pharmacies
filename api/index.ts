@@ -10,7 +10,7 @@ import rateLimit from 'express-rate-limit';
 import admin from 'firebase-admin';
 import path from 'path';
 import fs from 'fs';
-import { GoogleGenAI } from '@google/genai';
+
 
 // تهيئة نظام إشعارات فايربيز
 try {
@@ -687,72 +687,59 @@ app.post('/api/ai/triage', async (req: any, res: any) => {
   const { message, history } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.error('[AI Triage] GEMINI_API_KEY is missing from environment variables!');
-    return res.status(500).json({ error: 'مفتاح API الخاص بالمساعد الذكي غير مكوّن في إعدادات الخادم.' });
+    console.error('[AI Triage] GROQ_API_KEY is missing from environment variables!');
+    return res.status(500).json({ error: 'مفتاح API الخاص بـ Groq غير مكوّن في إعدادات الخادم.' });
   }
 
-  // 🟢 إنشاء سياق المحادثة من التاريخ الممرر
-  const conversationHistory: any[] = history && Array.isArray(history)
-    ? history.map((m: any) => ({
-        role: m.role === 'ai' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }))
-    : [];
-  conversationHistory.push({ role: 'user', parts: [{ text: message }] });
+  // 🟢 تحويل التاريخ لتنسيق OpenAI/Groq
+  const messages = [
+    {
+      role: 'system',
+      content: 'You are a professional medical assistant for Taiba Health. Analyze symptoms, suggest the right medical specialty, and always warn that you are not a replacement for a human doctor. If you detect a life-threatening emergency (chest pain, severe bleeding, etc.), start your response with "EMERGENCY:".'
+    }
+  ];
 
-  const SYSTEM_PROMPT = `أنت "مساعد طيبة الصحي"، مساعد ذكي متكامل يعمل ضمن منصة "خدمات طيبة الإمام الصحية". دورك يتمحور حول أربعة محاور أساسية:
-
----
-[المحور الأول: الطوارئ والتوجيه الطبي]
-• الأولوية القصوى: كشف كلمات الخطر (ألم في الصدر، ضيق تنفس، شلل، فقدان وعي، تقيؤ دم، حوادث سقوط). إذا اكتشفت حالة طارئة، اقطع المحادثة فوراً واعرض هذه الرسالة حصراً: "EMERGENCY: توجه لأقرب طوارئ فوراً!". لا تضف أي نص آخر.
-• تحليل الأعراض: متى يصف المريض أعراضاً، قدم تحليلاً موجزاً ووجهه للتخصص الطبي المناسب (مثلاً: طبيب أعصاب، طبيب قلب، طبيب عام) مع دعوته لحجز موعد.
-
-[المحور الثاني: مساعد صيدلاني]
-• أجب عن أسئلة طريقة استخدام الإدوية (متى، كيف، بكم جرعة).
-• اشرح التداخلات الدوائية الشائعة (مثل: هل يمكن أخذ X مع Y).
-• بسّط محتوى النشرة الطبية للمريض.
-• لا تصف أدوية كعلاج، بل أجب على أسئلة المعلومات فقط مع تحذير دائماً: “هذه معلومات تثقيفية، استشر صيدلي؟؟”.
-
-[المحور الثالث: دعم التطبيق]
-أنت خبيرب بنظام خدمات طيبة. أجب عن:
-• نظام العملة: الليرة السورية الجديدة = 100 ليرة قديمة. النظام يخزن أسعاراً بالليرة القديمة ويعرضها بالجديدة.
-• حالة الطلبات: أخبر المستخدم بأن حالة طلبه متاحة في قسم "طلباتي" عبر الداشبورد.
-• حجز المواعيد: أخبره بأن مواعيده متاحة في قسم حجوزاتي ويمكن إلغاؤها من هناك.
-
-[المحور الرابع: نصائح وقائية وصحية]
-• قدم نصائح وقائية لمرضى السكري/الضغط.
-• أجب عن جداول التطعيمات، نصائح تغذية، صحة نفسية.
-• لا تتجاوز موضوع الصحة والطب.
----
-
-قواعد عامة:
-- اكتب بالعربية دائماً.
-- لا تشخّص طبياً ولا تصف علاجاً محدداً.
-- كن موجزاً، دافئاً، ومهنياً.
-- لا تستخدم نقاطاً أو Markdown معقداً.`;
+  if (history && Array.isArray(history)) {
+    history.forEach((m: any) => {
+      messages.push({
+        role: m.role === 'ai' ? 'assistant' : 'user',
+        content: m.content
+      });
+    });
+  }
+  messages.push({ role: 'user', content: message });
 
   try {
-    console.log('[AI Triage] Sending request to Gemini. API Key present:', !!apiKey);
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: conversationHistory,
-      config: { systemInstruction: SYSTEM_PROMPT }
+    console.log('[AI Triage] Sending request to Groq...');
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: messages,
+        temperature: 0.7
+      })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Groq API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data: any = await response.json();
+    const reply = data.choices[0]?.message?.content || '';
+
     console.log('[AI Triage] Response received successfully.');
-    const reply = response.text || '';
-    // 🟢 كشف حالة الطوارئ من رد الذكاء الاصطناعي
     const isEmergency = reply.trim().startsWith('EMERGENCY:');
     res.json({ reply, isEmergency });
   } catch (err: any) {
-    console.error('[AI Triage] Detailed Error:', JSON.stringify({
-      message: err.message, status: err.status, code: err.code,
-      details: err.errorDetails || err.response?.data
-    }, null, 2));
-    res.status(500).json({ error: 'عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.' });
+    console.error('[AI Triage] Groq Error:', err.message);
+    res.status(500).json({ error: 'عذراً، فشل الاتصال بالمساعد الذكي (Groq) حالياً. حاول مجدداً.' });
   }
 });
 
