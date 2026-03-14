@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan, Camera } from 'lucide-react';
+import { CheckCircle, Trash2, Printer, Eye, DollarSign, Scan, Camera, Image, ExternalLink } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { UserType, Facility, Order } from '../types';
 import { api } from '../api-client';
@@ -84,11 +84,11 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
 
     setIsSubmittingPricing(true);
     try {
-      const items = prescriptionItems.map(i => ({ ...i, product_id: -1, price: i.price.toString(), image_url: orders.find(o => o.id === orderId)?.prescription_url }));
+      const items = prescriptionItems.map(i => ({ ...i, product_id: -1, price: i.price.toString(), image_url: orders.find(o => o.id === orderId)?.prescription_image_url }));
       const total = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
       
       await api.patch(`/api/orders/${orderId}/pricing`, { items, total_price: total.toString() });
-      toast.success(lang === 'ar' ? 'تم تسعير الوصفة بنجاح.' : 'Prescription priced successfully.');
+      toast.success(lang === 'ar' ? 'تم تسعير الوصفة بنجاح. سيظهر السعر للمريض.' : 'Prescription priced successfully.');
       setPricingOrderId(null);
       setPrescriptionItems([{ name: '', qty: 1, price: 0 }]);
       loadOrders();
@@ -331,12 +331,29 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               </div>
               <div className="text-right flex flex-col items-end gap-2">
                 <div className="flex items-center gap-2">
-                  {/* 🟢 زر الطباعة الأنيق تمت إضافته هنا */}
+                  {/* 🟢 زر الطباعة */}
                   <button onClick={() => handlePrintInvoice(o)} className="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100" title={lang === 'ar' ? 'طباعة الفاتورة' : 'Print Invoice'}>
                     <Printer size={16} />
                   </button>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${o.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : o.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {o.status === 'pending' ? (lang === 'ar' ? 'قيد الانتظار' : 'Pending') : o.status === 'completed' ? (lang === 'ar' ? 'مكتمل' : 'Completed') : (lang === 'ar' ? 'ملغي' : 'Cancelled')}
+                  {/* 🟢 زر عرض صورة الوصفة — يظهر دائماً إن وجدت */}
+                  {o.prescription_image_url && (
+                    <a href={o.prescription_image_url} target="_blank" rel="noreferrer"
+                      className="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 flex items-center gap-1 text-xs font-bold"
+                      title={lang === 'ar' ? 'عرض صورة الوصفة' : 'View Prescription'}
+                    >
+                      <Image size={14} /> {lang === 'ar' ? 'وصفة' : 'Rx'}
+                    </a>
+                  )}
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    o.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    o.status === 'pending_pricing' ? 'bg-blue-100 text-blue-700' :
+                    o.status === 'accepted' ? 'bg-purple-100 text-purple-700' :
+                    o.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {o.status === 'pending' ? (lang === 'ar' ? 'قيد الانتظار' : 'Pending') :
+                     o.status === 'pending_pricing' ? (lang === 'ar' ? 'بانتظار التسعير' : 'Needs Pricing') :
+                     o.status === 'accepted' ? (lang === 'ar' ? 'تم التسعير' : 'Priced') :
+                     o.status === 'completed' ? (lang === 'ar' ? 'مكتمل' : 'Completed') : (lang === 'ar' ? 'ملغي' : 'Cancelled')}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1" dir="ltr">{new Date(o.created_at).toLocaleString('ar-EG')}</p>
@@ -356,37 +373,39 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               </div>
             </div>
 
-            {o.status === 'pending_pricing' && o.prescription_url && (
+            {(o.status === 'pending_pricing' || o.prescription_image_url) && o.prescription_image_url && (
               <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                <div className="flex justify-between items-center mb-4">
-                  <h5 className="font-bold text-blue-900 flex items-center gap-2"><Eye size={18}/> {lang === 'ar' ? 'صورة الوصفة الطبية' : 'Prescription Image'}</h5>
-                  <a href={o.prescription_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold">{lang === 'ar' ? 'تكبير' : 'Enlarge'}</a>
+                <div className="flex justify-between items-center mb-3">
+                  <h5 className="font-bold text-blue-900 flex items-center gap-2"><Image size={18}/> {lang === 'ar' ? 'صورة الوصفة الطبية' : 'Prescription Image'}</h5>
+                  <a href={o.prescription_image_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center gap-1"><ExternalLink size={14}/>{lang === 'ar' ? 'فتح كاملاً' : 'Open full'}</a>
                 </div>
-                <img src={o.prescription_url} className="w-full max-h-48 object-contain rounded-xl bg-white border border-blue-200 mb-4" />
+                <img src={o.prescription_image_url} className="w-full max-h-52 object-contain rounded-xl bg-white border border-blue-200 mb-4" alt="prescription" />
                 
-                {pricingOrderId === o.id ? (
+                {/* Pricing section - only for pending_pricing */}
+                {o.status === 'pending_pricing' && (
+                  pricingOrderId === o.id ? (
                   <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mt-4">
-                    <h6 className="font-bold mb-3">{lang === 'ar' ? 'تسعير الوصفة:' : 'Price Prescription:'}</h6>
+                    <h6 className="font-bold mb-3 text-slate-800">{lang === 'ar' ? 'تسعير الوصفة:' : 'Price Prescription:'}</h6>
                     {prescriptionItems.map((item, idx) => (
                       <div key={idx} className="flex gap-2 mb-2">
-                         <input type="text" placeholder={lang === 'ar' ? 'اسم الدواء' : 'Medicine'} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg outline-none" value={item.name} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].name = e.target.value; setPrescriptionItems(newItems); }} />
+                         <input type="text" placeholder={lang === 'ar' ? 'اسم الدواء' : 'Medicine'} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500" value={item.name} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].name = e.target.value; setPrescriptionItems(newItems); }} />
                          <input type="number" min="1" placeholder="Qty" className="w-16 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center" value={item.qty} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].qty = parseInt(e.target.value) || 1; setPrescriptionItems(newItems); }} />
-                         <input type="number" min="0" placeholder="Price" className="w-24 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center" value={item.price} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].price = parseFloat(e.target.value) || 0; setPrescriptionItems(newItems); }} />
+                         <input type="number" min="0" placeholder="Price" className="w-24 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center font-bold" value={item.price} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].price = parseFloat(e.target.value) || 0; setPrescriptionItems(newItems); }} />
                          <button onClick={() => { if(prescriptionItems.length > 1) setPrescriptionItems(prescriptionItems.filter((_, i) => i !== idx)) }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     ))}
                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
                       <button onClick={() => setPrescriptionItems([...prescriptionItems, { name: '', qty: 1, price: 0 }])} className="text-sm font-bold text-blue-600 hover:underline">+ {lang === 'ar' ? 'إضافة دواء' : 'Add Item'}</button>
-                      <strong dir="ltr" className="text-emerald-600">{prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0)} LS</strong>
+                      <strong dir="ltr" className="text-emerald-600 text-lg">{prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0)} LS</strong>
                     </div>
                     <div className="flex gap-2 mt-4">
-                       <button onClick={() => submitPricing(o.id)} disabled={isSubmittingPricing} className="flex-1 bg-emerald-500 text-white py-2 rounded-lg font-bold hover:bg-emerald-600 transition-colors">{lang === 'ar' ? 'إرسال التسعيرة للمريض' : 'Submit Price'}</button>
-                       <button onClick={() => setPricingOrderId(null)} className="px-4 bg-slate-100 text-slate-600 py-2 rounded-lg font-bold hover:bg-slate-200 transition-colors">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+                       <button onClick={() => submitPricing(o.id)} disabled={isSubmittingPricing} className="flex-1 bg-emerald-500 text-white py-2.5 rounded-xl font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2">{isSubmittingPricing ? <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"/> : <CheckCircle size={16}/>}{lang === 'ar' ? 'إرسال التسعيرة للمريض' : 'Submit Price'}</button>
+                       <button onClick={() => setPricingOrderId(null)} className="px-4 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold hover:bg-slate-200">{lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setPricingOrderId(o.id); setPrescriptionItems([{ name: '', qty: 1, price: 0 }]); }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 transition-colors shadow-sm mt-4"><DollarSign size={18}/> {lang === 'ar' ? 'تسعير الوصفة الآن' : 'Price Now'}</button>
-                )}
+                  <button onClick={() => { setPricingOrderId(o.id); setPrescriptionItems([{ name: '', qty: 1, price: 0 }]); }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 flex justify-center items-center gap-2 transition-colors shadow-sm mt-2"><DollarSign size={18}/> {lang === 'ar' ? 'تسعير الوصفة الآن' : 'Price Now'}</button>
+                ))}
               </div>
             )}
             
