@@ -91,7 +91,7 @@ export const uploadImageToImgBB = async (file: File): Promise<string> => {
   formData.append('image', file);
 
   // ضع مفتاح الـ API الخاص بك هنا (تأكد أنه صحيح ومكتمل)
-  const IMGBB_API_KEY = '6c2a41b...'; // استبدل هذا بمفتاحك الحقيقي الكامل
+  const IMGBB_API_KEY = 'ba0a89c85f4f7651c6daab7d351989ed'; // استبدل هذا بمفتاحك الحقيقي الكامل
 
   try {
     // 3. الإرسال بدون تحديد Content-Type (المتصفح سيتكفل بها)
