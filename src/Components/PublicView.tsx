@@ -6,11 +6,12 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
 import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 
 const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, lang: string }) => (
   <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm rounded-full p-1 flex items-center border border-slate-200 dark:border-slate-700 w-fit transition-colors">
-    <button onClick={() => setCurrency('new')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'new' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}</button>
-    <button onClick={() => setCurrency('old')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'old' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{lang === 'ar' ? 'ل.س قديمة' : 'Old L.S'}</button>
+    <button onClick={() => setCurrency('new')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'new' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{getCurrencySymbol('new', lang)}</button>
+    <button onClick={() => setCurrency('old')} className={`px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-xs font-bold transition-all ${currency === 'old' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{getCurrencySymbol('old', lang)}</button>
   </div>
 );
 
@@ -76,8 +77,6 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   if (!doctorId) return null;
 
   const fee = doctor?.consultation_price || doctor?.facilities?.[0]?.consultation_fee || 0;
-  const displayFee = currency === 'new' ? Number(fee) / 100 : Number(fee);
-  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
   const primaryFacility = facilityId ? doctor?.facilities?.find((f:any) => f.id === facilityId) : doctor?.facilities?.[0];
 
   const submitReview = async () => {
@@ -238,7 +237,7 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                 <div className="bg-blue-600 dark:bg-blue-700 text-white text-center py-3 font-bold">{lang === 'ar' ? 'معلومات الحجز' : 'Booking Info'}</div>
                 <div className="p-5">
                   <div className="flex justify-between items-center text-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
-                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 dark:text-slate-500 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800 dark:text-white">{displayFee.toLocaleString()} {currencyLabel}</span></div>
+                    <div><Activity className="mx-auto text-emerald-500 mb-1"/><span className="block text-xs text-slate-400 dark:text-slate-500 mb-1">{lang === 'ar' ? 'سعر الكشف' : 'Consultation'}</span><span className="font-bold text-slate-800 dark:text-white">{formatCurrency(fee, currency, lang)}</span></div>
                     <div className="border-r border-slate-100 dark:border-slate-800 h-10"></div>
                     <div><Clock className="mx-auto text-orange-500 mb-1"/><span className="block text-xs text-slate-400 dark:text-slate-500 mb-1">{lang === 'ar' ? 'مدة الانتظار' : 'Wait Time'}</span><span className="font-bold text-slate-800 dark:text-white">{primaryFacility?.waiting_time || '15 دقيقة'}</span></div>
                   </div>
@@ -338,7 +337,6 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
     return roleMatch && matchName && matchSpecialty && matchPrice;
   });
 
-  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
   const directoryTitle = filterRole === 'dentist' ? (lang === 'ar' ? 'دليل أطباء الأسنان' : 'Dentists Directory') : (lang === 'ar' ? 'دليل الأطباء البشري' : 'Medical Doctors Directory');
 
   return (
@@ -378,7 +376,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex justify-between">
             <span>{lang === 'ar' ? 'سعر الكشف (الحد الأقصى)' : 'Max Consultation Fee'}</span>
-            <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-md">{(currency === 'new' ? maxPrice / 100 : maxPrice).toLocaleString()} {currencyLabel}</span>
+            <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-md">{formatCurrency(maxPrice, currency, lang)}</span>
           </label>
           <input type="range" min="0" max="300000" step="5000" className="w-full mt-3 accent-blue-600 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer" value={maxPrice} onChange={e => setMaxPrice(Number(e.target.value))} />
           <div className="flex justify-between text-xs text-slate-400 mt-2">
@@ -408,7 +406,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
               <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">{lang === 'ar' ? 'سعر الكشف' : 'Fee'}</span>
-                  <span className="text-sm font-extrabold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg">{(currency === 'new' ? fee / 100 : fee).toLocaleString()} {currencyLabel}</span>
+                  <span className="text-sm font-extrabold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg">{formatCurrency(fee, currency, lang)}</span>
                 </div>
                 <button className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 py-3 rounded-xl text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">{lang === 'ar' ? 'عرض الملف والحجز' : 'View Profile & Book'}</button>
               </div>
@@ -449,7 +447,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
   const updateQty = (id: number, delta: number, maxAllowed: number, totalStock: number) => { setCart(prev => prev.map(item => { if (item.product_id === id) { const newQty = item.qty + delta; if (newQty > 0 && newQty <= Math.min(maxAllowed || totalStock, totalStock)) return { ...item, qty: newQty }; } return item; })); };
   
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
-  const currencyLabel = currency === 'new' ? (lang === 'ar' ? 'ل.س جديدة' : 'New L.S') : (lang === 'ar' ? 'ل.س' : 'L.S');
 
   const submitOrder = async (e: React.FormEvent) => { 
     e.preventDefault(); 
@@ -514,7 +511,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                     {item.image_url ? <img src={item.image_url} className="w-16 h-16 object-cover rounded-xl"/> : <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center"><Package size={20} className="dark:text-slate-400"/></div>}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-sm line-clamp-1 dark:text-slate-200">{item.name}</h4>
-                      <p className="text-emerald-600 dark:text-emerald-400 font-bold text-sm" dir="ltr">{(parseFloat(item.price) / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</p>
+                      <p className="text-emerald-600 dark:text-emerald-400 font-bold text-sm" dir="ltr">{formatCurrency(parseFloat(item.price), currency, lang)}</p>
                       <div className="flex items-center gap-3 mt-2"><button onClick={() => updateQty(item.product_id, 1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 dark:bg-slate-700 dark:text-slate-300 p-1 rounded-md hover:bg-slate-200"><Plus size={14}/></button><span className="font-bold text-sm dark:text-slate-200">{item.qty}</span><button onClick={() => updateQty(item.product_id, -1, item.max_per_user || item.quantity, item.quantity)} className="bg-slate-100 dark:bg-slate-700 dark:text-slate-300 p-1 rounded-md hover:bg-slate-200"><Minus size={14}/></button></div>
                     </div>
                     <button onClick={() => removeFromCart(item.product_id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg"><Trash2 size={18}/></button>
@@ -524,7 +521,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
               <div className="p-6 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                 <div className="flex justify-between items-center mb-4 text-lg font-bold dark:text-white">
                   <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
-                  <span dir="ltr" className="text-emerald-600 dark:text-emerald-400">{(cartTotal / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>
+                  <span dir="ltr" className="text-emerald-600 dark:text-emerald-400">{formatCurrency(cartTotal, currency, lang)}</span>
                 </div>
                 
                 <div className="mb-4 bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
@@ -543,7 +540,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
                   <label className={`flex-1 flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 cursor-pointer font-bold text-sm transition-colors ${paymentMethod === 'wallet' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                     <input type="radio" className="hidden" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
                     <div className="flex items-center gap-1">💳 {lang === 'ar' ? 'المحفظة' : 'Wallet'}</div>
-                    {user && <span className="text-[10px] font-mono">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>}
+                    {user && <span className="text-[10px] font-mono">{formatCurrency(parseFloat(user.wallet_balance || '0'), currency, lang)}</span>}
                   </label>
                 </div>
                 
@@ -603,7 +600,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
             <h3 className="font-bold text-slate-900 dark:text-slate-200 line-clamp-2 text-sm md:text-base leading-snug mb-2">{p.name}</h3>
             {p.max_per_user && <span className="text-[10px] text-red-500 dark:text-red-400 mb-2 block font-bold">{lang === 'ar' ? `الحد الأقصى للفرد: ${p.max_per_user}` : `Max per user: ${p.max_per_user}`}</span>}
             <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="font-extrabold text-lg text-slate-900 dark:text-white" dir="ltr">{(parseFloat(p.price) / (currency === 'new' ? 100 : 1)).toLocaleString()} {currencyLabel}</span>
+              <span className="font-extrabold text-lg text-slate-900 dark:text-white" dir="ltr">{formatCurrency(parseFloat(p.price), currency, lang)}</span>
             </div>
             {!isOutOfStock && (<button onClick={() => addToCart(p)} disabled={!!isMaxed} className={`mt-3 w-full py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 transition-colors ${isMaxed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'}`}><Plus size={14}/> {isMaxed ? (lang === 'ar' ? 'الحد الأقصى' : 'Max Reached') : (lang === 'ar' ? 'أضف للسلة' : 'Add to Cart')}</button>)}
           </div>

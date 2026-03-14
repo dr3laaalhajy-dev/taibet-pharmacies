@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Package, UploadCloud, Edit2, Trash2 } from 'lucide-react';
 import { UserType, Facility, Product } from '../types';
 import { api, uploadImageToImgBB } from '../api-client';
+import { formatCurrency } from '../utils/currency';
 
 export const ProductsManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [form, setForm] = useState<Partial<Product>>({ name: '', price: '', quantity: 1, max_per_user: undefined, pharmacy_id: facilities[0]?.id || 0 }); const [editingId, setEditingId] = useState<number | null>(null); const [uploadingImage, setUploadingImage] = useState(false); const [loading, setLoading] = useState(true); const [adminFilter, setAdminFilter] = useState<number | 'all'>('all');
@@ -51,7 +52,7 @@ export const ProductsManager = ({ user, facilities, lang }: { user: UserType, fa
                 {user.role === 'admin' && <span className="text-[10px] text-emerald-600 block">{p.pharmacy_name}</span>}
                 <h4 className="font-bold text-sm truncate">{p.name}</h4>
                 <div className="flex justify-between items-center mt-2 text-xs">
-                  <span className="font-bold" dir="ltr">{p.price}ل.س جديدة </span>
+                  <span className="font-bold" dir="ltr">{formatCurrency(parseFloat(p.price), 'new', lang)}</span>
                   <span className={`px-2 py-1 rounded-md font-bold ${p.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{p.quantity > 0 ? (lang === 'ar' ? `كمية: ${p.quantity}` : `Qty: ${p.quantity}`) : (lang === 'ar' ? 'نفذت' : 'Out of Stock')}</span>
                 </div>
               </div>

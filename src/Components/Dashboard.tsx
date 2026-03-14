@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import { SuccessModal } from './SuccessModal';
 import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse, PieChart, Mic, Image as ImageIcon, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -834,7 +835,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               )}
             </div>
           </div>
-          <div className="text-xl font-extrabold relative z-10" dir="ltr">{(parseFloat(user.wallet_balance || '0') / 100).toLocaleString()} ل.س جديدة </div>
+          <div className="text-xl font-extrabold relative z-10" dir="ltr">{formatCurrency(parseFloat(user.wallet_balance || '0'), 'new', lang)}</div>
         </div>
 
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide mt-2">
@@ -1291,7 +1292,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                   const isTargetSuperAdmin = (SUPER_ADMINS || []).includes(u.email) || superAdmins.includes(u.email); const canEditTarget = !isTargetSuperAdmin || u.email === user.email; const canDeleteTarget = !isTargetSuperAdmin; 
                   return (
                     <div key={u.id} className={`p-5 md:p-6 rounded-2xl border shadow-sm flex flex-col gap-4 ${!u.is_active ? 'bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}>
-                      <div className="flex items-center gap-4"><div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xl shrink-0">{u.name[0]}</div><div className="flex-1 min-w-0"><div className="flex justify-between items-start"><span className="font-bold text-slate-900 dark:text-white truncate text-left text-base md:text-lg">{u.name}</span>{!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">Pending</span>}</div><p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 truncate mt-1" dir="ltr">{u.email}</p><div className="flex gap-2 mt-2 flex-wrap"><span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isTargetSuperAdmin ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>{u.role}</span><span className="inline-block px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider">{(parseFloat(u.wallet_balance || '0') / 100).toLocaleString()} ل.س جديدة </span></div></div></div>
+                      <div className="flex items-center gap-4"><div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xl shrink-0">{u.name[0]}</div><div className="flex-1 min-w-0"><div className="flex justify-between items-start"><span className="font-bold text-slate-900 dark:text-white truncate text-left text-base md:text-lg">{u.name}</span>{!u.is_active && <span className="shrink-0 px-2 py-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold rounded-full mr-2">Pending</span>}</div><p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 truncate mt-1" dir="ltr">{u.email}</p><div className="flex gap-2 mt-2 flex-wrap"><span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isTargetSuperAdmin ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>{u.role}</span><span className="inline-block px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider">{formatCurrency(parseFloat(u.wallet_balance || '0'), 'new', lang)}</span></div></div></div>
                       <div className="flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-4 mt-auto">
                         {!u.is_active && <button onClick={() => approveUser(u.id)} className="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><CheckCircle size={14} /> {lang === 'ar' ? 'تفعيل' : 'Approve'}</button>}
                         {isSuperAdmin && <button onClick={() => setAdminWalletModal({isOpen: true, userId: u.id})} className="flex-1 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Banknote size={14} /> {lang === 'ar' ? 'الرصيد' : 'Balance'}</button>}
@@ -1392,7 +1393,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-bold mb-2 dark:text-slate-300">{lang === 'ar' ? 'سعر الكشفية (ل.س جديدة)' : 'Consultation Fee (New L.S)'}</label>
+                        <label className="block text-sm font-bold mb-2 dark:text-slate-300">{lang === 'ar' ? `سعر الكشفية (${getCurrencySymbol('new', lang)})` : `Consultation Fee (${getCurrencySymbol('new', lang)})`}</label>
                         <input type="number" min="0" step="0.01" className="w-full p-3 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500" value={doctorForm.consultation_price} onChange={e => setDoctorForm({...doctorForm, consultation_price: Number(e.target.value)})} disabled={isSubmittingDoctorProfile} />
                       </div>
                       <div className="md:col-span-2">
@@ -1540,7 +1541,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               </div>
               <form onSubmit={submitWalletRequest}>
                 <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-center">{lang === 'ar' ? 'أدخل المبلغ بـ (ل.س جديدة)' : 'Amount in (New L.S)'}</label>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-center">{lang === 'ar' ? `أدخل المبلغ بـ (${getCurrencySymbol('new', lang)})` : `Amount in (${getCurrencySymbol('new', lang)})`}</label>
                   <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-blue-100 dark:border-blue-900/50 dark:bg-slate-800 rounded-2xl outline-none text-center text-3xl font-extrabold text-blue-600 dark:text-blue-400 focus:border-blue-500 transition-colors" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} disabled={isSubmittingWalletRequest} />
                 </div>
                 <button type="submit" disabled={isSubmittingWalletRequest} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
@@ -1571,7 +1572,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                   </label>
                 </div>
 
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-center">{lang === 'ar' ? 'المبلغ بـ (ل.س جديدة)' : 'Amount in New L.S'}</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-center">{lang === 'ar' ? `المبلغ بـ (${getCurrencySymbol('new', lang)})` : `Amount in (${getCurrencySymbol('new', lang)})`}</label>
                 <input type="number" min="1" step="0.01" required className="w-full px-4 py-4 border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-2xl outline-none focus:border-blue-500 mb-6 text-center text-3xl font-extrabold text-slate-800 dark:text-white transition-colors" placeholder="0" value={adminWalletAmount} onChange={e => setAdminWalletAmount(e.target.value)} disabled={isSubmittingAdminWallet} />
                 
                 <button type="submit" disabled={isSubmittingAdminWallet} className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${adminWalletAction === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
@@ -1625,7 +1626,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                   
                   {isSuperAdmin && (
                     <div>
-                      <label className="block text-sm font-bold mb-1 dark:text-slate-300">{lang === 'ar' ? 'رصيد المحفظة (ل.س جديدة)' : 'Wallet Balance (New L.S)'}</label>
+                      <label className="block text-sm font-bold mb-1 dark:text-slate-300">{lang === 'ar' ? `رصيد المحفظة (${getCurrencySymbol('new', lang)})` : `Wallet Balance (${getCurrencySymbol('new', lang)})`}</label>
                       <input 
                         type="number" step="0.01" 
                         className="w-full px-4 py-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" 

@@ -181,8 +181,8 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
 
           <div class="total-box">
             ${lang === 'ar' ? 'المبلغ الإجمالي المطلـوب:' : 'Grand Total:'} 
-            <span dir="ltr" style="color: #4f46e5; background: #e0e7ff; padding: 5px 15px; border-radius: 8px; margin-left: 10px;">
-              ${o.total_price} ${lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}
+            <span dir="ltr" style={{ color: '#4f46e5', background: '#e0e7ff', padding: '5px 15px', borderRadius: '8px', marginLeft: '10px' }}>
+              ${formatCurrency(parseFloat(o.total_price || '0'), 'new', lang)}
             </span>
           </div>
 
@@ -302,7 +302,7 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                 <div className="text-center">
                   <span className="block text-xs font-bold text-slate-500 mb-1">{lang === 'ar' ? 'المجموع الكلي المطلوب:' : 'Grand Total:'}</span>
                   <div className="text-2xl font-bold px-6 py-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 flex items-center gap-2">
-                    {scannedPrescription.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0)} <span className="text-sm">{lang==='ar'?'ل.س':'LS'}</span>
+                    {formatCurrency(scannedPrescription.items.reduce((sum: number, item: any) => sum + (item.price * item.qty), 0), 'new', lang)}
                   </div>
                 </div>
              </div>
@@ -409,10 +409,10 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                       {/* Currency toggle for pharmacist input */}
                       <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
                         <button onClick={() => setPricingCurrency('new')} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${pricingCurrency === 'new' ? 'bg-emerald-500 text-white shadow' : 'text-slate-500 hover:bg-slate-200'}`}>
-                          {lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}
+                          {getCurrencySymbol('new', lang)}
                         </button>
                         <button onClick={() => setPricingCurrency('old')} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${pricingCurrency === 'old' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:bg-slate-200'}`}>
-                          {lang === 'ar' ? 'ل.س قديمة' : 'Old L.S'}
+                          {getCurrencySymbol('old', lang)}
                         </button>
                       </div>
                     </div>
@@ -429,7 +429,7 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                       {/* Show running total in chosen currency */}
                       <strong dir="ltr" className="text-emerald-600 text-lg">
                         {prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0).toLocaleString()} {getCurrencySymbol(pricingCurrency, lang)}
-                        {pricingCurrency === 'new' && <span className="text-xs text-slate-400 ml-1">(= {(prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0) * 100).toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'})</span>}
+                        {pricingCurrency === 'new' && <span className="text-xs text-slate-400 ml-1">(= {formatCurrency((prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0) * 100), 'old', lang)})</span>}
                       </strong>
                     </div>
                     <div className="flex gap-2 mt-4">

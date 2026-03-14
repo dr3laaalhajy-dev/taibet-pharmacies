@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, XCircle, X, Clock, Trash2 } from 'lucide-react';
 import { api } from '../api-client';
 import { UserType, SUPER_ADMINS } from '../types';
+import { formatCurrency } from '../utils/currency';
 
 export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: 'ar' | 'en' }) => {
   const [requests, setRequests] = useState<any[]>([]);
@@ -67,7 +68,7 @@ export const WalletRequestsManager = ({ user, lang }: { user: UserType, lang: 'a
                 <p className="font-bold text-slate-900">{req.user_name} <span className="text-xs text-slate-500">({req.user_email})</span></p>
                 <p className="text-sm font-bold mt-2">
                   <span className={req.type === 'deposit' ? 'text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md' : 'text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md'}>{req.type === 'deposit' ? 'إيداع' : 'سحب'}</span>
-                  <span className="mx-3 text-slate-300">|</span><span dir="ltr">{(Number(req.amount) / 100).toLocaleString()} ل.س جديدة</span>
+                  <span className="mx-3 text-slate-300">|</span><span dir="ltr">{formatCurrency(Number(req.amount), 'new', lang)}</span>
                 </p> {/* 🟢 تم إضافة قوس الإغلاق هنا بنجاح! */}
               </div>
               

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { translations } from './translations';
 import { UserType, FooterSettings } from './types';
 import { api } from './api-client';
+import { formatCurrency, getCurrencySymbol } from './utils/currency';
 import { PublicView } from './Components/PublicView';
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
@@ -554,7 +555,7 @@ export default function App() {
 
             {user && (
               <button onClick={() => setShowWalletModal(true)} className="hidden sm:flex bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-3 py-1.5 rounded-full items-center gap-2 text-sm font-bold border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                <Wallet size={16} /> <span dir="ltr">{(parseFloat(user.wallet_balance || '0') / (currency === 'new' ? 100 : 1))} {currency === 'new' ? 'ل.س جديدة' : 'ل.س'}</span>
+                <Wallet size={16} /> <span dir="ltr">{formatCurrency(parseFloat(user.wallet_balance || '0'), currency, lang)}</span>
                 <Plus size={14} className="bg-blue-600 text-white rounded-full p-0.5 ml-1" />
               </button>
             )}
@@ -695,7 +696,7 @@ export default function App() {
 
                 <form onSubmit={submitWalletRequest} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'المبلغ المراد شحنه (ل.س جديدة)' : 'Amount (L.S)'}</label>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? `المبلغ المراد شحنه (${getCurrencySymbol('new', lang)})` : `Amount (${getCurrencySymbol('new', lang)})`}</label>
                     <div className="relative">
                       <input
                         required type="number"
@@ -704,7 +705,7 @@ export default function App() {
                         value={walletAmount}
                         onChange={e => setWalletAmount(e.target.value)}
                       />
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{lang === 'ar' ? 'ل.س جديدة' : 'L.S'}</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">{getCurrencySymbol('new', lang)}</span>
                     </div>
                   </div>
                   <button type="submit" disabled={isSubmittingWallet || !walletAmount} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2">

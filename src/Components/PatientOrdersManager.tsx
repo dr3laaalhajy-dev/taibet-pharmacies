@@ -3,6 +3,7 @@ import { api } from '../api-client';
 import { toast } from 'react-hot-toast';
 import { Clock, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Order } from '../types';
+import { formatCurrency } from '../utils/currency';
 
 export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -75,7 +76,7 @@ export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
               </div>
               <div className="text-right">
                 {statusBadge}
-                <div className="font-black text-xl text-indigo-600 dark:text-indigo-400 mt-2" dir="ltr">{(parseFloat(order.total_price || '0') / 100).toLocaleString()} <span className="text-xs font-normal">LS</span></div>
+                <div className="font-black text-xl text-indigo-600 dark:text-indigo-400 mt-2" dir="ltr">{formatCurrency(parseFloat(order.total_price || '0'), 'new', lang)}</div>
               </div>
             </div>
 
@@ -85,15 +86,15 @@ export const PatientOrdersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
                 {Array.isArray(items) && items.map((item, idx) => (
                   <li key={idx} className="text-sm flex justify-between bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
                     <span className="dark:text-white">{item.name} <span className="text-slate-500">x{item.qty}</span></span>
-                    <span className="font-bold dark:text-white" dir="ltr">{(parseFloat(item.price || '0') * (item.qty || 1) / 100).toLocaleString()} LS</span>
+                    <span className="font-bold dark:text-white" dir="ltr">{formatCurrency(parseFloat(item.price || '0') * (item.qty || 1), 'new', lang)}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {order.prescription_url && (
+            {(order.prescription_image_url || order.prescription_url) && (
               <div className="mb-4">
-                <a href={order.prescription_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm font-bold flex items-center gap-1"><FileText size={16}/> {lang === 'ar' ? 'عرض الوصفة المرفقة' : 'View Attached Prescription'}</a>
+                <a href={order.prescription_image_url || order.prescription_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm font-bold flex items-center gap-1"><FileText size={16}/> {lang === 'ar' ? 'عرض الوصفة المرفقة' : 'View Attached Prescription'}</a>
               </div>
             )}
 
