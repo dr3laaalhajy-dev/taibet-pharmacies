@@ -67,7 +67,13 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
     handleQRData(scannedQR);
   };
 
-  const loadOrders = () => { api.get('/api/orders').then(setOrders).finally(() => setLoading(false)); };
+  const loadOrders = () => {
+    api.get('/api/orders').then((data: Order[]) => {
+      console.log('[OrdersManager] loaded orders count:', data.length);
+      data.forEach((o: Order) => console.log(`  Order #${o.id}: status=${o.status}, prescription_image_url=${o.prescription_image_url || 'NULL'}`));
+      setOrders(data);
+    }).finally(() => setLoading(false));
+  };
   
   useEffect(() => { loadOrders(); return () => { if (scannerRef.current) scannerRef.current.clear().catch(()=>{}); }; }, []);
   
@@ -409,10 +415,15 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               </div>
             )}
             
+            {/* Action buttons */}
             {o.status === 'pending' || o.status === 'awaiting_approval' ? (
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2">
                 <button onClick={() => updateStatus(o.id, 'completed')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 flex justify-center items-center gap-2 transition-colors shadow-sm"><CheckCircle size={18}/> {lang === 'ar' ? 'قبول وإنهاء' : 'Complete'}</button>
                 <button onClick={() => updateStatus(o.id, 'cancelled')} className="px-6 bg-red-50 text-red-600 py-3 rounded-xl font-bold hover:bg-red-100 transition-colors"><Trash2 size={18}/></button>
+              </div>
+            ) : o.status === 'pending_pricing' ? (
+              <div className="flex gap-3 mt-2">
+                <button onClick={() => updateStatus(o.id, 'cancelled')} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-bold hover:bg-red-100 transition-colors flex justify-center items-center gap-2"><Trash2 size={18}/> {lang === 'ar' ? 'رفض الطلب' : 'Reject Order'}</button>
               </div>
             ) : (
               (user.email.includes('admin') || user.role === 'admin') && (

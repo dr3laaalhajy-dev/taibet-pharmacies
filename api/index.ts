@@ -586,7 +586,32 @@ app.get('/api/products', authenticateToken, async (req: any, res: any) => { try 
 app.post('/api/products', authenticateToken, async (req: any, res: any) => { const { pharmacy_id, name, price, quantity, image_url, max_per_user } = req.body; try { await pool.query('INSERT INTO products (pharmacy_id, name, price, quantity, image_url, max_per_user) VALUES ($1, $2, $3, $4, $5, $6)', [pharmacy_id, name, price, quantity, image_url || null, max_per_user || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.put('/api/products/:id', authenticateToken, async (req: any, res: any) => { const { name, price, quantity, image_url, max_per_user } = req.body; try { await pool.query('UPDATE products SET name = $1, price = $2, quantity = $3, image_url = $4, max_per_user = $5 WHERE id = $6', [name, price, quantity, image_url || null, max_per_user || null, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/products/:id', authenticateToken, async (req: any, res: any) => { try { await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.get('/api/orders', authenticateToken, async (req: any, res: any) => { try { await pool.query("DELETE FROM orders WHERE status NOT IN ('pending', 'pending_pricing') AND created_at < NOW() - INTERVAL '1 month'"); res.json((await pool.query(req.user.role === 'admin' ? 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC' : 'SELECT o.*, ph.name as pharmacy_name FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE ph.doctor_id = $1 ORDER BY o.id DESC', req.user.role === 'admin' ? [] : [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
+  try {
+    // Ensure column exists before querying
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;').catch(() => {});
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;').catch(() => {});
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';').catch(() => {});
+    await pool.query("DELETE FROM orders WHERE status NOT IN ('pending', 'pending_pricing', 'accepted') AND created_at < NOW() - INTERVAL '1 month'");
+    const q = req.user.role === 'admin'
+      ? `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
+               COALESCE(o.status, 'pending') as status, o.created_at,
+               o.prescription_image_url, o.delivery_address,
+               ph.name as pharmacy_name
+         FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id ORDER BY o.id DESC`
+      : `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
+               COALESCE(o.status, 'pending') as status, o.created_at,
+               o.prescription_image_url, o.delivery_address,
+               ph.name as pharmacy_name
+         FROM orders o JOIN pharmacies ph ON o.pharmacy_id = ph.id
+         WHERE ph.doctor_id = $1 ORDER BY o.id DESC`;
+    const result = await pool.query(q, req.user.role === 'admin' ? [] : [req.user.id]);
+    console.log('[GET /api/orders] sample row:', JSON.stringify(result.rows[0]));
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => {
   try {
     const userPhoneResult = await pool.query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
