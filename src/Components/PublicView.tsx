@@ -482,7 +482,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
         items: [{ product_id: -1, name: lang === 'ar' ? 'وصفة طبية (صورة)' : 'Prescription (Image)', price: '0', qty: 1, image_url: imageUrl }], 
         total_price: '0', 
         payment_method: 'cash',
-        prescription_url: imageUrl,
+        prescription_image_url: imageUrl,
         status: 'pending_pricing'
       }); 
       setOrderSuccess(true);
