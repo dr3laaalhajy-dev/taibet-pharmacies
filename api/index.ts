@@ -80,6 +80,8 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS marital_status VARCHAR(50);`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS occupation VARCHAR(255);`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]';`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS xray_urls JSONB DEFAULT '[]';`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     // 🟢 إضافة جدول تقييمات الدعم الفني
     await pool.query(`
@@ -420,7 +422,43 @@ app.get('/api/public/stats', async (req: any, res: any) => {
 });
 
 app.get('/api/public/products', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, ph.name as pharmacy_name, ph.whatsapp_phone FROM products p JOIN pharmacies ph ON p.pharmacy_id = ph.id WHERE ph.is_ecommerce_enabled = true ORDER BY p.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/public/orders', async (req: any, res: any) => { const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); let buyerId = null; if (payment_method === 'wallet') { const token = req.cookies.token; if (!token) throw new Error('AuthRequired'); buyerId = (jwt.verify(token, JWT_SECRET) as any).id; await client.query('UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [total_price, buyerId]); } for (const item of items) { await client.query('UPDATE products SET quantity = quantity - $1 WHERE id = $2', [item.qty, item.product_id]); } await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id INT;'); await client.query('INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id) VALUES ($1, $2, $3, $4, $5, $6)', [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId]); await client.query('COMMIT'); res.json({ success: true }); } catch (err: any) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); } });
+app.post('/api/public/orders', async (req: any, res: any) => {
+  const { pharmacy_id, customer_name, customer_phone, items, total_price, payment_method, delivery_address, prescription_image_url, status } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let buyerId = null;
+    // Get buyer from token if available
+    const token = req.cookies.token;
+    if (token) { try { buyerId = (jwt.verify(token, JWT_SECRET) as any).id; } catch (e) {} }
+    // Deduct wallet balance only for wallet payments
+    if (payment_method === 'wallet') {
+      if (!buyerId) throw new Error('AuthRequired');
+      await client.query('UPDATE users SET wallet_balance = wallet_balance - $1 WHERE id = $2', [total_price, buyerId]);
+    }
+    // Only update product quantities for real products (product_id > 0)
+    for (const item of items) {
+      if (item.product_id && item.product_id > 0) {
+        await client.query('UPDATE products SET quantity = quantity - $1 WHERE id = $2', [item.qty, item.product_id]);
+      }
+    }
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS user_id INT;');
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;');
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;');
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';');
+    await client.query(
+      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id, delivery_address, prescription_image_url, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId, delivery_address || null, prescription_image_url || null, status || 'pending']
+    );
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
 app.get('/api/notifications', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.patch('/api/notifications/read', authenticateToken, async (req: any, res: any) => { try { await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE', [req.user.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'محاولات كثيرة.' } });
