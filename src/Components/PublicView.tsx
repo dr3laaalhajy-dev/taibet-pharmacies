@@ -610,7 +610,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
                        {familyMembers.map(m => (
                          <button key={m.id} type="button" onClick={() => setSelectedFamilyMemberId(m.id)} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedFamilyMemberId === m.id ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedFamilyMemberId === m.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}><Users size={16} /></div>
-                           <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{m.name}</p><p className="text-[10px] text-slate-500">{m.relation}</p></div>
+                           <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{m.full_name}</p><p className="text-[10px] text-slate-500">{m.relationship}</p></div>
                            {selectedFamilyMemberId === m.id && <CheckCircle className="text-blue-600" size={18} />}
                          </button>
                        ))}

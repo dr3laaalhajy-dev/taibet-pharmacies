@@ -1,0 +1,11 @@
+android/
+ios/
+node_modules/
+dist/
+.git/
+.vercel/
+.DS_Store
+*.log
+*.sqlite
+*.db
+firebase-key.json

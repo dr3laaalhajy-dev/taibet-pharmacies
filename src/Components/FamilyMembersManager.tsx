@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface FamilyMember {
   id: number;
-  name: string;
-  relation: string;
-  birth_date: string;
+  full_name: string;
+  relationship: string;
+  date_of_birth: string;
   gender: string;
 }
 
@@ -44,15 +44,30 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    // 🛡️ Frontend Validation
+    if (!form.name.trim() || !form.relation) {
+      toast.error(lang === 'ar' ? 'يرجى إدخال الاسم وصلة القرابة' : 'Name and relation are required');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await api.post('/api/family', form);
+      // 🔄 Mapping Frontend state to Backend payload
+      const payload = {
+        full_name: form.name.trim(),
+        relationship: form.relation,
+        date_of_birth: form.birth_date || null,
+        gender: form.gender
+      };
+
+      await api.post('/api/family', payload);
       toast.success(lang === 'ar' ? 'تمت إضافة فرد العائلة بنجاح' : 'Family member added successfully');
       setShowAddModal(false);
       setForm({ name: '', relation: 'أخرى', birth_date: '', gender: 'ذكر' });
       fetchMembers();
     } catch (err) {
-      toast.error(lang === 'ar' ? 'فشل إرسال المسافات' : 'Error saving member');
+      toast.error(lang === 'ar' ? 'فشل إرسال البيانات' : 'Error saving member');
     } finally {
       setIsSubmitting(false);
     }
@@ -104,10 +119,10 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
                   <User size={28} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-900 dark:text-white truncate">{member.name}</h4>
+                  <h4 className="font-bold text-slate-900 dark:text-white truncate">{member.full_name}</h4>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md font-medium">{member.relation}</span>
-                    <span className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={12} /> {member.birth_date ? new Date(member.birth_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US') : (lang === 'ar' ? 'غير محدد' : 'N/A')}</span>
+                    <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md font-medium">{member.relationship}</span>
+                    <span className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={12} /> {member.date_of_birth ? new Date(member.date_of_birth).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US') : (lang === 'ar' ? 'غير محدد' : 'N/A')}</span>
                   </div>
                 </div>
                 <button onClick={() => handleDelete(member.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
