@@ -1,5 +1,11 @@
 // 🟢 الرابط الأساسي للباك إند: الآن يسحب الرابط من ملف .env تلقائياً للعمل على الموبايل!
-const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// 🟢 تحديد الرابط الأساسي للسيرفر
+// نستخدم localhost فقط إذا كنا في بيئة تطوير الويب (وجود بورت مثل 5173 للـ Vite)
+// أما في الموبايل (Capacitor) فيكون الهوست localhost بدون بورت، لذا نستخدم رابط الإنتاج
+const isLocalWebDev = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  (window.location.port === '5173' || window.location.port === '5174' || window.location.port === '3000');
+
+const BASE_URL = isLocalWebDev
   ? 'http://localhost:3000'
   : 'https://www.taiba-health.com';
 

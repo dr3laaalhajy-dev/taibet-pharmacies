@@ -45,6 +45,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
         setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey('');
       }
     } catch (err: any) {
+      console.error("Login Error Details:", err);
       setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.'));
     } finally {
       setLoading(false);
