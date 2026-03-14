@@ -460,8 +460,11 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem('token'); // 🟢 مسح التوكن من التخزين المحلي
     await api.post('/api/auth/logout', {});
-    setUser(null); setView('public'); setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false); setShowRecordsModal(false);
+    setUser(null);
+    setView('public');
+    setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false); setShowRecordsModal(false);
     setHasMedicalRecord(true); // إعادة الضبط
   };
 

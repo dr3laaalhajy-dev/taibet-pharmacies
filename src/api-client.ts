@@ -5,10 +5,12 @@ const BASE_URL = window.location.hostname === 'localhost' || window.location.hos
 
 export const api = {
   get: async (endpoint: string) => {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       credentials: 'include',
     });
@@ -20,10 +22,12 @@ export const api = {
   },
 
   post: async (endpoint: string, body: any) => {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify(body),
@@ -36,10 +40,12 @@ export const api = {
   },
 
   put: async (endpoint: string, body: any) => {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify(body),
@@ -52,10 +58,12 @@ export const api = {
   },
 
   patch: async (endpoint: string, body?: any) => {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       credentials: 'include',
       body: body ? JSON.stringify(body) : undefined,
@@ -68,10 +76,12 @@ export const api = {
   },
 
   delete: async (endpoint: string) => {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       credentials: 'include',
     });

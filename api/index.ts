@@ -104,7 +104,14 @@ const isSuperAdmin = async (email: string) => {
 };
 
 const authenticateToken = (req: any, res: any, next: any) => {
-  const token = req.cookies.token;
+  let token = req.cookies.token;
+  
+  // 🟢 دعم الـ Authorization Header بالإضافة إلى الكوكيز
+  const authHeader = req.headers['authorization'];
+  if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+
   if (!token) return res.status(401).json({ error: 'غير مصرح' });
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) return res.status(403).json({ error: 'ممنوع' });
@@ -446,9 +453,21 @@ app.post('/api/public/orders', async (req: any, res: any) => {
   try {
     await client.query('BEGIN');
     let buyerId = null;
-    // Get buyer from token if available
-    const token = req.cookies.token;
-    if (token) { try { buyerId = (jwt.verify(token, JWT_SECRET) as any).id; } catch (e) {} }
+    // 🟢 استخلاص هوية المشتري من التوكن (Bearer أو Cookie)
+    const authHeader = req.headers['authorization'];
+    let token = req.cookies.token;
+    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+    
+    if (token) { 
+      try { 
+        buyerId = (jwt.verify(token, JWT_SECRET) as any).id; 
+      } catch (e) {} 
+    }
+
+    console.log('[POST /api/public/orders] identified buyerId:', buyerId);
+
     // Deduct wallet balance only for wallet payments
     if (payment_method === 'wallet') {
       if (!buyerId) throw new Error('AuthRequired');
@@ -492,7 +511,10 @@ app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => {
       if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' });
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' });
       res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' });
-      res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } });
+      res.json({ 
+        token, // 🟢 إعادة التوكن في الجسم ليتم حفظه في localStorage بالفرونت إند
+        user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } 
+      });
     } else {
       res.status(401).json({ error: 'بيانات غير صحيحة' });
     }
@@ -615,10 +637,18 @@ app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
 app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => {
   try {
     const userPhoneResult = await pool.query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
-    if (userPhoneResult.rows.length === 0) return res.json([]);
-    const phone = userPhoneResult.rows[0].phone;
-    if (!phone) return res.json([]);
-    res.json((await pool.query('SELECT o.*, ph.name as pharmacy_name FROM orders o LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id WHERE o.customer_phone = $1 ORDER BY o.id DESC', [phone])).rows);
+    const phone = userPhoneResult.rows.length > 0 ? userPhoneResult.rows[0].phone : null;
+    
+    // 🟢 البحث عن الطلبات المرتبطة بـ user_id الجديد أو رقم الهاتف القديم لضمان عدم ضياع التاريخ
+    const query = `
+      SELECT o.*, ph.name as pharmacy_name 
+      FROM orders o 
+      LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id 
+      WHERE o.user_id = $1 ${phone ? 'OR o.customer_phone = $2' : ''}
+      ORDER BY o.id DESC
+    `;
+    const params = phone ? [req.user.id, phone] : [req.user.id];
+    res.json((await pool.query(query, params)).rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

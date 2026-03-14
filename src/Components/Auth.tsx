@@ -4,50 +4,51 @@ import { motion } from 'motion/react';
 import { api } from '../api-client';
 
 export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => void, onBack: () => void, t: any, lang: string }) => {
-  const [isLogin, setIsLogin] = useState(true); 
-  const [email, setEmail] = useState(''); 
-  const [emailPrefix, setEmailPrefix] = useState(''); 
-  const [password, setPassword] = useState(''); 
-  const [name, setName] = useState(''); 
-  const [phone, setPhone] = useState(''); 
-  const [activationKey, setActivationKey] = useState(''); 
-  const [isActivatedByKey, setIsActivatedByKey] = useState(false); 
-  const [role, setRole] = useState('patient'); 
-  const [error, setError] = useState(''); 
-  const [successMsg, setSuccessMsg] = useState(''); 
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [emailPrefix, setEmailPrefix] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [activationKey, setActivationKey] = useState('');
+  const [isActivatedByKey, setIsActivatedByKey] = useState(false);
+  const [role, setRole] = useState('patient');
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   // 🟢 الحالة الجديدة للتحكم بظهور كلمة المرور
   const [showPassword, setShowPassword] = useState(false);
-  
-  const handleSubmit = async (e: React.FormEvent) => { 
-    e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true); 
-    try { 
-      if (isLogin) { 
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(''); setSuccessMsg(''); setLoading(true);
+    try {
+      if (isLogin) {
         // 🟢 الإضافة هنا: تحويل الأحرف إلى صغيرة وإزالة المسافات المخفية
         const cleanEmail = email.toLowerCase().trim();
-        const data = await api.post('/api/auth/login', { email: cleanEmail, password }); 
-        onLogin(data.user); 
-      } else { 
-        const domain = role === 'patient' ? '@taiba.user.sy' : (role === 'dentist' ? '@taiba.dental.sy' : (role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy')); 
+        const data = await api.post('/api/auth/login', { email: cleanEmail, password });
+        if (data.token) localStorage.setItem('token', data.token);
+        onLogin(data.user);
+      } else {
+        const domain = role === 'patient' ? '@taiba.user.sy' : (role === 'dentist' ? '@taiba.dental.sy' : (role === 'doctor' ? '@taiba.Health.sy' : '@taiba.pharma.sy'));
         // 🟢 الإضافة هنا أيضاً: تنظيف اسم المستخدم قبل دمجه مع الدومين
-        const fullEmail = `${emailPrefix.toLowerCase().trim()}${domain}`; 
-        const res = await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role, activationKey }); 
-        
-        if (res.isActive) { 
-          setSuccessMsg('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.'); 
-          setIsActivatedByKey(true); 
-        } else { 
-          setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى التواصل مع الإدارة لتفعيل حسابك (للكوادر الطبية).'); 
-          setIsActivatedByKey(false); 
-        } 
-        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey(''); 
-      } 
-    } catch (err: any) { 
-      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.')); 
-    } finally { 
-      setLoading(false); 
-    } 
+        const fullEmail = `${emailPrefix.toLowerCase().trim()}${domain}`;
+        const res = await api.post('/api/auth/register', { email: fullEmail, password, name, phone, role, activationKey });
+
+        if (res.isActive) {
+          setSuccessMsg('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.');
+          setIsActivatedByKey(true);
+        } else {
+          setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى التواصل مع الإدارة لتفعيل حسابك (للكوادر الطبية).');
+          setIsActivatedByKey(false);
+        }
+        setIsLogin(true); setPassword(''); setEmailPrefix(''); setActivationKey('');
+      }
+    } catch (err: any) {
+      setError(err.error || (isLogin ? t.loginFailed : 'فشل التسجيل.'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -78,7 +79,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
                 )}
               </div>
             )}
-            
+
             {!isLogin && (
               <>
                 <div>
@@ -108,7 +109,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
                 )}
               </>
             )}
-            
+
             {isLogin ? (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
@@ -129,18 +130,18 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
                 </div>
               </div>
             )}
-            
+
             {/* 🟢 حقل كلمة المرور المعدّل مع أيقونة الإظهار والإخفاء */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">{t.password}</label>
               <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" 
-                  dir="ltr" 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left"
+                  dir="ltr"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
@@ -157,7 +158,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
           <div className="mt-6 text-center border-t border-slate-100 pt-6">
             <p className="text-sm text-slate-600">
               {isLogin ? (lang === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?") : (lang === 'ar' ? 'لديك حساب بالفعل؟' : 'Already have an account?')}
-              <button type="button" onClick={() => {setIsLogin(!isLogin); setError(''); setSuccessMsg(''); setShowPassword(false);}} className="text-blue-600 font-bold hover:underline mx-2">
+              <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); setSuccessMsg(''); setShowPassword(false); }} className="text-blue-600 font-bold hover:underline mx-2">
                 {isLogin ? (lang === 'ar' ? 'إنشاء حساب' : 'Sign Up') : (lang === 'ar' ? 'تسجيل الدخول' : 'Login')}
               </button>
             </p>
