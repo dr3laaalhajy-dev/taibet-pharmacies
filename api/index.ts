@@ -356,6 +356,24 @@ app.post('/api/medical-records', authenticateToken, async (req: any, res: any) =
     res.status(500).json({ error: err.message });
   }
 });
+
+// 🟢 PATCH: patient updates specific fields (e.g. xray_urls)
+app.patch('/api/medical-records/:id', authenticateToken, async (req: any, res: any) => {
+  const patientId = parseInt(req.params.id);
+  const updates = req.body; // e.g. { xray_urls: [...] }
+  try {
+    const setClauses = Object.keys(updates).map((key, i) => `${key} = $${i + 2}`);
+    if (setClauses.length === 0) return res.json({ success: true });
+    const values = [patientId, ...Object.values(updates).map(v => typeof v === 'object' ? JSON.stringify(v) : v)];
+    await pool.query(
+      `UPDATE medical_records SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE patient_id = $1`,
+      values
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // 🟢🟢 ====== نهاية نظام السجل الطبي ====== 🟢🟢
 
 app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch (err: any) { res.status(500).json({ error: err.message }); } });

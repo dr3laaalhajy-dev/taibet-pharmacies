@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../api-client';
+import React, { useState, useEffect, useRef } from 'react';
+import { api, uploadImageToImgBB } from '../api-client';
 import { toast } from 'react-hot-toast';
-import { HeartPulse, FileText, Pill, Stethoscope, FilePlus, ExternalLink, Calendar, Syringe, Beaker, QrCode, X } from 'lucide-react';
+import { HeartPulse, FileText, Pill, Stethoscope, FilePlus, ExternalLink, Calendar, Syringe, Beaker, QrCode, X, ImagePlus, Trash2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
+
 
 interface PatientMedicalRecordProps {
   user: any;
@@ -15,9 +16,41 @@ export const PatientMedicalRecord = ({ user, lang }: PatientMedicalRecordProps) 
   const [loading, setLoading] = useState(true);
   const [ehr, setEhr] = useState<any>({});
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  
-  // Modal for showing QR code
   const [showQrModal, setShowQrModal] = useState<any>(null);
+
+  // 🟢 X-Ray & Prescription image upload
+  const [xrayUrls, setXrayUrls] = useState<string[]>([]);
+  const [uploadingXray, setUploadingXray] = useState(false);
+  const [savingXrays, setSavingXrays] = useState(false);
+  const xrayInputRef = useRef<HTMLInputElement>(null);
+
+  const handleXrayUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingXray(true);
+    try {
+      const url = await uploadImageToImgBB(file);
+      const updated = [...xrayUrls, url];
+      setXrayUrls(updated);
+      // Auto-save to database immediately
+      await api.patch(`/api/medical-records/${user.id}`, { xray_urls: updated });
+      toast.success(lang === 'ar' ? 'تم رفع الصورة وحفظها بنجاح ✓' : 'Image uploaded and saved ✓');
+    } catch (err: any) {
+      toast.error(lang === 'ar' ? 'فشل رفع الصورة' : 'Upload failed');
+    } finally {
+      setUploadingXray(false);
+      if (xrayInputRef.current) xrayInputRef.current.value = '';
+    }
+  };
+
+  const removeXrayUrl = async (idx: number) => {
+    const updated = xrayUrls.filter((_, i) => i !== idx);
+    setXrayUrls(updated);
+    try {
+      await api.patch(`/api/medical-records/${user.id}`, { xray_urls: updated });
+      toast.success(lang === 'ar' ? 'تم الحذف' : 'Removed');
+    } catch { }
+  };
 
   useEffect(() => {
     fetchData();
@@ -32,6 +65,11 @@ export const PatientMedicalRecord = ({ user, lang }: PatientMedicalRecordProps) 
       ]);
       setEhr(ehrData || {});
       setPrescriptions(Array.isArray(pxData) ? pxData : []);
+      // Load saved xray URLs
+      const savedXrays = ehrData?.xray_urls;
+      if (savedXrays) {
+        setXrayUrls(typeof savedXrays === 'string' ? JSON.parse(savedXrays) : savedXrays);
+      }
     } catch (err) {
       toast.error(lang === 'ar' ? 'فشل جلب الملف الطبي' : 'Failed to fetch medical records');
     } finally {
@@ -143,30 +181,61 @@ export const PatientMedicalRecord = ({ user, lang }: PatientMedicalRecordProps) 
                 </div>
               </div>
 
-              {/* Attachments Gallery */}
-              <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-bold text-lg flex items-center gap-2 dark:text-white"><FileText className="text-indigo-500"/> {lang === 'ar' ? 'المرفقات الطبية (تحاليل وأشعة)' : 'Medical Attachments'}</h3>
-                </div>
-                
-                {(!ehr.attachments || (typeof ehr.attachments === 'string' ? JSON.parse(ehr.attachments) : ehr.attachments).length === 0) ? (
-                  <div className="text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-slate-500 text-sm font-medium">{lang === 'ar' ? 'لا يوجد ملفات مرفقة في سجلك الطبي.' : 'No attached files in your medical record.'}</p>
-                  </div>
-                ) : (
+              {/* 🟢 Attachments from Doctor (Read-only) */}
+              {ehr.attachments && (typeof ehr.attachments === 'string' ? JSON.parse(ehr.attachments) : ehr.attachments).length > 0 && (
+                <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <h3 className="font-bold text-lg flex items-center gap-2 dark:text-white mb-4"><FileText className="text-indigo-500"/> {lang === 'ar' ? 'مرفقات الطبيب' : 'Doctor Attachments'}</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {(typeof ehr.attachments === 'string' ? JSON.parse(ehr.attachments) : ehr.attachments).map((url: string, idx: number) => (
                       <a key={idx} href={url} target="_blank" rel="noreferrer" className="relative group block aspect-square rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 transition-colors bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        {url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                          <img src={url} alt={`Attachment ${idx}`} className="w-full h-full object-cover" />
-                        ) : (
-                          <FileText size={32} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-                        )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <ExternalLink className="text-white" size={24} />
-                        </div>
+                        {url.match(/\.(jpeg|jpg|gif|png)$/i) ? <img src={url} alt={`Doc ${idx}`} className="w-full h-full object-cover" /> : <FileText size={32} className="text-slate-400" />}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><ExternalLink className="text-white" size={24} /></div>
                       </a>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 🟢 Patient X-Ray Upload Section */}
+              <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-lg flex items-center gap-2 dark:text-white">
+                    <ImagePlus className="text-violet-500"/> {lang === 'ar' ? 'صور الأشعة والوصفات (تحميلك أنت)' : 'My X-Rays & Prescriptions'}
+                  </h3>
+                  <label className={`cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                    uploadingXray ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-violet-600 text-white hover:bg-violet-700 shadow-md shadow-violet-200 dark:shadow-none'
+                  }`}>
+                    {uploadingXray ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+                    {uploadingXray ? (lang === 'ar' ? 'جاري الرفع...' : 'Uploading...') : (lang === 'ar' ? 'رفع صورة' : 'Upload Image')}
+                    <input ref={xrayInputRef} type="file" accept="image/*" className="hidden" disabled={uploadingXray} onChange={handleXrayUpload} />
+                  </label>
+                </div>
+
+                {xrayUrls.length === 0 && !uploadingXray ? (
+                  <div className="text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 cursor-pointer" onClick={() => xrayInputRef.current?.click()}>
+                    <ImagePlus size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{lang === 'ar' ? 'اضغط لرفع صورة أشعة أو وصفة طبية' : 'Click to upload an X-ray or prescription image'}</p>
+                    <p className="text-xs text-slate-400 mt-1">{lang === 'ar' ? 'PNG, JPG, WEBP — محفوظة في سجلك الطبي' : 'PNG, JPG, WEBP — saved to your medical record'}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {xrayUrls.map((url, idx) => (
+                      <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border-2 border-violet-200 dark:border-violet-800 bg-slate-100 dark:bg-slate-800">
+                        <img src={url} alt={`X-ray ${idx + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <a href={url} target="_blank" rel="noreferrer" className="p-2 bg-white/20 hover:bg-white/30 rounded-full"><ExternalLink size={18} className="text-white" /></a>
+                          <button onClick={() => removeXrayUrl(idx)} className="p-2 bg-red-500/80 hover:bg-red-600 rounded-full"><Trash2 size={18} className="text-white" /></button>
+                        </div>
+                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md font-bold">{idx + 1}</div>
+                      </div>
+                    ))}
+                    {/* Loading spinner for new upload */}
+                    {uploadingXray && (
+                      <div className="aspect-square rounded-2xl border-2 border-dashed border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20 flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={28} className="text-violet-500 animate-spin" />
+                        <span className="text-xs text-violet-600 dark:text-violet-400 font-bold">{lang === 'ar' ? 'جاري الرفع...' : 'Uploading...'}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
