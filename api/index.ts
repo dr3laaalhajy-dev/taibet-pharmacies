@@ -60,7 +60,10 @@ const initDB = async () => {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(patient_id, doctor_id, appointment_date));`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+    try { await pool.query(`ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_patient_id_doctor_id_appointment_date_key;`); } catch (e) { }
+    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_primary_unique ON appointments (patient_id, doctor_id, appointment_date) WHERE family_member_id IS NULL;`); } catch (e) { }
+    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_family_unique ON appointments (patient_id, doctor_id, appointment_date, family_member_id) WHERE family_member_id IS NOT NULL;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE SET NULL;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
@@ -418,13 +421,25 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
   const { doctor_id, facility_id, appointment_date, family_member_id } = req.body;
   const patient_id = req.user.id;
   try {
+    // 🛡️ Explicit Check for duplicates to provide a nice error message
+    const existing = await pool.query(
+      family_member_id 
+        ? 'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id = $2 AND appointment_date = $3 AND family_member_id = $4'
+        : 'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id = $2 AND appointment_date = $3 AND family_member_id IS NULL',
+      family_member_id ? [patient_id, doctor_id, appointment_date, family_member_id] : [patient_id, doctor_id, appointment_date]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: req.lang === 'ar' ? 'هذا الشخص لديه حجز مسبق عند هذا الطبيب في نفس اليوم.' : 'This person already has an appointment with this doctor on the same day.' });
+    }
+
     await pool.query(
       'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id) VALUES ($1, $2, $3, $4, $5)',
       [patient_id, doctor_id, facility_id, appointment_date, family_member_id || null]
     );
     res.json({ success: true });
   } catch (err: any) {
-    res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? (req.lang === 'ar' ? 'حجزت مسبقاً.' : 'Already booked.') : err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
