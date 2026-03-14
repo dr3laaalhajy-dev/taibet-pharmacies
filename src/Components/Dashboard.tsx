@@ -835,7 +835,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               )}
             </div>
           </div>
-          <div className="text-xl font-extrabold relative z-10" dir="ltr">{formatCurrency(parseFloat(user.wallet_balance || '0'), 'new', lang)}</div>
+          <div className="text-xl font-extrabold relative z-10" dir="ltr">{formatCurrency(parseFloat(user.wallet_balance || '0'), currency, lang)}</div>
         </div>
 
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide mt-2">
