@@ -4,6 +4,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { UserType, Facility, Order } from '../types';
 import { api } from '../api-client';
 import toast from 'react-hot-toast';
+import { formatCurrency, inputToOldLS, getCurrencySymbol, oldLSToDisplay, CurrencyMode } from '../utils/currency';
 
 export const OrdersManager = ({ user, facilities, lang }: { user: UserType, facilities: Facility[], lang: string }) => {
   const [orders, setOrders] = useState<Order[]>([]); 
@@ -14,6 +15,7 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
   const [pricingOrderId, setPricingOrderId] = useState<number | null>(null);
   const [prescriptionItems, setPrescriptionItems] = useState([{ name: '', qty: 1, price: 0 }]);
   const [isSubmittingPricing, setIsSubmittingPricing] = useState(false);
+  const [pricingCurrency, setPricingCurrency] = useState<CurrencyMode>('new'); // currency mode for pharmacist pricing input
 
   // 🟢 Pharmacy Scanner State
   const [scannedQR, setScannedQR] = useState('');
@@ -90,8 +92,14 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
 
     setIsSubmittingPricing(true);
     try {
-      const items = prescriptionItems.map(i => ({ ...i, product_id: -1, price: i.price.toString(), image_url: orders.find(o => o.id === orderId)?.prescription_image_url }));
-      const total = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.qty), 0);
+      // Convert prices from pharmacist's chosen currency to Old L.S (DB base)
+      const items = prescriptionItems.map(i => ({ 
+        ...i, 
+        product_id: -1, 
+        price: inputToOldLS(i.price, pricingCurrency).toString(),
+        image_url: orders.find(o => o.id === orderId)?.prescription_image_url 
+      }));
+      const total = items.reduce((sum, item) => sum + parseFloat(item.price) * item.qty, 0);
       
       await api.patch(`/api/orders/${orderId}/pricing`, { items, total_price: total.toString() });
       toast.success(lang === 'ar' ? 'تم تسعير الوصفة بنجاح. سيظهر السعر للمريض.' : 'Prescription priced successfully.');
@@ -371,12 +379,12 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               {o.items.map((item, idx) => ( 
                 <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0 last:pb-0">
                   <span className="font-medium text-slate-700">{item.name} <span className="text-emerald-600 font-bold ml-1">x{item.qty}</span></span>
-                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{parseFloat(item.price) * item.qty}ل.س جديدة</span>
+                  <span className="font-mono text-slate-600 font-bold" dir="ltr">{formatCurrency(parseFloat(item.price) * item.qty, 'new', lang)}</span>
                 </div> 
               ))}
               <div className="flex justify-between items-center pt-3 border-t border-slate-200 font-bold text-lg">
                 <span>{lang === 'ar' ? 'المجموع الكلي:' : 'Total:'}</span>
-                <span dir="ltr" className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{o.total_price}ل.س جديدة</span>
+                <span dir="ltr" className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{formatCurrency(parseFloat(o.total_price) || 0, 'new', lang)}</span>
               </div>
             </div>
 
@@ -396,18 +404,33 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                 {o.status === 'pending_pricing' && (
                   pricingOrderId === o.id ? (
                   <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm mt-4">
-                    <h6 className="font-bold mb-3 text-slate-800">{lang === 'ar' ? 'تسعير الوصفة:' : 'Price Prescription:'}</h6>
+                    <div className="flex justify-between items-center mb-3">
+                      <h6 className="font-bold text-slate-800">{lang === 'ar' ? 'تسعير الوصفة:' : 'Price Prescription:'}</h6>
+                      {/* Currency toggle for pharmacist input */}
+                      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+                        <button onClick={() => setPricingCurrency('new')} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${pricingCurrency === 'new' ? 'bg-emerald-500 text-white shadow' : 'text-slate-500 hover:bg-slate-200'}`}>
+                          {lang === 'ar' ? 'ل.س جديدة' : 'New L.S'}
+                        </button>
+                        <button onClick={() => setPricingCurrency('old')} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${pricingCurrency === 'old' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:bg-slate-200'}`}>
+                          {lang === 'ar' ? 'ل.س قديمة' : 'Old L.S'}
+                        </button>
+                      </div>
+                    </div>
                     {prescriptionItems.map((item, idx) => (
                       <div key={idx} className="flex gap-2 mb-2">
                          <input type="text" placeholder={lang === 'ar' ? 'اسم الدواء' : 'Medicine'} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-blue-500" value={item.name} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].name = e.target.value; setPrescriptionItems(newItems); }} />
                          <input type="number" min="1" placeholder="Qty" className="w-16 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center" value={item.qty} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].qty = parseInt(e.target.value) || 1; setPrescriptionItems(newItems); }} />
-                         <input type="number" min="0" placeholder="Price" className="w-24 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center font-bold" value={item.price} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].price = parseFloat(e.target.value) || 0; setPrescriptionItems(newItems); }} />
+                         <input type="number" min="0" placeholder={getCurrencySymbol(pricingCurrency, lang)} className="w-28 p-2 text-sm border border-slate-300 rounded-lg outline-none text-center font-bold" value={item.price} onChange={e => { const newItems = [...prescriptionItems]; newItems[idx].price = parseFloat(e.target.value) || 0; setPrescriptionItems(newItems); }} />
                          <button onClick={() => { if(prescriptionItems.length > 1) setPrescriptionItems(prescriptionItems.filter((_, i) => i !== idx)) }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     ))}
                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
                       <button onClick={() => setPrescriptionItems([...prescriptionItems, { name: '', qty: 1, price: 0 }])} className="text-sm font-bold text-blue-600 hover:underline">+ {lang === 'ar' ? 'إضافة دواء' : 'Add Item'}</button>
-                      <strong dir="ltr" className="text-emerald-600 text-lg">{prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0)} LS</strong>
+                      {/* Show running total in chosen currency */}
+                      <strong dir="ltr" className="text-emerald-600 text-lg">
+                        {prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0).toLocaleString()} {getCurrencySymbol(pricingCurrency, lang)}
+                        {pricingCurrency === 'new' && <span className="text-xs text-slate-400 ml-1">(= {(prescriptionItems.reduce((sum, item) => sum + (item.price * item.qty), 0) * 100).toLocaleString()} {lang === 'ar' ? 'ل.س' : 'L.S'})</span>}
+                      </strong>
                     </div>
                     <div className="flex gap-2 mt-4">
                        <button onClick={() => submitPricing(o.id)} disabled={isSubmittingPricing} className="flex-1 bg-emerald-500 text-white py-2.5 rounded-xl font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2">{isSubmittingPricing ? <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"/> : <CheckCircle size={16}/>}{lang === 'ar' ? 'إرسال التسعيرة للمريض' : 'Submit Price'}</button>
