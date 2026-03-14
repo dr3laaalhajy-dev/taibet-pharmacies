@@ -28,7 +28,7 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/patient/family');
+      const data = await api.get('/api/family');
       setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
       toast.error(lang === 'ar' ? 'فشل جلب أفراد العائلة' : 'Failed to fetch family members');
@@ -46,7 +46,7 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await api.post('/api/patient/family', form);
+      await api.post('/api/family', form);
       toast.success(lang === 'ar' ? 'تمت إضافة فرد العائلة بنجاح' : 'Family member added successfully');
       setShowAddModal(false);
       setForm({ name: '', relation: 'أخرى', birth_date: '', gender: 'ذكر' });
@@ -61,7 +61,7 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   const handleDelete = async (id: number) => {
     if (!window.confirm(lang === 'ar' ? 'هل أنت متأكد من حذف هذا الفرد؟' : 'Are you sure you want to delete this member?')) return;
     try {
-      await api.delete(`/api/patient/family/${id}`);
+      await api.delete(`/api/family/${id}`);
       toast.success(lang === 'ar' ? 'تم الحذف بنجاح' : 'Deleted successfully');
       fetchMembers();
     } catch (err) {
@@ -136,8 +136,8 @@ export const FamilyMembersManager = ({ lang }: { lang: 'ar' | 'en' }) => {
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{lang === 'ar' ? 'الجنس' : 'Gender'}</label>
                     <select className="w-full px-4 py-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
-                      <option value="ذك">{lang === 'ar' ? 'ذكر' : 'Male'}</option>
-                      <option value="انثى">{lang === 'ar' ? 'أنثى' : 'Female'}</option>
+                      <option value="ذكر">{lang === 'ar' ? 'ذكر' : 'Male'}</option>
+                      <option value="أنثى">{lang === 'ar' ? 'أنثى' : 'Female'}</option>
                     </select>
                   </div>
                   <div>
