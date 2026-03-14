@@ -341,11 +341,12 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
                   <button onClick={() => handlePrintInvoice(o)} className="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100" title={lang === 'ar' ? 'طباعة الفاتورة' : 'Print Invoice'}>
                     <Printer size={16} />
                   </button>
-                  {/* 🟢 زر عرض صورة الوصفة — يظهر دائماً إن وجدت */}
-                  {o.prescription_image_url && (
-                    <a href={o.prescription_image_url} target="_blank" rel="noreferrer"
+                  {/* 🟢 زر عرض صورة الوصفة — يظهر دائماً إن وجدت أو إذا كان طلب تسعير */}
+                  {(o.prescription_image_url || o.status === 'pending_pricing') && (
+                    <a href={o.prescription_image_url || '#'} target={o.prescription_image_url ? "_blank" : "_self"} rel="noreferrer"
                       className="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 flex items-center gap-1 text-xs font-bold"
                       title={lang === 'ar' ? 'عرض صورة الوصفة' : 'View Prescription'}
+                      onClick={(e) => { if(!o.prescription_image_url) { e.preventDefault(); alert(lang==='ar'?'الصورة غير متوفرة':'Image not available'); } }}
                     >
                       <Image size={14} /> {lang === 'ar' ? 'وصفة' : 'Rx'}
                     </a>
@@ -379,13 +380,17 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
               </div>
             </div>
 
-            {(o.status === 'pending_pricing' || o.prescription_image_url) && o.prescription_image_url && (
+            {(o.status === 'pending_pricing' || o.prescription_image_url) && (
               <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
                 <div className="flex justify-between items-center mb-3">
                   <h5 className="font-bold text-blue-900 flex items-center gap-2"><Image size={18}/> {lang === 'ar' ? 'صورة الوصفة الطبية' : 'Prescription Image'}</h5>
-                  <a href={o.prescription_image_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center gap-1"><ExternalLink size={14}/>{lang === 'ar' ? 'فتح كاملاً' : 'Open full'}</a>
+                  {o.prescription_image_url && <a href={o.prescription_image_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold flex items-center gap-1"><ExternalLink size={14}/>{lang === 'ar' ? 'فتح كاملاً' : 'Open full'}</a>}
                 </div>
-                <img src={o.prescription_image_url} className="w-full max-h-52 object-contain rounded-xl bg-white border border-blue-200 mb-4" alt="prescription" />
+                {o.prescription_image_url ? (
+                  <img src={o.prescription_image_url} className="w-full max-h-52 object-contain rounded-xl bg-white border border-blue-200 mb-4" alt="prescription" />
+                ) : (
+                  <div className="w-full h-32 flex items-center justify-center bg-slate-200 text-slate-500 rounded-xl mb-4 text-sm font-bold">{lang === 'ar' ? 'لا توجد صورة مرفقة 📷' : 'No image attached 📷'}</div>
+                )}
                 
                 {/* Pricing section - only for pending_pricing */}
                 {o.status === 'pending_pricing' && (
