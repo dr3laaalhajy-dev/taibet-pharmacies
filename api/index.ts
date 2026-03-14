@@ -687,14 +687,17 @@ app.post('/api/ai/triage', async (req: any, res: any) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'مفتاح API الخاص بالمساعد الذكي غير مكوّن' });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('[AI Triage] GEMINI_API_KEY is missing from environment variables!');
+    return res.status(500).json({ error: 'مفتاح API الخاص بالمساعد الذكي غير مكوّن في إعدادات الخادم.' });
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    console.log('[AI Triage] Sending request to Gemini. API Key present:', !!apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash', // 🟢 تصحيح اسم الموديل
       contents: message,
       config: {
         systemInstruction: `أنت مساعد طبي (Medical Triage Assistant) وصيدلاني محترف.
@@ -704,16 +707,23 @@ app.post('/api/ai/triage', async (req: any, res: any) => {
 
 قيود صارمة:
 - ممنوع منعاً باتاً تشخيص الحالة طبياً أو وصف أدوية كعلاج لحالة المريض.
-- عند تقديم معلومات عن دواء، أضف دائماً ملاحظة إخلاء مسؤولية قصيرة بأن هذه المعلومات تثقيفية ولا تغني عن استشارة الطبيب أو الصيدلي.
+- عند تقديم معلومات عن دواء، أضف دائماً ملاحظة إخلاء مسؤولية قصيرة بأن هذه المعلومات ثقافية ولا تغني عن استشارة الطبيب أو الصيدلي.
 
 اكتب ردك باللغة العربية، بأسلوب مهني، دافئ، وموجز وفي صلب الموضوع. لا تستخدم تنسيقات معقدة بل نصوص بسيطة وواضحة.`
       }
     });
 
+    console.log('[AI Triage] Response received successfully.');
     res.json({ reply: response.text });
   } catch (err: any) {
-    console.error('AI Error:', err);
-    res.status(500).json({ error: 'عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.' });
+    // 🟢 تسجيل تفصيلي للخطأ لمساعدة التشخيص
+    console.error('[AI Triage] Detailed Error:', JSON.stringify({
+      message: err.message,
+      status: err.status,
+      code: err.code,
+      details: err.errorDetails || err.response?.data
+    }, null, 2));
+    res.status(500).json({ error: `عذراً، فشل الاتصال بالمساعد الذكي حالياً. حاول مجدداً.` });
   }
 });
 
