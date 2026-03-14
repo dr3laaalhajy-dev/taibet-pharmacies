@@ -61,9 +61,14 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+    // 🛡️ Migration: Forcefully drop old strict unique constraints/indexes
     try { await pool.query(`ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_patient_id_doctor_id_appointment_date_key;`); } catch (e) { }
+    try { await pool.query(`DROP INDEX IF EXISTS appointments_patient_id_doctor_id_appointment_date_key;`); } catch (e) { }
+    
+    // 👪 New Logic: Allow different family members to book same doctor on same day
     try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_primary_unique ON appointments (patient_id, doctor_id, appointment_date) WHERE family_member_id IS NULL;`); } catch (e) { }
     try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_family_unique ON appointments (patient_id, doctor_id, appointment_date, family_member_id) WHERE family_member_id IS NOT NULL;`); } catch (e) { }
+    
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE SET NULL;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
