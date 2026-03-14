@@ -72,12 +72,12 @@ export const PatientOrdersManager = ({ lang, currency }: { lang: 'ar' | 'en', cu
             <div className="flex justify-between items-start mb-4 border-b dark:border-slate-800 pb-4">
                <div>
                 <h3 className="font-bold text-lg dark:text-white">{order.pharmacy_name || (lang === 'ar' ? 'صيدلية' : 'Pharmacy')}</h3>
-                {order.family_member_name && (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? 'فرد عائلة' : 'Family Member'}</span>
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{order.family_member_name} ({order.family_member_relation})</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    {order.family_member_name ? `${order.family_member_name} (${lang === 'ar' ? 'عن طريق' : 'via'} ${order.customer_name})` : order.customer_name}
+                  </span>
+                  {order.family_member_name && <span className="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">{order.family_member_relation}</span>}
+                </div>
                 <p className="text-xs text-slate-500 mt-1">{new Date(order.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
               </div>
               <div className="text-right">

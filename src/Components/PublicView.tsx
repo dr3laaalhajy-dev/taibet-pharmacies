@@ -7,6 +7,7 @@ import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN
 import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
+import { uploadImageToImgBB } from '../api-client';
 
 const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, lang: string }) => (
   <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm rounded-full p-1 flex items-center border border-slate-200 dark:border-slate-700 w-fit transition-colors">
@@ -25,7 +26,7 @@ const StarRating = ({ rating, size = 16, className = "" }: { rating: number, siz
   );
 };
 
-const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser, openChatWithUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old' | 'new', currentUser: UserType | null, openChatWithUser?: (id: number) => void }) => {
+const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser, activeProfile, openChatWithUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old' | 'new', currentUser: UserType | null, activeProfile?: { id: number; full_name: string } | null, openChatWithUser?: (id: number) => void }) => {
   const [doctor, setDoctor] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
@@ -103,7 +104,12 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
 
     setIsBooking(true);
     try {
-      await api.post('/api/appointments/book', { doctor_id: doctorId, facility_id: primaryFacility.id, appointment_date: bookingDate });
+      await api.post('/api/appointments/book', { 
+        doctor_id: doctorId, 
+        facility_id: primaryFacility.id, 
+        appointment_date: bookingDate,
+        family_member_id: activeProfile?.id || null
+      });
       toast.success(lang === 'ar' ? 'تم تأكيد حجزك بنجاح! ننتظرك في العيادة.' : 'Booking confirmed! See you at the clinic.');
       setShowBookingForm(false); setBookingDate('');
     } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'حدث خطأ أثناء الحجز' : 'Booking failed')); }
@@ -429,22 +435,17 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
   );
 };
 
-import { uploadImageToImgBB } from '../api-client';
-
-const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string }) => {
+const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyMembers, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, activeProfile?: { id: number; full_name: string } | null, familyMembers: any[], refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionImage, setPrescriptionImage] = useState<File | null>(null);
   const [isUploadingPrescription, setIsUploadingPrescription] = useState(false);
-  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
-  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | null>(null);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | null>(activeProfile?.id || null);
 
   useEffect(() => {
-    if (user) {
-      api.get('/api/patient/family').then(data => setFamilyMembers(Array.isArray(data) ? data : []));
-    }
-  }, [user, showPrescriptionModal]);
+    setSelectedFamilyMemberId(activeProfile?.id || null);
+  }, [activeProfile]);
 
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
   const ecommercePharmacies = facilities.filter(f => f.is_ecommerce_enabled); const selectedPharmacy = facilities.find(f => f.id === selectedPharmacyId);
@@ -464,7 +465,16 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
     if (paymentMethod === 'wallet' && parseFloat(user.wallet_balance || '0') < cartTotal) { toast.error(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient balance.'); return; }
 
     try {
-      await api.post('/api/public/orders', { pharmacy_id: selectedPharmacyId, customer_name: user.name, customer_phone: user.phone || 'بدون رقم', delivery_address: defaultAddress || 'بدون عنوان', items: cart, total_price: cartTotal.toString(), payment_method: paymentMethod });
+      await api.post('/api/public/orders', { 
+        pharmacy_id: selectedPharmacyId, 
+        customer_name: user.name, 
+        customer_phone: user.phone || 'بدون رقم', 
+        delivery_address: defaultAddress || 'بدون عنوان', 
+        items: cart, 
+        total_price: cartTotal.toString(), 
+        payment_method: paymentMethod,
+        family_member_id: selectedFamilyMemberId
+      });
       setOrderSuccess(true); setCart([]); setShowCart(false);
       if (paymentMethod === 'wallet') refreshUser();
     } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); }
@@ -699,7 +709,7 @@ const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: num
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
+export const PublicView = ({ user, activeProfile, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, activeProfile?: { id: number; full_name: string } | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -724,6 +734,13 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
   const itemsPerPage = 6;
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.role === 'patient') {
+      api.get('/api/family').then(data => setFamilyMembers(Array.isArray(data) ? data : []));
+    }
+  }, [user]);
 
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
@@ -823,7 +840,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
     </div>
   );
 
-  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
+  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} activeProfile={activeProfile} familyMembers={familyMembers} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
   if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} openChatWithUser={openChatWithUser} />;
 
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
@@ -1104,7 +1121,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
         )}
 
         <AnimatePresence>
-          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => { setSelectedDoctorId(null); setSelectedFacilityId(null); }} t={t} lang={lang} currency={currency} currentUser={user} openChatWithUser={openChatWithUser} />}
+          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => { setSelectedDoctorId(null); setSelectedFacilityId(null); }} t={t} lang={lang} currency={currency} currentUser={user} activeProfile={activeProfile} openChatWithUser={openChatWithUser} />}
         </AnimatePresence>
       </div>
 

@@ -61,6 +61,7 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(patient_id, doctor_id, appointment_date));`);
+    try { await pool.query(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE SET NULL;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch (e) { }
@@ -70,8 +71,11 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_user1_id_user2_id_key;`); } catch (e) { }
 
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, relation VARCHAR(100), birth_date DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
-    try { await pool.query(`ALTER TABLE family_members ADD COLUMN IF NOT EXISTS gender VARCHAR(20);`); } catch (e) { }
+    await pool.query(`CREATE TABLE IF NOT EXISTS family_members ( id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, full_name VARCHAR(255) NOT NULL, relationship VARCHAR(100), date_of_birth DATE, gender VARCHAR(20), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
+    // 🟢 ضمان توافق الأعمدة القديمة مع المسميات الجديدة إذا وجدت
+    try { await pool.query(`ALTER TABLE family_members RENAME COLUMN name TO full_name;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE family_members RENAME COLUMN relation TO relationship;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE family_members RENAME COLUMN birth_date TO date_of_birth;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE SET NULL;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS regular_medications TEXT;`); } catch (e) { }
@@ -102,12 +106,13 @@ initDB();
 
 const isSuperAdmin = async (email: string) => {
   const res = await pool.query('SELECT email FROM super_admins WHERE email = $1', [email]);
-  return res.rows.length > 0 || email === 'admin@pharmaduty.com';
+  const superAdminList = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy', 'alaa3@taiba.dental.sy'];
+  return res.rows.length > 0 || superAdminList.includes(email);
 };
 
 const authenticateToken = (req: any, res: any, next: any) => {
   let token = req.cookies.token;
-  
+
   // 🟢 دعم الـ Authorization Header بالإضافة إلى الكوكيز
   const authHeader = req.headers['authorization'];
   if (!token && authHeader && authHeader.startsWith('Bearer ')) {
@@ -409,8 +414,34 @@ app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req
 app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT f.*, (SELECT COUNT(*) FROM appointments a WHERE a.facility_id = f.id AND a.status = 'waiting' AND a.appointment_date = CURRENT_DATE) as waiting_patients FROM pharmacies f ORDER BY f.id DESC`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows[0]; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
-app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => { const { doctor_id, facility_id, appointment_date } = req.body; const patient_id = req.user.id; try { await pool.query('INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date) VALUES ($1, $2, $3, $4)', [patient_id, doctor_id, facility_id, appointment_date]); res.json({ success: true }); } catch (err: any) { res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? 'حجزت مسبقاً.' : err.message }); } });
-app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT a.*, p.name as patient_name, p.phone as patient_phone FROM appointments a JOIN users p ON a.patient_id = p.id WHERE a.doctor_id = $1 AND a.appointment_date = $2 ORDER BY a.created_at ASC`, [req.user.id, req.query.date])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => {
+  const { doctor_id, facility_id, appointment_date, family_member_id } = req.body;
+  const patient_id = req.user.id;
+  try {
+    await pool.query(
+      'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id) VALUES ($1, $2, $3, $4, $5)',
+      [patient_id, doctor_id, facility_id, appointment_date, family_member_id || null]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(err.code === '23505' ? 400 : 500).json({ error: err.code === '23505' ? (req.lang === 'ar' ? 'حجزت مسبقاً.' : 'Already booked.') : err.message });
+  }
+});
+
+app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => {
+  try {
+    const q = `
+      SELECT a.*, p.name as patient_name, p.phone as patient_phone, 
+             fm.full_name as family_member_name, fm.relationship as family_member_relation
+      FROM appointments a 
+      JOIN users p ON a.patient_id = p.id 
+      LEFT JOIN family_members fm ON a.family_member_id = fm.id
+      WHERE a.doctor_id = $1 AND a.appointment_date = $2 
+      ORDER BY a.created_at ASC
+    `;
+    res.json((await pool.query(q, [req.user.id, req.query.date])).rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows[0]?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });
@@ -461,11 +492,11 @@ app.post('/api/public/orders', async (req: any, res: any) => {
     if (!token && authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
-    
-    if (token) { 
-      try { 
-        buyerId = (jwt.verify(token, JWT_SECRET) as any).id; 
-      } catch (e) {} 
+
+    if (token) {
+      try {
+        buyerId = (jwt.verify(token, JWT_SECRET) as any).id;
+      } catch (e) { }
     }
 
     console.log('[POST /api/public/orders] identified buyerId:', buyerId);
@@ -514,9 +545,9 @@ app.post('/api/auth/login', loginLimiter, async (req: any, res: any) => {
       if (!user.is_active) return res.status(403).json({ error: 'حسابك قيد المراجعة.' });
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance }, JWT_SECRET, { expiresIn: '24h' });
       res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' });
-      res.json({ 
+      res.json({
         token, // 🟢 إعادة التوكن في الجسم ليتم حفظه في localStorage بالفرونت إند
-        user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture } 
+        user: { id: user.id, email: user.email, role: user.role, name: user.name, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, profile_picture: user.profile_picture }
       });
     } else {
       res.status(401).json({ error: 'بيانات غير صحيحة' });
@@ -614,15 +645,15 @@ app.delete('/api/products/:id', authenticateToken, async (req: any, res: any) =>
 app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
   try {
     // Ensure column exists before querying
-    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;').catch(() => {});
-    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;').catch(() => {});
-    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';').catch(() => {});
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;').catch(() => { });
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;').catch(() => { });
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';').catch(() => { });
     await pool.query("DELETE FROM orders WHERE status NOT IN ('pending', 'pending_pricing', 'accepted') AND created_at < NOW() - INTERVAL '1 month'");
     const q = req.user.role === 'admin'
       ? `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
                COALESCE(o.status, 'pending') as status, o.created_at,
                o.prescription_image_url, o.delivery_address, o.family_member_id,
-               ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
+               ph.name as pharmacy_name, fm.full_name as family_member_name, fm.relationship as family_member_relation
          FROM orders o 
          JOIN pharmacies ph ON o.pharmacy_id = ph.id 
          LEFT JOIN family_members fm ON o.family_member_id = fm.id
@@ -630,7 +661,7 @@ app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
       : `SELECT o.id, o.pharmacy_id, o.customer_name, o.customer_phone, o.items, o.total_price,
                COALESCE(o.status, 'pending') as status, o.created_at,
                o.prescription_image_url, o.delivery_address, o.family_member_id,
-               ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
+               ph.name as pharmacy_name, fm.full_name as family_member_name, fm.relationship as family_member_relation
          FROM orders o 
          JOIN pharmacies ph ON o.pharmacy_id = ph.id
          LEFT JOIN family_members fm ON o.family_member_id = fm.id
@@ -642,41 +673,45 @@ app.get('/api/orders', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: err.message });
   }
 });
-// 👪 Family Members Routes
-app.get('/api/patient/family', authenticateToken, async (req: any, res: any) => {
+// 👪 Family Members Routes (Phase 1)
+app.get('/api/family', authenticateToken, async (req: any, res: any) => {
   try {
     const family = await pool.query('SELECT * FROM family_members WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
     res.json(family.rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/patient/family', authenticateToken, async (req: any, res: any) => {
-  const { name, relation, birth_date, gender } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+app.post('/api/family', authenticateToken, async (req: any, res: any) => {
+  const { full_name, relationship, date_of_birth, gender } = req.body;
+  if (!full_name || !relationship) return res.status(400).json({ error: 'Full name and relationship are required' });
   try {
     const newMember = await pool.query(
-      'INSERT INTO family_members (user_id, name, relation, birth_date, gender) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.user.id, name, relation, birth_date || null, gender || null]
+      'INSERT INTO family_members (user_id, full_name, relationship, date_of_birth, gender) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.user.id, full_name, relationship, date_of_birth || null, gender || null]
     );
     res.json(newMember.rows[0]);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/patient/family/:id', authenticateToken, async (req: any, res: any) => {
+app.delete('/api/family/:id', authenticateToken, async (req: any, res: any) => {
   try {
-    await pool.query('DELETE FROM family_members WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-    res.json({ success: true });
+    // 🔒 Security check: Ensure the member belongs to the authenticated user
+    const checkOwnership = await pool.query('SELECT user_id FROM family_members WHERE id = $1', [req.params.id]);
+    if (checkOwnership.rows.length === 0) return res.status(404).json({ error: 'Member not found' });
+    if (checkOwnership.rows[0].user_id !== req.user.id) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query('DELETE FROM family_members WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Family member deleted successfully' });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
-
 app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => {
   try {
     const userPhoneResult = await pool.query('SELECT phone FROM users WHERE id = $1', [req.user.id]);
     const phone = userPhoneResult.rows.length > 0 ? userPhoneResult.rows[0].phone : null;
-    
+
     // 🟢 البحث عن الطلبات المرتبطة بـ user_id الجديد أو رقم الهاتف القديم لضمان عدم ضياع التاريخ
     const query = `
-      SELECT o.*, ph.name as pharmacy_name, fm.name as family_member_name, fm.relation as family_member_relation
+      SELECT o.*, ph.name as pharmacy_name, fm.full_name as family_member_name, fm.relationship as family_member_relation
       FROM orders o 
       LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id 
       LEFT JOIN family_members fm ON o.family_member_id = fm.id

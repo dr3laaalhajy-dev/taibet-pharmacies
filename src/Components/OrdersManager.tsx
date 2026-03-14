@@ -341,11 +341,12 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
           <div key={o.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative group hover:border-indigo-200 transition-colors">
             <div className="flex justify-between items-start border-b border-slate-100 pb-4 mb-4">
               <div>
-                <h4 className="font-bold text-lg text-slate-900">{o.customer_name}</h4>
+                <h4 className="font-bold text-lg text-slate-900">
+                  {o.family_member_name ? `${o.family_member_name} (${lang === 'ar' ? 'عن طريق' : 'via'} ${o.customer_name})` : o.customer_name}
+                </h4>
                 {o.family_member_name && (
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? 'فرد عائلة' : 'Family Member'}</span>
-                    <span className="text-sm font-bold text-indigo-600">{o.family_member_name} ({o.family_member_relation})</span>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? o.family_member_relation : o.family_member_relation}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-slate-500 text-sm mt-1 font-mono">

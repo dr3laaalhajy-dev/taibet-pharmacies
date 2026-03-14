@@ -597,7 +597,12 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     }
   };
 
-  useEffect(() => { api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => { }); }, []);
+  useEffect(() => {
+    // Only attempt to fetch if the user is in the hardcoded super-admin list to avoid 403 errors in console
+    if (SUPER_ADMINS.includes(user.email)) {
+      api.get('/api/admin/super-admins').then(setSuperAdmins).catch(() => { });
+    }
+  }, [user.email]);
 
   const hasEcommerce = facilities.some(f => f.is_ecommerce_enabled);
   const dashboardTitle = (user.role === 'doctor' || user.role === 'dentist') ? (lang === 'ar' ? 'عياداتي' : 'My Clinics') : (user.role === 'pharmacist' ? (lang === 'ar' ? 'صيدلياتي' : 'My Pharmacies') : (lang === 'ar' ? 'إدارة المنشآت الطبية' : 'Manage Facilities'));
@@ -1105,7 +1110,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                           <td className="px-6 py-4 font-mono font-bold text-slate-400">#{idx + 1}</td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="font-bold text-slate-900 dark:text-white">{appt.patient_name}</span>
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {appt.family_member_name ? `${appt.family_member_name} (${lang === 'ar' ? 'عن طريق' : 'via'} ${appt.patient_name})` : appt.patient_name}
+                              </span>
                               <button onClick={() => openPatientHistory(appt.patient_id, appt.patient_name)} title={lang === 'ar' ? 'سجل التشخيصات السابقة' : 'Past Medical History'} className="p-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full transition-colors shrink-0 shadow-sm border border-indigo-100 dark:border-indigo-800">
                                 <Activity size={14} />
                               </button>

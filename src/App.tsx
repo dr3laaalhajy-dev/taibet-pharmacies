@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -358,6 +358,9 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<{ id: number; full_name: string } | null>(null);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [isProfileSwitcherOpen, setIsProfileSwitcherOpen] = useState(false);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
@@ -400,7 +403,6 @@ export default function App() {
     if (user?.role === 'patient') {
       api.get(`/api/medical-records/${user.id}`)
         .then((res: any) => {
-          // التحقق مما إذا كان السجل يحتوي على بيانات فعلاً
           if (res && (res.patient_id || res.id || Object.keys(res).length > 0)) {
             setHasMedicalRecord(true);
           } else {
@@ -408,6 +410,14 @@ export default function App() {
           }
         })
         .catch(() => setHasMedicalRecord(false));
+
+      // 🟢 جلب قائمة أفراد العائلة عند تسجيل الدخول
+      api.get('/api/family')
+        .then(data => setFamilyMembers(Array.isArray(data) ? data : []))
+        .catch(console.error);
+    } else {
+      setFamilyMembers([]);
+      setActiveProfile(null);
     }
   }, [user]);
 
@@ -466,6 +476,8 @@ export default function App() {
     setView('public');
     setIsMenuOpen(false); setIsNotifMenuOpen(false); setNotifications([]); setShowChatModal(false); setShowRecordsModal(false);
     setHasMedicalRecord(true); // إعادة الضبط
+    setActiveProfile(null);
+    setFamilyMembers([]);
   };
 
   const submitWalletRequest = async (e: React.FormEvent) => {
@@ -608,6 +620,54 @@ export default function App() {
                   </AnimatePresence>
                 </div>
 
+                {/* 🟢 Profile Switcher Dropdown (Phase 2) */}
+                {user && user.role === 'patient' && (
+                  <div className="relative">
+                    <button
+                      onClick={() => { setIsProfileSwitcherOpen(!isProfileSwitcherOpen); setIsMenuOpen(false); setIsNotifMenuOpen(false); }}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${activeProfile ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400' : 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'} hover:shadow-sm`}
+                    >
+                      <Users size={16} />
+                      <span className="text-xs font-bold hidden sm:inline">
+                        {activeProfile ? activeProfile.full_name : (lang === 'ar' ? 'تبديل الملف' : 'Switch Profile')}
+                      </span>
+                      <ChevronDown size={14} className={`transition-transform ${isProfileSwitcherOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {isProfileSwitcherOpen && (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`absolute mt-3 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-2 z-50 ${lang === 'ar' ? 'left-0' : 'right-0'}`}>
+                          <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-700 mb-1">
+                            {lang === 'ar' ? 'اختر الملف الشخصي' : 'Select Profile'}
+                          </div>
+
+                          <button
+                            onClick={() => { setActiveProfile(null); setIsProfileSwitcherOpen(false); }}
+                            className={`w-full text-start px-4 py-2.5 text-sm font-bold flex items-center gap-3 transition-colors ${!activeProfile ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">{user.name.charAt(0)}</div>
+                            {lang === 'ar' ? 'حسابي الأساسي' : 'My Account'}
+                          </button>
+
+                          {(familyMembers || []).map(member => (
+                            <button
+                              key={member.id}
+                              onClick={() => { setActiveProfile({ id: member.id, full_name: member.full_name }); setIsProfileSwitcherOpen(false); }}
+                              className={`w-full text-start px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${activeProfile?.id === member.id ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                            >
+                              <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[10px] uppercase font-black">{member.relationship?.charAt(0) || 'F'}</div>
+                              <div className="flex flex-col">
+                                <span className="font-bold">{member.full_name}</span>
+                                <span className="text-[10px] opacity-70 italic">{member.relationship}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
                 <div className="relative">
                   <button onClick={() => { setIsMenuOpen(!isMenuOpen); setIsNotifMenuOpen(false); }} className="flex items-center gap-2 focus:outline-none rounded-full ring-2 ring-transparent hover:ring-blue-200 transition-all">
                     {(user as any).profile_picture ? (
@@ -663,6 +723,20 @@ export default function App() {
         </nav>
       )}
 
+      {/* 🟢 شارة الملف الشخصي النشط (Phase 2) */}
+      {view !== 'dashboard' && user?.role === 'patient' && activeProfile && (
+        <div className="bg-indigo-600 text-white px-4 py-2 text-center font-bold text-xs flex justify-center items-center gap-2 z-30 sticky top-[72px] shadow-lg animate-in slide-in-from-top duration-300">
+          <Users size={16} />
+          <span>{lang === 'ar' ? `أنت تتصفح الآن بصفتك: ${activeProfile.full_name}` : `Viewing Profile: ${activeProfile.full_name}`}</span>
+          <button
+            onClick={() => setActiveProfile(null)}
+            className="ml-2 bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors text-[10px]"
+          >
+            {lang === 'ar' ? 'العودة لحسابي' : 'Back to My Account'}
+          </button>
+        </div>
+      )}
+
       {/* 🟢 التنبيه العلوي للمرضى الذين لم يكملوا السجل الطبي */}
       {view !== 'dashboard' && user?.role === 'patient' && !hasMedicalRecord && (
         <div className="bg-yellow-500 text-slate-900 px-4 py-3 text-center font-bold text-sm flex justify-center items-center gap-2 z-30 sticky top-[72px] shadow-md">
@@ -680,7 +754,7 @@ export default function App() {
       <main className="flex-1">
         {view === 'public' && (
           <PublicView
-            user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
+            user={user} activeProfile={activeProfile} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
           />
         )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
