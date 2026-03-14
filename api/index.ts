@@ -644,7 +644,8 @@ app.get('/api/patient/orders', authenticateToken, async (req: any, res: any) => 
       SELECT o.*, ph.name as pharmacy_name 
       FROM orders o 
       LEFT JOIN pharmacies ph ON o.pharmacy_id = ph.id 
-      WHERE o.user_id = $1 ${phone ? 'OR o.customer_phone = $2' : ''}
+      WHERE (o.user_id = $1 ${phone ? 'OR o.customer_phone = $2' : ''})
+      AND o.created_at >= NOW() - INTERVAL '30 days'
       ORDER BY o.id DESC
     `;
     const params = phone ? [req.user.id, phone] : [req.user.id];
