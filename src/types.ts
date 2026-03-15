@@ -86,6 +86,7 @@ export interface Order {
   family_member_id?: number | null;
   family_member_name?: string | null;
   family_member_relation?: string | null;
+  short_code?: string;
 }
 
 export interface FooterSettings {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api, uploadImageToImgBB } from '../api-client';
 import { toast } from 'react-hot-toast';
-import { HeartPulse, FileText, Pill, Stethoscope, FilePlus, ExternalLink, Calendar, Syringe, Beaker, QrCode, X, ImagePlus, Trash2, Loader2 } from 'lucide-react';
+import { HeartPulse, FileText, Pill, Stethoscope, FilePlus, ExternalLink, Calendar, Syringe, Beaker, QrCode, X, ImagePlus, Trash2, Loader2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -17,6 +17,7 @@ export const PatientMedicalRecord = ({ user, lang }: PatientMedicalRecordProps) 
   const [ehr, setEhr] = useState<any>({});
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [showQrModal, setShowQrModal] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
 
   // 🟢 X-Ray & Prescription image upload
   const [xrayUrls, setXrayUrls] = useState<string[]>([]);
@@ -333,6 +334,28 @@ export const PatientMedicalRecord = ({ user, lang }: PatientMedicalRecordProps) 
                   includeMargin={false} 
                 />
               </div>
+
+              {showQrModal.short_code && (
+                <div className="mt-8">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">{lang === 'ar' ? 'أو استخدم الكود اليدوي' : 'Or use manual code'}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="bg-slate-100 dark:bg-slate-800 px-6 py-3 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                      <span className="text-2xl font-black tracking-[0.2em] text-indigo-600 dark:text-indigo-400 font-mono">{showQrModal.short_code}</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(showQrModal.short_code);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                        toast.success(lang === 'ar' ? 'تم نسخ الكود' : 'Code copied');
+                      }}
+                      className="p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                    >
+                      {copied ? <Check size={20} /> : <Copy size={20} />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

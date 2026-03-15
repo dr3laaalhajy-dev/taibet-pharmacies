@@ -437,6 +437,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
 
 const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyMembers, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, activeProfile?: { id: number; full_name: string } | null, familyMembers: any[], refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
+  const [lastOrderShortCode, setLastOrderShortCode] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionImage, setPrescriptionImage] = useState<File | null>(null);
@@ -465,7 +466,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
     if (paymentMethod === 'wallet' && parseFloat(user.wallet_balance || '0') < cartTotal) { toast.error(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient balance.'); return; }
 
     try {
-      await api.post('/api/public/orders', { 
+      const res = await api.post('/api/public/orders', { 
         pharmacy_id: selectedPharmacyId, 
         customer_name: user.name, 
         customer_phone: user.phone || 'بدون رقم', 
@@ -475,6 +476,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
         payment_method: paymentMethod,
         family_member_id: selectedFamilyMemberId
       });
+      setLastOrderShortCode(res.short_code || null);
       setOrderSuccess(true); setCart([]); setShowCart(false);
       if (paymentMethod === 'wallet') refreshUser();
     } catch (err: any) { toast.error(err.error || (lang === 'ar' ? 'فشل إرسال الطلب' : 'Failed to submit order')); }
@@ -490,7 +492,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
       const imageUrl = await uploadImageToImgBB(prescriptionImage);
       if (!imageUrl) throw new Error("فشل رفع الصورة");
 
-      await api.post('/api/public/orders', {
+      const res = await api.post('/api/public/orders', {
         pharmacy_id: selectedPharmacyId,
         customer_name: user.name,
         customer_phone: user.phone || 'بدون رقم',
@@ -502,6 +504,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
         status: 'pending_pricing',
         family_member_id: selectedFamilyMemberId
       });
+      setLastOrderShortCode(res.short_code || null);
       setOrderSuccess(true);
       setShowPrescriptionModal(false);
       setPrescriptionImage(null);
@@ -633,7 +636,21 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
       </AnimatePresence>
 
       <div className="text-center mb-12"><div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100 dark:border-emerald-800"><ShoppingBag size={40} /></div><h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white mb-4">{lang === 'ar' ? <>السوق <span className="text-emerald-500">الطبي</span></> : <>Medical <span className="text-emerald-500">Store</span></>}</h1><p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto">{selectedPharmacy ? (lang === 'ar' ? `تسوق منتجات ${selectedPharmacy.name} واطلبها مباشرة.` : `Shop ${selectedPharmacy.name} products directly.`) : (lang === 'ar' ? 'اختر صيدلية من القائمة أدناه لبدء التسوق وتصفح المنتجات المتاحة لديها.' : 'Choose a pharmacy below to start shopping.')}</p></div>
-      {orderSuccess && (<div className="max-w-2xl mx-auto bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400 p-6 rounded-3xl text-center mb-8"><CheckCircle size={40} className="mx-auto mb-3 text-emerald-500" /><h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3><p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p></div>)}
+      {orderSuccess && (
+        <div className="max-w-2xl mx-auto bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400 p-6 rounded-3xl text-center mb-8">
+          <CheckCircle size={40} className="mx-auto mb-3 text-emerald-500" />
+          <h3 className="text-xl font-bold mb-2">{lang === 'ar' ? 'تم إرسال طلبك بنجاح!' : 'Order submitted successfully!'}</h3>
+          {lastOrderShortCode && (
+            <div className="mt-4 mb-4">
+              <p className="text-sm font-bold text-slate-500 mb-1">{lang === 'ar' ? 'كود المتابعة الخاص بك:' : 'Your tracking code:'}</p>
+              <div className="inline-block bg-white dark:bg-slate-800 px-6 py-2 rounded-xl border-2 border-emerald-500 font-mono text-2xl font-black text-emerald-600 tracking-widest shadow-sm">
+                {lastOrderShortCode}
+              </div>
+            </div>
+          )}
+          <p>{lang === 'ar' ? 'سيتواصل معك الصيدلي قريباً.' : 'The pharmacist will contact you soon.'}</p>
+        </div>
+      )}
       {!selectedPharmacyId ? (<div className="mb-16"><h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2"><Store className="text-indigo-500" /> {lang === 'ar' ? 'الصيدليات المتاحة للتسوق' : 'Pharmacies Available for Shopping'}</h2><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{ecommercePharmacies.map(ph => (<div key={ph.id} onClick={() => { setSelectedPharmacyId(ph.id); setSearchQuery(''); }} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-md transition-all flex items-center gap-4">{ph.image_url ? <img src={ph.image_url} className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-700" /> : <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-xl flex items-center justify-center shrink-0"><Store size={24} /></div>}<div><h3 className="font-bold text-lg text-slate-900 dark:text-white line-clamp-1">{ph.name}</h3><p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12} /> {ph.address}</p><span className="text-[10px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md font-bold mt-2 inline-block">{lang === 'ar' ? 'اضغط لبدء التسوق' : 'Click to shop'}</span></div></div>))}{ecommercePharmacies.length === 0 && <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400">{lang === 'ar' ? 'لا توجد صيدليات مفعلة حالياً.' : 'No pharmacies available right now.'}</div>}</div></div>) : (<><div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800"><div className="flex items-center gap-3"><Store className="text-indigo-500" /><h2 className="font-bold text-indigo-900 dark:text-indigo-300 text-lg">{lang === 'ar' ? `منتجات ${selectedPharmacy?.name}` : `${selectedPharmacy?.name} Products`}</h2></div><div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto"><button onClick={() => setShowPrescriptionModal(true)} className="text-xs font-bold bg-blue-600 text-white px-4 py-2.5 rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"><BriefcaseMedical size={16} /> {lang === 'ar' ? 'اطلب وصفتك بصورة' : 'Upload Prescription'}</button><button onClick={() => { setSelectedPharmacyId(null); setSearchQuery(''); }} className="text-xs font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 px-4 py-2.5 rounded-lg shadow-sm border border-indigo-200 dark:border-indigo-700 w-full sm:w-auto text-center">{lang === 'ar' ? 'تغيير الصيدلية' : 'Change Pharmacy'}</button></div></div><div className="max-w-2xl mx-auto relative mb-12"><Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder={lang === 'ar' ? "ابحث عن دواء أو منتج..." : "Search for a product..."} className="w-full pr-12 pl-4 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-transparent focus:border-emerald-500 outline-none shadow-sm text-lg transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>{loading ? (<div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-emerald-500"></div></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">{filteredProducts.map(p => {
         const inCart = cart.find(i => i.product_id === p.id); const isMaxed = inCart && inCart.qty >= (p.max_per_user || p.quantity); const isOutOfStock = p.quantity <= 0; return (
           <div key={p.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-lg transition-shadow group flex flex-col">

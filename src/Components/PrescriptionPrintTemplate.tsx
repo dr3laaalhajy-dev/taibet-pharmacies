@@ -107,12 +107,15 @@ export const PrescriptionPrintTemplate = forwardRef<HTMLDivElement, Prescription
 
       {/* 🟢 Footer & QR */}
       <div className="mt-auto pt-8 border-t-2 border-slate-800 flex justify-between items-end">
-        <div>
+        <div className="flex flex-col items-center">
           <div className="w-32 h-32 p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-center">
             <QRCodeSVG value={qrPayload} size={110} level="L" includeMargin={false} />
           </div>
-          <p className="text-[10px] text-slate-500 mt-2 font-medium max-w-[150px]">
-            {lang === 'ar' ? 'امسح الرمز بواسطة الصيدلي لسحب الأدوية فوراً' : 'Pharmacist: Scan QR to auto-fill prescription'}
+          <div className="mt-2 bg-slate-100 px-4 py-1 rounded-lg border border-slate-200">
+            <span className="text-sm font-black tracking-widest font-mono text-slate-800">{prescriptionId}</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-2 font-medium max-w-[150px] text-center">
+            {lang === 'ar' ? 'امسح الرمز أو استخدم الكود اليدوي' : 'Scan QR or use manual code'}
           </p>
         </div>
 

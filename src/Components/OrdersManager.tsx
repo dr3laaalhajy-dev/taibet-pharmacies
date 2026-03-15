@@ -21,27 +21,62 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
   const [scannedQR, setScannedQR] = useState('');
   const [scannedPrescription, setScannedPrescription] = useState<any>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-  useEffect(() => {
-    if (isScannerOpen) {
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
-        scannerRef.current.render((decodedText) => {
-          handleQRData(decodedText);
-          setIsScannerOpen(false); // Close after successful scan
-        }, (errorMessage) => {
-          // ignore background errors
-        });
+  const requestCameraPermission = async () => {
+    try {
+      setCameraPermissionError(null);
+      // Trigger native permission prompt via standard web API
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Stop the stream immediately, it's just to check/request permission
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err: any) {
+      console.error("Camera permission error:", err);
+      let errorMsg = lang === 'ar' 
+        ? 'يجب السماح بالوصول إلى الكاميرا لمسح رموز QR. يرجى منح الإذن من إعدادات التطبيق.' 
+        : 'Camera access is required to scan QR codes. Please grant permission in your app settings.';
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        // Specifically handled per user request
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMsg = lang === 'ar' ? 'لم يتم العثور على كاميرا في الجهاز.' : 'No camera found on this device.';
       }
-    } else {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(error => {
-          console.error("Failed to clear html5QrcodeScanner. ", error);
-        });
-        scannerRef.current = null;
-      }
+      
+      setCameraPermissionError(errorMsg);
+      return false;
     }
+  };
+
+  useEffect(() => {
+    const initScanner = async () => {
+      if (isScannerOpen) {
+        const hasPermission = await requestCameraPermission();
+        if (!hasPermission) {
+          setIsScannerOpen(false);
+          return;
+        }
+
+        if (!scannerRef.current) {
+          scannerRef.current = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+          scannerRef.current.render((decodedText) => {
+            handleQRData(decodedText);
+            setIsScannerOpen(false); // Close after successful scan
+          }, (errorMessage) => {
+            // ignore background errors
+          });
+        }
+      } else {
+        if (scannerRef.current) {
+          scannerRef.current.clear().catch(error => {
+            console.error("Failed to clear html5QrcodeScanner. ", error);
+          });
+          scannerRef.current = null;
+        }
+      }
+    };
+    initScanner();
   }, [isScannerOpen]);
 
   const handleQRData = (data: string) => {
@@ -63,10 +98,42 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
     }
   };
 
-  const handleScanQRText = (e: React.FormEvent) => {
+  const handleScanQRText = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!scannedQR.trim()) return;
-    handleQRData(scannedQR);
+
+    const input = scannedQR.trim();
+    
+    // 🟢 التحقق إذا كان الكود هو "كود قصير" (6 خانات) بدلاً من بيانات QR كاملة
+    if (input.length === 6 && !input.startsWith('{')) {
+      try {
+        const data = await api.get(`/api/prescriptions/short/${input.toUpperCase()}`);
+        if (data.type === 'prescription') {
+          toast.success(lang === 'ar' ? `تم العثور على الوصفة!` : `Prescription found!`);
+          setScannedPrescription({
+            id: data.id,
+            customer_name: lang === 'ar' ? `مريض (كود: ${input})` : `Patient (Code: ${input})`,
+            items: data.meds.map((m: string) => ({ name: m, qty: 1, price: 0 }))
+          });
+          setScannedQR('');
+        } else if (data.type === 'order') {
+          toast.success(lang === 'ar' ? `تم العثور على الطلب!` : `Order found!`);
+          // Handle order loading if needed, or just toast for now
+          // For now, let's treat it as a prescription if that's what's expected here
+          setScannedPrescription({
+            id: data.id,
+            customer_name: data.customer_name,
+            items: data.items.map((i: any) => ({ ...i, price: i.price || 0 }))
+          });
+          setScannedQR('');
+        }
+      } catch (err: any) {
+        toast.error(lang === 'ar' ? 'الكود غير صحيح أو غير موجود' : 'Invalid or missing code');
+      }
+      return;
+    }
+
+    handleQRData(input);
   };
 
   const loadOrders = () => {
@@ -261,6 +328,15 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
             {isScannerOpen && (
               <div className="mt-6 p-4 bg-white rounded-2xl">
                 <div id="qr-reader" className="w-full text-slate-900 overflow-hidden rounded-xl"></div>
+              </div>
+            )}
+
+            {cameraPermissionError && (
+              <div className="mt-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="bg-red-200 p-2 rounded-lg">
+                  <Camera size={20} />
+                </div>
+                <p className="text-sm font-bold">{cameraPermissionError}</p>
               </div>
             )}
           </div>

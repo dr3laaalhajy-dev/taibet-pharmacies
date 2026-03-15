@@ -168,9 +168,11 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
     if (medicines.length === 0 || !medicines[0].name.trim()) return toast.error(lang === 'ar' ? 'يجب إضافة دواء واحد على الأقل' : 'Add at least one medicine');
     setSubmitting(true);
     try {
-      await api.post('/api/prescriptions', { patient_id: patientId, appointment_id: appointmentId, diagnosis, medicines, notes });
+      const res = await api.post('/api/prescriptions', { patient_id: patientId, appointment_id: appointmentId, diagnosis, medicines, notes });
       toast.success(lang === 'ar' ? 'تم إصدار الوصفة الطبية بنجاح' : 'Prescription issued successfully');
-      setPrescriptionId(Date.now());
+      
+      const px = res.prescription?.[0];
+      setPrescriptionId(px?.short_code || px?.id || Date.now());
       setShowPrintTemplate(true);
     }
     catch (err) { toast.error(lang === 'ar' ? 'فشل إصدار الوصفة' : 'Failed to issue'); } finally { setSubmitting(false); }

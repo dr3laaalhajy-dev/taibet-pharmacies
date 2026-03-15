@@ -79,6 +79,12 @@ export const PatientOrdersManager = ({ lang, currency }: { lang: 'ar' | 'en', cu
                   {order.family_member_name && <span className="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">{order.family_member_relation}</span>}
                 </div>
                 <p className="text-xs text-slate-500 mt-1">{new Date(order.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</p>
+                {order.short_code && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">{lang === 'ar' ? 'كود:' : 'CODE:'}</span>
+                    <span className="text-xs font-black font-mono text-indigo-600 dark:text-indigo-400">{order.short_code}</span>
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 {statusBadge}

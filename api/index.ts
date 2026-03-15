@@ -33,6 +33,20 @@ const { Pool } = pg;
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'pharmacy-secret-key';
 
+// 🟢 دالة توليد كود قصير (6 خانات) سهل القراءة
+const generateShortCode = async (pool: pg.Pool, table: string): Promise<string> => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // بدون O, 0, I, 1, 1 لسهولة القراءة
+  while (true) {
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    // التأكد من عدم تكراره في الجدول المستهدف
+    const check = await pool.query(`SELECT id FROM ${table} WHERE short_code = $1`, [result]);
+    if (check.rows.length === 0) return result;
+  }
+};
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
@@ -97,6 +111,10 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS xray_urls JSONB DEFAULT '[]';`); } catch (e) { }
     try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS prescriptions ( id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, appointment_id INTEGER REFERENCES appointments(id) ON DELETE SET NULL, diagnosis TEXT, medicines JSONB NOT NULL, notes TEXT, status VARCHAR(50) DEFAULT 'active', dispensed_by INTEGER REFERENCES pharmacies(id) ON DELETE SET NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
+    // 🟢 إضافة كود قصير للطلبات والروشتات
+    try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS short_code VARCHAR(10) UNIQUE;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE prescriptions ADD COLUMN IF NOT EXISTS short_code VARCHAR(10) UNIQUE;`); } catch (e) { }
+    
     // 🟢 إضافة جدول تقييمات الدعم الفني
     await pool.query(`
       CREATE TABLE IF NOT EXISTS support_reviews (
@@ -398,7 +416,56 @@ app.patch('/api/medical-records/:id', authenticateToken, async (req: any, res: a
 });
 // 🟢🟢 ====== نهاية نظام السجل الطبي ====== 🟢🟢
 
-app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; try { const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes]); await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك، يمكنك مراجعتها وصرفها الآن.`]); res.json({ success: true, prescription: result.rows }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+// 🟢 البحث عن وصفة أو طلب باستخدام الكود القصير
+app.get('/api/prescriptions/short/:code', authenticateToken, async (req: any, res: any) => {
+  const code = req.params.code.toUpperCase().trim();
+  try {
+    // نبحث أولاً في الروشتات (Prescriptions)
+    const px = await pool.query(`
+      SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty 
+      FROM prescriptions p 
+      JOIN users d ON p.doctor_id = d.id 
+      WHERE p.short_code = $1
+    `, [code]);
+    
+    if (px.rows.length > 0) {
+      const row = px.rows[0];
+      return res.json({
+        type: 'prescription',
+        id: row.id,
+        pid: row.patient_id,
+        meds: typeof row.medicines === 'string' ? JSON.parse(row.medicines).map((m: any) => m.name) : row.medicines.map((m: any) => m.name)
+      });
+    }
+
+    // إذا لم نجد، نبحث في الطلبات (Orders)
+    const order = await pool.query(`SELECT * FROM orders WHERE short_code = $1`, [code]);
+    if (order.rows.length > 0) {
+      const row = order.rows[0];
+      return res.json({
+        type: 'order',
+        id: row.id,
+        customer_name: row.customer_name,
+        items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items
+      });
+    }
+
+    res.status(404).json({ error: req.lang === 'ar' ? 'الكود غير صحيح أو منتهي الصلاحية' : 'Invalid or expired code' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => { 
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' }); 
+  const { patient_id, appointment_id, diagnosis, medicines, notes } = req.body; 
+  try { 
+    const short_code = await generateShortCode(pool, 'prescriptions');
+    const result = await pool.query('INSERT INTO prescriptions (doctor_id, patient_id, appointment_id, diagnosis, medicines, notes, short_code) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', [req.user.id, patient_id, appointment_id || null, diagnosis, JSON.stringify(medicines), notes, short_code]); 
+    await pool.query('INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)', [patient_id, '📝 وصفة طبية جديدة', `قام طبيبك بإصدار وصفة طبية جديدة لك بكود: ${short_code}`]); 
+    res.json({ success: true, prescription: result.rows }); 
+  } catch (err: any) { res.status(500).json({ error: err.message }); } 
+});
 app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
@@ -427,11 +494,12 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
   const patient_id = req.user.id;
   try {
     // 🛡️ Explicit Check for duplicates to provide a nice error message
+    const isFamilyBooking = family_member_id !== null && family_member_id !== undefined;
     const existing = await pool.query(
-      family_member_id 
+      isFamilyBooking 
         ? 'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id = $2 AND appointment_date = $3 AND family_member_id = $4'
         : 'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id = $2 AND appointment_date = $3 AND family_member_id IS NULL',
-      family_member_id ? [patient_id, doctor_id, appointment_date, family_member_id] : [patient_id, doctor_id, appointment_date]
+      isFamilyBooking ? [patient_id, doctor_id, appointment_date, family_member_id] : [patient_id, doctor_id, appointment_date]
     );
 
     if (existing.rows.length > 0) {
@@ -537,12 +605,14 @@ app.post('/api/public/orders', async (req: any, res: any) => {
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;');
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'pending\';');
     await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS family_member_id INT;');
+    await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS short_code VARCHAR(10) UNIQUE;');
+    const short_code = await generateShortCode(pool, 'orders');
     await client.query(
-      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id, delivery_address, prescription_image_url, status, family_member_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId, delivery_address || null, prescription_image_url || null, status || 'pending', family_member_id || null]
+      'INSERT INTO orders (pharmacy_id, customer_name, customer_phone, items, total_price, user_id, delivery_address, prescription_image_url, status, family_member_id, short_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+      [pharmacy_id, customer_name, customer_phone, JSON.stringify(items), total_price, buyerId, delivery_address || null, prescription_image_url || null, status || 'pending', family_member_id || null, short_code]
     );
     await client.query('COMMIT');
-    res.json({ success: true });
+    res.json({ success: true, short_code });
   } catch (err: any) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
