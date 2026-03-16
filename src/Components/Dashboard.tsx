@@ -473,8 +473,85 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   );
 };
 
+// 🟢 مكون إدارة أفراد العائلة (للآباء)
+const FamilyManager = ({ lang }: { lang: 'ar' | 'en' }) => {
+  const [children, setChildren] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/api/users/children')
+      .then(setChildren)
+      .catch(() => toast.error(lang === 'ar' ? 'فشل تحميل بيانات العائلة' : 'Failed to load family data'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-10 text-center animate-pulse font-bold text-slate-500">{lang === 'ar' ? 'جاري تحميل أفراد العائلة...' : 'Loading family members...'}</div>;
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center">
+          <Users size={28} />
+        </div>
+        <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+          {lang === 'ar' ? 'أفراد العائلة المرتبطون' : 'Linked Family Members'}
+        </h2>
+      </div>
+
+      {children.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-16 text-center border border-dashed border-slate-300 dark:border-slate-700">
+          <Users size={64} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'لا يوجد أفراد عائلة مرتبطون حالياً' : 'No linked family members yet'}</h3>
+          <p className="text-slate-500 mt-2">{lang === 'ar' ? 'يمكنك إضافة حساب لطفل من خلال صفحة التسجيل.' : 'You can add a child account through the registration page.'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {children.map(child => (
+            <div
+              key={child.id}
+              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold text-2xl overflow-hidden shadow-inner">
+                  {child.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white truncate">{child.name}</h3>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold">
+                       {child.age ? `${child.age} ${lang === 'ar' ? 'سنة' : 'Yrs'}` : (lang === 'ar' ? 'غير محدد' : 'N/A')}
+                    </span>
+                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md font-bold">
+                      {child.gender || (lang === 'ar' ? 'غير محدد' : 'N/A')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{lang === 'ar' ? 'البريد الإلكتروني للطفل' : 'Child Email'}</p>
+                  <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate" dir="ltr">{child.email}</p>
+                </div>
+                
+                <button 
+                  onClick={() => toast(lang === 'ar' ? 'الملف الطبي الكامل قادم قريباً!' : 'Full Medical Record coming soon!', { icon: '🏥' })}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md shadow-blue-100 dark:shadow-none flex items-center justify-center gap-2"
+                >
+                  <Stethoscope size={18} />
+                  {lang === 'ar' ? 'الملف الطبي' : 'Medical Record'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser, currency }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void, currency: 'old' | 'new' }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
+  const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr' | 'family'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -921,6 +998,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               <button onClick={() => setActiveTab('ehr')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'ehr' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                 <HeartPulse size={18} /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'Medical Record & Prescriptions'}
               </button>
+              <button onClick={() => setActiveTab('family')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'family' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                <Users size={18} /> {lang === 'ar' ? 'أفراد العائلة' : 'Family Members'}
+              </button>
             </>
           )}
 
@@ -1213,6 +1293,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
             </form>
           </div>
         )}
+
+        {/* 3. Family Management */}
+        {activeTab === 'family' && <FamilyManager lang={lang} />}
 
         {/* 3. إدارة المنشآت */}
         {activeTab === 'facilities' && user.role !== 'patient' && (

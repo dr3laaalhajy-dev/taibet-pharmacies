@@ -176,16 +176,27 @@ app.post('/api/auth/register-child', async (req: any, res: any) => {
     }
 
     // 2. إنشاء حساب الطفل
-    // الملاحظات: لا يوجد ايميل، لا توجد كلمة مرور، لا يوجد رقم هاتف.
-    // يتم تخصيص دور patient وربطه بـ parent_id
-    const query = `
-      INSERT INTO users (name, role, parent_id, is_active, wallet_balance)
-      VALUES ($1, 'patient', $2, true, 0)
-      RETURNING id, name
-    `;
-    const result = await pool.query(query, [childData.name, parent.id]);
+    // استخراج اسم المستخدم من ايميل الوالد
+    const parentUsername = parent.email.split('@')[0];
     
-    // (اختياري) يمكننا إضافة بيانات العمر والجنس في جدول medical_records أو كنظام ملاحظات مبدئي
+    // حساب عدد الأطفال الحاليين للوالد لتحديد الرقم التالي
+    const childrenCountRes = await pool.query('SELECT COUNT(*) FROM users WHERE parent_id = $1', [parent.id]);
+    const nextIndex = parseInt(childrenCountRes.rows[0].count) + 1;
+    
+    // إنشاء الايميل المنظم للطفل
+    const childEmail = `${parentUsername}child_${nextIndex}@taiba.user.sy`;
+    
+    // توليد كلمة مرور عشوائية مشفرة (كقيد في قاعدة البيانات)
+    const dummyRawPassword = Math.random().toString(36).slice(-10);
+    const hashedChildPassword = await bcrypt.hash(dummyRawPassword, 10);
+
+    const query = `
+      INSERT INTO users (name, email, password, role, parent_id, is_active, wallet_balance)
+      VALUES ($1, $2, $3, 'patient', $4, true, 0)
+      RETURNING id, name, email
+    `;
+    const result = await pool.query(query, [childData.name, childEmail, hashedChildPassword, parent.id]);
+    
     // سنقوم بإنشاء سجل طبي مبدئي للطفل لاحتواء العمر والجنس
     await pool.query(
       'INSERT INTO medical_records (patient_id, full_name, age, gender) VALUES ($1, $2, $3, $4)',
@@ -375,6 +386,24 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
 });
 
 // 🟢🟢 ====== بداية نظام السجل الطبي (النسخة النهائية) ====== 🟢🟢
+
+// 1. مسار جلب الأبناء المرتبطين بالحساب (Family Members)
+app.get('/api/users/children', authenticateToken, async (req: any, res: any) => {
+  try {
+    const parentId = req.user.id;
+    const query = `
+      SELECT u.id, u.name, u.email, m.age, m.dob, m.gender
+      FROM users u
+      LEFT JOIN medical_records m ON u.id = m.patient_id
+      WHERE u.parent_id = $1
+      ORDER BY u.created_at ASC
+    `;
+    const result = await pool.query(query, [parentId]);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 1. مسار جلب البيانات (هذا ما كان ينقص الطبيب والمريض لكي يقرأوا البيانات)
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {

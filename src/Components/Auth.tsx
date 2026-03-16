@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { Shield, MessageCircle, ArrowRight, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../api-client';
-import { LegalModal } from './LegalModal';
 import { PhoneContactInput, PhoneValue } from './PhoneContactInput';
 import { getErrorMessage } from '../helpers';
 
-export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => void, onBack: () => void, t: any, lang: string }) => {
+export const Auth = ({ onLogin, onBack, t, lang, openLegal }: { onLogin: (user: any) => void, onBack: () => void, t: any, lang: string, openLegal: (type: 'privacy' | 'terms') => void }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [emailPrefix, setEmailPrefix] = useState('');
@@ -21,7 +20,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
   const [loading, setLoading] = useState(false);
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('male');
-  const [parentEmail, setParentEmail] = useState('');
+  const [parentEmailPrefix, setParentEmailPrefix] = useState('');
   const [parentPassword, setParentPassword] = useState('');
 
   // 🟢 الحالة الجديدة للتحكم بظهور كلمة المرور
@@ -29,7 +28,6 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
   
   // 🟢 حالة الموافقة على الشروط
   const [agreed, setAgreed] = useState(false);
-  const [activeLegalModal, setActiveLegalModal] = useState<'privacy' | 'terms' | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setSuccessMsg('');
@@ -49,9 +47,10 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
         onLogin(data.user);
       } else {
         if (role === 'child') {
+          const fullParentEmail = `${parentEmailPrefix.toLowerCase().trim()}@taiba.user.sy`;
           const res = await api.post('/api/auth/register-child', {
             childData: { name, gender, age },
-            parentCredentials: { email: parentEmail, password: parentPassword }
+            parentCredentials: { email: fullParentEmail, password: parentPassword }
           });
           setSuccessMsg(lang === 'ar' ? 'تم إنشاء حساب الطفل وربطه بنجاح!' : 'Child account created and linked successfully!');
         } else {
@@ -177,7 +176,7 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
               </div>
             )}
 
-            {(isLogin || (!isLogin && role !== 'child')) && (
+            {isLogin && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t.email}</label>
                 <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} />
@@ -221,8 +220,20 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
                   {lang === 'ar' ? 'بيانات حساب الوالدين للربط' : 'Parent Account Verification'}
                 </h3>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">{lang === 'ar' ? 'البريد الإلكتروني للوالد' : 'Parent\'s Email'}</label>
-                  <input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" dir="ltr" value={parentEmail} onChange={e => setParentEmail(e.target.value)} />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{lang === 'ar' ? 'اسم مستخدم حساب الوالد' : 'Parent Username'}</label>
+                  <div className="flex" dir="ltr">
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="username" 
+                      className="flex-1 px-4 py-3 rounded-l-xl border border-r-0 border-slate-200 outline-none text-left focus:ring-2 focus:ring-blue-500" 
+                      value={parentEmailPrefix} 
+                      onChange={e => setParentEmailPrefix(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, ''))} 
+                    />
+                    <div className="px-3 py-3 bg-slate-50 border border-slate-200 rounded-r-xl text-slate-500 font-mono text-xs flex items-center select-none">
+                      @taiba.user.sy
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">{lang === 'ar' ? 'كلمة مرور الوالد' : 'Parent\'s Password'}</label>
@@ -247,6 +258,25 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
               </div>
             )}
 
+            {!isLogin && (
+              <div className="flex items-start gap-3 p-1 bg-slate-50 rounded-xl mt-2 select-none cursor-pointer" onClick={() => setAgreed(!agreed)}>
+                <div className={`mt-1 h-5 w-5 rounded border-2 flex items-center justify-center transition-all ${agreed ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'}`}>
+                  {agreed && <CheckCircle size={14} className="text-white" />}
+                </div>
+                <div className="text-xs leading-relaxed text-slate-600 font-medium">
+                  {lang === 'ar' ? (
+                    <>
+                      أوافق على <button type="button" onClick={(e) => { e.stopPropagation(); openLegal('privacy'); }} className="text-blue-600 font-bold hover:underline">سياسة الخصوصية</button> و <button type="button" onClick={(e) => { e.stopPropagation(); openLegal('terms'); }} className="text-blue-600 font-bold hover:underline">شروط الاستخدام</button> الخاصة بطيبة هيلث.
+                    </>
+                  ) : (
+                    <>
+                      I agree to the <button type="button" onClick={(e) => { e.stopPropagation(); openLegal('privacy'); }} className="text-blue-600 font-bold hover:underline">Privacy Policy</button> and <button type="button" onClick={(e) => { e.stopPropagation(); openLegal('terms'); }} className="text-blue-600 font-bold hover:underline">Terms of Use</button> of Taiba Health.
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors mt-6 shadow-lg shadow-blue-200 hover:-translate-y-0.5 transition-all outline-none focus:ring-2 focus:ring-blue-300">
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -267,16 +297,6 @@ export const Auth = ({ onLogin, onBack, t, lang }: { onLogin: (user: any) => voi
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {activeLegalModal && (
-          <LegalModal 
-            isOpen={!!activeLegalModal} 
-            type={activeLegalModal} 
-            onClose={() => setActiveLegalModal(null)} 
-            lang={lang} 
-          />
-        )}
-      </AnimatePresence>
     </>
   );
 };

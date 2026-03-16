@@ -16,7 +16,7 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|robots.txt|sitemap.xml|favicon.ico|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]

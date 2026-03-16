@@ -699,7 +699,7 @@ const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: num
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser, openLegal }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void, openLegal: (type: 'privacy' | 'terms') => void }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1151,8 +1151,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
                     {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
                     {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
-                    {footerData?.termsLink && <li><a href={footerData.termsLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a></li>}
-                    {footerData?.privacyLink && <li><a href={footerData.privacyLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</a></li>}
+                    <li><button onClick={() => openLegal('terms')} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</button></li>
+                    <li><button onClick={() => openLegal('privacy')} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</button></li>
                   </ul>
                 </>
               )}

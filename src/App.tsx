@@ -18,6 +18,7 @@ import 'leaflet/dist/leaflet.css';
 import { requestForToken } from './firebase';
 import { Eye, EyeOff } from 'lucide-react';
 import { getErrorMessage } from './helpers';
+import { LegalModal } from './Components/LegalModal';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -359,6 +360,9 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [activeLegalModal, setActiveLegalModal] = useState<'privacy' | 'terms' | null>(null);
+
+  const openLegal = (type: 'privacy' | 'terms') => setActiveLegalModal(type);
 
 
   useEffect(() => {
@@ -692,12 +696,24 @@ export default function App() {
         {view === 'public' && (
           <PublicView
             user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
+            openLegal={openLegal}
           />
         )}
-        {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} />}
+        {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} openLegal={openLegal} />}
         {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} openChatWithUser={openChatWithUser} lang={lang} t={t} currency={currency} />}
 
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
+
+        <AnimatePresence>
+          {activeLegalModal && (
+            <LegalModal 
+              isOpen={!!activeLegalModal} 
+              type={activeLegalModal} 
+              onClose={() => setActiveLegalModal(null)} 
+              lang={lang} 
+            />
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {showWalletModal && (
