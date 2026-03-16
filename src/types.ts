@@ -6,18 +6,19 @@ export interface FAQ {
 }
 
 // 🟢 تم دمج بيانات المستخدم القديمة والجديدة في مكان واحد!
-export interface UserType { 
-  id: number; 
-  email: string; 
-  role: 'super_admin' | 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient' | 'pharmacy' | 'customer_service'; 
+export interface UserType {
+  id: number;
+  email: string;
+  role: 'super_admin' | 'admin' | 'doctor' | 'pharmacist' | 'dentist' | 'patient' | 'pharmacy' | 'customer_service';
   name: string;
-  phone?: string; 
-  notes?: string; 
-  pharmacy_limit?: number; 
-  is_active?: boolean; 
+  phone?: string;
+  whatsapp_number?: string;
+  notes?: string;
+  pharmacy_limit?: number;
+  is_active?: boolean;
   wallet_balance?: string;
   profile_picture?: string;
-  
+
   // البيانات الخاصة بالطبيب
   specialty?: string;
   consultation_price?: number;
@@ -26,66 +27,63 @@ export interface UserType {
   daily_limit?: number;
 }
 
-export interface WorkingHours { 
-  isOpen: boolean; 
-  start: string; 
-  end: string; 
+export interface WorkingHours {
+  isOpen: boolean;
+  start: string;
+  end: string;
 }
 
-export interface Facility { 
-  id: number; 
-  name: string; 
-  type: 'pharmacy' | 'clinic' | 'dental_clinic'; 
-  address: string; 
-  phone: string; 
-  latitude: number; 
-  longitude: number; 
-  doctor_id?: number; 
-  pharmacist_name?: string; 
-  whatsapp_phone?: string; 
-  image_url?: string; 
-  specialty?: string; 
-  services?: string; 
-  consultation_fee?: string; 
-  waiting_time?: string; 
-  working_hours: Record<string, WorkingHours>; 
-  manual_status?: 'open' | 'closed' | 'auto'; 
-  is_ecommerce_enabled?: boolean; 
+export interface Facility {
+  id: number;
+  name: string;
+  type: 'pharmacy' | 'clinic' | 'dental_clinic';
+  address: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  doctor_id?: number;
+  pharmacist_name?: string;
+  whatsapp_phone?: string;
+  image_url?: string;
+  specialty?: string;
+  services?: string;
+  consultation_fee?: string;
+  waiting_time?: string;
+  working_hours: Record<string, WorkingHours>;
+  manual_status?: 'open' | 'closed' | 'auto';
+  is_ecommerce_enabled?: boolean;
 }
 
-export interface Product { 
-  id: number; 
-  pharmacy_id: number; 
-  name: string; 
-  price: string; 
-  quantity: number; 
-  max_per_user?: number; 
-  image_url?: string; 
-  pharmacy_name?: string; 
-  whatsapp_phone?: string; 
-}
-
-export interface CartItem extends Product { 
-  qty: number; 
-  product_id: number; 
-}
-
-export interface Order { 
-  id: number; 
+export interface Product {
+  id: number;
   pharmacy_id: number;
-  pharmacy_name: string; 
-  customer_name: string; 
-  customer_phone: string; 
-  items: CartItem[] | string; 
-  total_price: string; 
-  status: 'pending' | 'completed' | 'cancelled' | 'pending_pricing' | 'accepted' | 'awaiting_approval'; 
-  created_at: string; 
+  name: string;
+  price: string;
+  quantity: number;
+  max_per_user?: number;
+  image_url?: string;
+  pharmacy_name?: string;
+  whatsapp_phone?: string;
+}
+
+export interface CartItem extends Product {
+  qty: number;
+  product_id: number;
+}
+
+export interface Order {
+  id: number;
+  pharmacy_id: number;
+  pharmacy_name: string;
+  customer_name: string;
+  customer_phone: string;
+  items: CartItem[] | string;
+  total_price: string;
+  status: 'pending' | 'completed' | 'cancelled' | 'pending_pricing' | 'accepted' | 'awaiting_approval';
+  created_at: string;
   prescription_url?: string;
   prescription_image_url?: string;
   delivery_address?: string;
-  family_member_id?: number | null;
-  family_member_name?: string | null;
-  family_member_relation?: string | null;
   short_code?: string;
 }
 
@@ -110,15 +108,15 @@ export interface FooterSettings {
   complaints_phone?: string;
 }
 
-export interface WalletRequest { 
-  id: number; 
-  user_id: number; 
-  user_name: string; 
-  user_email: string; 
-  type: 'deposit' | 'withdrawal'; 
-  amount: string; 
-  status: 'pending' | 'approved' | 'rejected'; 
-  created_at: string; 
+export interface WalletRequest {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  type: 'deposit' | 'withdrawal';
+  amount: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
 }
 
 export const SUPER_ADMINS = ['admin@pharmaduty.com', 'alaa@taiba.pharma.sy', 'alaa3@taiba.dental.sy'];

@@ -229,7 +229,6 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
             </div>
             <div class="details-col">
               <strong>${lang === 'ar' ? 'صاحب الطلب:' : 'Order By:'}</strong> ${o.customer_name}<br>
-              ${o.family_member_name ? `<strong>${lang === 'ar' ? 'المريض (فرد عائلة):' : 'Patient (Family):'}</strong> <span style="color: #4f46e5; font-weight: bold;">${o.family_member_name} (${o.family_member_relation})</span><br>` : ''}
               <strong>${lang === 'ar' ? 'رقم الهاتف:' : 'Phone Number:'}</strong> <span dir="ltr">${o.customer_phone}</span>
             </div>
           </div>
@@ -418,13 +417,8 @@ export const OrdersManager = ({ user, facilities, lang }: { user: UserType, faci
             <div className="flex justify-between items-start border-b border-slate-100 pb-4 mb-4">
               <div>
                 <h4 className="font-bold text-lg text-slate-900">
-                  {o.family_member_name ? `${o.family_member_name} (${lang === 'ar' ? 'عن طريق' : 'via'} ${o.customer_name})` : o.customer_name}
+                  {o.customer_name}
                 </h4>
-                {o.family_member_name && (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md">{lang === 'ar' ? o.family_member_relation : o.family_member_relation}</span>
-                  </div>
-                )}
                 <div className="flex items-center gap-2 text-slate-500 text-sm mt-1 font-mono">
                   <Phone size={14} /> <span dir="ltr">{o.customer_phone}</span>
                 </div>

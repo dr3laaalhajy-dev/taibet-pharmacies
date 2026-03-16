@@ -19,3 +19,25 @@ export const getDistanceKm = (l1: number, ln1: number, l2: number, ln2: number) 
 export const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { const [p, setP] = useState<any>(initialPosition || null); useMapEvents({ click(e) { setP([e.latlng.lat, e.latlng.lng]); onLocationSelect(e.latlng.lat, e.latlng.lng); } }); return p ? <Marker position={p} /> : null; };
 
 export const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
+
+export const getErrorMessage = (error: any, lang: string = 'ar') => {
+  if (error?.error === 'rate_limit_exceeded' && error?.retryAfterSeconds) {
+    const totalSeconds = error.retryAfterSeconds;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (lang === 'ar') {
+      let msg = 'تم تجاوز الحد المسموح، يرجى المحاولة بعد ';
+      if (minutes > 0) msg += `${minutes} دقيقة `;
+      if (minutes > 0 && seconds > 0) msg += 'و ';
+      if (seconds > 0) msg += `${seconds} ثانية`;
+      return msg;
+    } else {
+      let msg = 'Rate limit exceeded, please try again in ';
+      if (minutes > 0) msg += `${minutes}m `;
+      if (seconds > 0) msg += `${seconds}s`;
+      return msg;
+    }
+  }
+  return error?.error || error?.message || (lang === 'ar' ? 'حدث خطأ ما' : 'An error occurred');
+};

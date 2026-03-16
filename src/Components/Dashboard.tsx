@@ -10,14 +10,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { UserType, Facility, WorkingHours, FooterSettings, SUPER_ADMINS, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
 import { api, uploadImageToImgBB } from '../api-client';
-import { checkIsOpenNow } from '../helpers';
+import { checkIsOpenNow, getErrorMessage } from '../helpers';
 import { ProductsManager } from './ProductsManager';
 import { OrdersManager } from './OrdersManager';
 import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 import { requestForToken, onMessageListener } from '../firebase';
 import { PatientOrdersManager } from './PatientOrdersManager';
-import { FamilyMembersManager } from './FamilyMembersManager';
+
+import { PhoneContactInput } from './PhoneContactInput';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -473,7 +474,7 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser, currency }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void, currency: 'old' | 'new' }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr' | 'family_members'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
+  const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -610,7 +611,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   const dashboardTitle = (user.role === 'doctor' || user.role === 'dentist') ? (lang === 'ar' ? 'عياداتي' : 'My Clinics') : (user.role === 'pharmacist' ? (lang === 'ar' ? 'صيدلياتي' : 'My Pharmacies') : (lang === 'ar' ? 'إدارة المنشآت الطبية' : 'Manage Facilities'));
   const addButtonText = (user.role === 'doctor' || user.role === 'dentist') ? (lang === 'ar' ? 'إضافة عيادة' : 'Add Clinic') : (user.role === 'pharmacist' ? (lang === 'ar' ? 'إضافة صيدلية' : 'Add Pharmacy') : (lang === 'ar' ? 'إضافة منشأة' : 'Add Facility'));
 
-  const [profileEmail, setProfileEmail] = useState(user.email); const [profileName, setProfileName] = useState(user.name); const [profilePhone, setProfilePhone] = useState(user.phone || ''); const [profileNotes, setProfileNotes] = useState(user.notes || ''); const [profileCurrentPassword, setProfileCurrentPassword] = useState(''); const [profileNewPassword, setProfileNewPassword] = useState('');
+  const [profileEmail, setProfileEmail] = useState(user.email);
+  const [profileName, setProfileName] = useState(user.name);
+  const [profilePhone, setProfilePhone] = useState({
+    phone: user.phone || '',
+    whatsapp: user.whatsapp_number || user.phone || '',
+    hasSeparateWhatsapp: !!user.whatsapp_number && user.whatsapp_number !== user.phone
+  });
+  const [profileNotes, setProfileNotes] = useState(user.notes || '');
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
+  const [profileNewPassword, setProfileNewPassword] = useState('');
   const [footerForm, setFooterForm] = useState<FooterSettings>({ copyright: '', description: '', facebook: '', instagram: '', contact_phone: '', complaints_phone: '' });
 
   const defaultWorkingHours: Record<string, WorkingHours> = {};
@@ -757,17 +767,17 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     finally { setIsSubmittingFacility(false); }
   };
 
-  const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); toast.success(lang === 'ar' ? 'تم تحديث حالة الدوام' : 'Status updated'); } catch (err: any) { toast.error(lang === 'ar' ? 'حدث خطأ' : 'Error occurred'); } };
-  const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل حالة المتجر' : 'Store updated'); } catch (err: any) { toast.error(lang === 'ar' ? 'ممنوع' : 'Forbidden'); } };
-  const generateActivationKey = async () => { setGeneratedKey(null); try { const res = await api.post('/api/admin/generate-key', {}); setTimeout(() => setGeneratedKey(res.key), 100); toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); } catch (err: any) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
-  const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); toast.success(lang === 'ar' ? 'تم تفعيل المستخدم' : 'User approved'); } catch (err) { toast.error(lang === 'ar' ? 'خطأ' : 'Error'); } };
+  const setManualStatus = async (id: number, status: 'open' | 'closed' | 'auto') => { try { await api.patch(`/api/pharmacies/${id}/status`, { manual_status: status }); loadData(); toast.success(lang === 'ar' ? 'تم تحديث حالة الدوام' : 'Status updated'); } catch (err: any) { toast.error(getErrorMessage(err, lang)); } };
+  const toggleEcommerce = async (id: number, currentStatus: boolean) => { try { await api.patch(`/api/pharmacies/${id}/ecommerce`, { is_ecommerce_enabled: !currentStatus }); loadData(); toast.success(lang === 'ar' ? 'تم تعديل حالة المتجر' : 'Store updated'); } catch (err: any) { toast.error(getErrorMessage(err, lang)); } };
+  const generateActivationKey = async () => { setGeneratedKey(null); try { const res = await api.post('/api/admin/generate-key', {}); setTimeout(() => setGeneratedKey(res.key), 100); toast.success(lang === 'ar' ? 'تم توليد مفتاح جديد' : 'Key generated'); } catch (err: any) { toast.error(getErrorMessage(err, lang)); } };
+  const approveUser = async (id: number) => { try { await api.patch(`/api/admin/users/${id}/approve`); setUsers(users.map(u => u.id === id ? { ...u, is_active: true } : u)); toast.success(lang === 'ar' ? 'تم تفعيل المستخدم' : 'User approved'); } catch (err) { toast.error(getErrorMessage(err, lang)); } };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingUser) return;
     setIsSubmittingUser(true);
     try { if (editingUser) await api.put(`/api/admin/users/${editingUser.id}`, userForm); else await api.post('/api/admin/users', userForm); setShowUserModal(false); setEditingUser(null); loadData(); toast.success(lang === 'ar' ? 'تم حفظ بيانات المستخدم' : 'User saved'); }
-    catch (err: any) { toast.error(err.error); }
+    catch (err: any) { toast.error(getErrorMessage(err, lang)); }
     finally { setIsSubmittingUser(false); }
   };
 
@@ -775,8 +785,21 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     e.preventDefault();
     if (isSubmittingProfile) return;
     setIsSubmittingProfile(true);
-    try { const res = await api.post('/api/auth/update-profile', { email: profileEmail, name: profileName, currentPassword: profileCurrentPassword, newPassword: profileNewPassword, phone: profilePhone, notes: profileNotes }); toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated); setProfileCurrentPassword(''); setProfileNewPassword(''); }
-    catch (err: any) { toast.error(err.error); }
+    try {
+      const res = await api.post('/api/auth/update-profile', {
+        email: profileEmail,
+        name: profileName,
+        currentPassword: profileCurrentPassword,
+        newPassword: profileNewPassword,
+        phone: profilePhone.phone,
+        whatsapp_number: profilePhone.whatsapp,
+        notes: profileNotes
+      });
+      toast.success(res.verificationRequired ? t.verificationSent : t.profileUpdated);
+      setProfileCurrentPassword('');
+      setProfileNewPassword('');
+    }
+    catch (err: any) { toast.error(getErrorMessage(err, lang)); }
     finally { setIsSubmittingProfile(false); }
   };
 
@@ -785,7 +808,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     if (isSubmittingSettings) return;
     setIsSubmittingSettings(true);
     try { await api.put('/api/admin/settings', footerForm); toast.success(lang === 'ar' ? 'تم حفظ إعدادات الفوتر بنجاح' : 'Footer settings saved'); }
-    catch (err: any) { toast.error(lang === 'ar' ? 'فشل الحفظ' : 'Save failed'); }
+    catch (err: any) { toast.error(getErrorMessage(err, lang)); }
     finally { setIsSubmittingSettings(false); }
   };
 
@@ -801,7 +824,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
       setAdminWalletModal({ isOpen: false, userId: null });
       setAdminWalletAmount('');
       setAdminWalletAction('deposit');
-    } catch (err) { toast.error(lang === 'ar' ? 'خطأ في العملية' : 'Error'); }
+    } catch (err) { toast.error(getErrorMessage(err, lang)); }
     finally { setIsSubmittingAdminWallet(false); }
   };
 
@@ -814,7 +837,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
       setSuccessModalData({ isOpen: true, title: lang === 'ar' ? 'تم إرسال طلبك للإدارة بنجاح.' : 'Request sent successfully.', message: lang === 'ar' ? 'شكراً لتواصلكم معنا.' : 'Thank you for contacting us.' });
       setShowWalletModal(false); setWalletAmount('');
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.error || (lang === 'ar' ? 'حدث خطأ' : 'Error occurred'));
+      toast.error(getErrorMessage(err, lang));
     } finally { setIsSubmittingWalletRequest(false); }
   };
 
@@ -897,9 +920,6 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
               </button>
               <button onClick={() => setActiveTab('ehr')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'ehr' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                 <HeartPulse size={18} /> {lang === 'ar' ? 'سجلي الطبي ووصفاتي' : 'Medical Record & Prescriptions'}
-              </button>
-              <button onClick={() => setActiveTab('family_members')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'family_members' ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                <Users size={18} /> {lang === 'ar' ? 'أفراد العائلة' : 'Family Members'}
               </button>
             </>
           )}
@@ -1176,7 +1196,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
             <form onSubmit={handleUpdateProfile} className="bg-white dark:bg-slate-900 p-5 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.fullName || 'الاسم الكامل'}</label><input type="text" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" value={profileName} onChange={e => setProfileName(e.target.value)} disabled={isSubmittingProfile} /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.email || 'البريد الإلكتروني'}</label><input type="email" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} disabled={isSubmittingProfile} /></div>
-              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.phone || 'رقم الهاتف'}</label><input type="text" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} disabled={isSubmittingProfile} /></div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {t?.phone || 'رقم الهاتف'}
+                </label>
+                <PhoneContactInput
+                  value={profilePhone}
+                  onChange={setProfilePhone}
+                  lang={lang}
+                />
+              </div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.notes || 'ملاحظات'}</label><textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} disabled={isSubmittingProfile} /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.newPassword || 'كلمة المرور الجديدة'}</label><input type="password" className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-left" dir="ltr" value={profileNewPassword} onChange={e => setProfileNewPassword(e.target.value)} disabled={isSubmittingProfile} /></div>
               <div className="pt-4 border-t dark:border-slate-800"><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t?.currentPassword || 'كلمة المرور الحالية'}</label><input type="password" required className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 dark:bg-slate-900 text-left" dir="ltr" value={profileCurrentPassword} onChange={e => setProfileCurrentPassword(e.target.value)} disabled={isSubmittingProfile} /></div>
@@ -1242,7 +1271,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         {activeTab === 'orders' && (<div className="animate-in fade-in duration-300"><OrdersManager user={user} facilities={facilities.filter(f => f.type === 'pharmacy')} lang={lang} /></div>)}
         {activeTab === 'patient_orders' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><h2 className="text-2xl font-bold mb-6 dark:text-white">{lang === 'ar' ? 'طلباتي والأدوية' : 'My Orders & Medications'}</h2><PatientOrdersManager lang={lang} currency={currency} /></div>)}
         {activeTab === 'ehr' && (<div className="animate-in fade-in duration-300 max-w-4xl mx-auto"><PatientMedicalRecord user={user} lang={lang} /></div>)}
-        {activeTab === 'family_members' && <FamilyMembersManager lang={lang} />}
+
         {activeTab === 'wallet_requests' && (<div className="animate-in fade-in duration-300"><WalletRequestsManager user={user} lang={lang} /></div>)}
 
         {activeTab === 'super_settings' && isSuperAdmin && (
@@ -1493,8 +1522,22 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                     {(form.type === 'clinic' || form.type === 'dental_clinic') && (<div><label className="block text-sm font-bold mb-1 dark:text-slate-300">التخصص</label><select className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500" value={form.specialty || ''} onChange={e => setForm({ ...form, specialty: e.target.value })} disabled={isSubmittingFacility}><option value="">اختر...</option>{SAFE_SPECIALTIES.map((s: string) => <option key={s} value={s}>{s}</option>)}</select></div>)}
                     {form.type === 'pharmacy' && (<div><label className="block text-sm font-bold mb-1 dark:text-slate-300">اسم الصيدلي</label><input className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500" value={form.pharmacist_name || ''} onChange={e => setForm({ ...form, pharmacist_name: e.target.value })} disabled={isSubmittingFacility} /></div>)}
                     <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">العنوان</label><input required className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500" value={form.address || ''} onChange={e => setForm({ ...form, address: e.target.value })} disabled={isSubmittingFacility} /></div>
-                    <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">الهاتف</label><input required className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500 text-left" dir="ltr" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} disabled={isSubmittingFacility} /></div>
-                    <div><label className="block text-sm font-bold mb-1 dark:text-slate-300">رقم الواتساب</label><input className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 rounded-xl outline-none focus:border-blue-500 text-left" dir="ltr" placeholder="مثال: +9639..." value={form.whatsapp_phone || ''} onChange={e => setForm({ ...form, whatsapp_phone: e.target.value })} disabled={isSubmittingFacility} /></div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="block text-sm font-bold dark:text-slate-300">معلومات الاتصال</label>
+                      <PhoneContactInput
+                        value={{
+                          phone: form.phone || '',
+                          whatsapp: form.whatsapp_phone || form.phone || '',
+                          hasSeparateWhatsapp: !!form.whatsapp_phone && form.whatsapp_phone !== form.phone
+                        }}
+                        onChange={(val) => setForm({
+                          ...form,
+                          phone: val.phone,
+                          whatsapp_phone: val.whatsapp
+                        })}
+                        lang={lang}
+                      />
+                    </div>
                   </div>
 
                   <div className="mt-6 border-t dark:border-slate-800 pt-4">

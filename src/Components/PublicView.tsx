@@ -26,7 +26,7 @@ const StarRating = ({ rating, size = 16, className = "" }: { rating: number, siz
   );
 };
 
-const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser, activeProfile, openChatWithUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old' | 'new', currentUser: UserType | null, activeProfile?: { id: number; full_name: string } | null, openChatWithUser?: (id: number) => void }) => {
+const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, currentUser, openChatWithUser }: { doctorId: number, facilityId?: number, onClose: () => void, t: any, lang: string, currency: 'old' | 'new', currentUser: UserType | null, openChatWithUser?: (id: number) => void }) => {
   const [doctor, setDoctor] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
@@ -107,8 +107,7 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
       await api.post('/api/appointments/book', { 
         doctor_id: doctorId, 
         facility_id: primaryFacility.id, 
-        appointment_date: bookingDate,
-        family_member_id: activeProfile?.id || null
+        appointment_date: bookingDate
       });
       toast.success(lang === 'ar' ? 'تم تأكيد حجزك بنجاح! ننتظرك في العيادة.' : 'Booking confirmed! See you at the clinic.');
       setShowBookingForm(false); setBookingDate('');
@@ -435,18 +434,13 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
   );
 };
 
-const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyMembers, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, activeProfile?: { id: number; full_name: string } | null, familyMembers: any[], refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string }) => {
+const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency, setCurrency, defaultAddress }: { onBack: () => void, facilities: Facility[], lang: string, user: UserType | null, refreshUser: () => void, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string }) => {
   const [products, setProducts] = useState<Product[]>([]); const [searchQuery, setSearchQuery] = useState(''); const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null); const [loading, setLoading] = useState(true); const [cart, setCart] = useState<CartItem[]>([]); const [showCart, setShowCart] = useState(false); const [orderSuccess, setOrderSuccess] = useState(false);
   const [lastOrderShortCode, setLastOrderShortCode] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'wallet'>('cash');
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionImage, setPrescriptionImage] = useState<File | null>(null);
   const [isUploadingPrescription, setIsUploadingPrescription] = useState(false);
-  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | null>(activeProfile?.id || null);
-
-  useEffect(() => {
-    setSelectedFamilyMemberId(activeProfile?.id || null);
-  }, [activeProfile]);
 
   useEffect(() => { api.get('/api/public/products').then(setProducts).finally(() => setLoading(false)); }, []);
   const ecommercePharmacies = facilities.filter(f => f.is_ecommerce_enabled); const selectedPharmacy = facilities.find(f => f.id === selectedPharmacyId);
@@ -473,8 +467,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
         delivery_address: defaultAddress || 'بدون عنوان', 
         items: cart, 
         total_price: cartTotal.toString(), 
-        payment_method: paymentMethod,
-        family_member_id: selectedFamilyMemberId
+        payment_method: paymentMethod
       });
       setLastOrderShortCode(res.short_code || null);
       setOrderSuccess(true); setCart([]); setShowCart(false);
@@ -501,8 +494,7 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
         total_price: '0',
         payment_method: 'cash',
         prescription_image_url: imageUrl,
-        status: 'pending_pricing',
-        family_member_id: selectedFamilyMemberId
+        status: 'pending_pricing'
       });
       setLastOrderShortCode(res.short_code || null);
       setOrderSuccess(true);
@@ -601,25 +593,6 @@ const PublicShopView = ({ onBack, facilities, lang, user, activeProfile, familyM
                   )}
                 </div>
 
-                {familyMembers.length > 0 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">{lang === 'ar' ? 'الطلب مقدم لـ:' : 'Order for:'}</label>
-                    <div className="grid grid-cols-1 gap-2">
-                       <button type="button" onClick={() => setSelectedFamilyMemberId(null)} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedFamilyMemberId === null ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-100 dark:ring-blue-900/50' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedFamilyMemberId === null ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}><User size={16} /></div>
-                         <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{lang === 'ar' ? 'نفسي (صاحب الحساب)' : 'Myself'}</p></div>
-                         {selectedFamilyMemberId === null && <CheckCircle className="text-blue-600" size={18} />}
-                       </button>
-                       {familyMembers.map(m => (
-                         <button key={m.id} type="button" onClick={() => setSelectedFamilyMemberId(m.id)} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedFamilyMemberId === m.id ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedFamilyMemberId === m.id ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}><Users size={16} /></div>
-                           <div className="flex-1 text-right"><p className="text-sm font-bold dark:text-white">{m.full_name}</p><p className="text-[10px] text-slate-500">{m.relationship}</p></div>
-                           {selectedFamilyMemberId === m.id && <CheckCircle className="text-blue-600" size={18} />}
-                         </button>
-                       ))}
-                    </div>
-                  </div>
-                )}
 
                 {!defaultAddress && (
                   <div className="mb-4 bg-red-50 text-red-700 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
@@ -726,7 +699,7 @@ const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: num
   );
 };
 
-export const PublicView = ({ user, activeProfile, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, activeProfile?: { id: number; full_name: string } | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -751,13 +724,9 @@ export const PublicView = ({ user, activeProfile, refreshUser, lang, t, currency
   const itemsPerPage = 6;
   const [showShop, setShowShop] = useState(false);
   const [showDoctors, setShowDoctors] = useState<false | 'doctor' | 'dentist'>(false);
-  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (user?.role === 'patient') {
-      api.get('/api/family').then(data => setFamilyMembers(Array.isArray(data) ? data : []));
-    }
-  }, [user]);
+
+
 
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
@@ -857,7 +826,7 @@ export const PublicView = ({ user, activeProfile, refreshUser, lang, t, currency
     </div>
   );
 
-  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} activeProfile={activeProfile} familyMembers={familyMembers} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
+  if (showShop) return <PublicShopView onBack={() => setShowShop(false)} facilities={facilities} lang={lang} user={user} refreshUser={refreshUser} currency={currency} setCurrency={setCurrency} defaultAddress={defaultAddress} />;
   if (showDoctors) return <DoctorsDirectoryView onBack={() => setShowDoctors(false)} lang={lang} t={t} filterRole={showDoctors} currency={currency} setCurrency={setCurrency} currentUser={user} openChatWithUser={openChatWithUser} />;
 
   const processedFacilities = facilities.filter(f => f.type === activeTab && (f.name.includes(searchQuery) || f.address.includes(searchQuery))).map(f => ({ ...f, isOpenNow: checkIsOpenNow(f), distance: userLocation ? parseFloat(getDistanceKm(userLocation.lat, userLocation.lng, f.latitude, f.longitude)) : null })).sort((a, b) => { if (a.isOpenNow && !b.isOpenNow) return -1; if (!a.isOpenNow && b.isOpenNow) return 1; if (a.distance !== null && b.distance !== null) return a.distance - b.distance; return 0; });
@@ -1138,7 +1107,7 @@ export const PublicView = ({ user, activeProfile, refreshUser, lang, t, currency
         )}
 
         <AnimatePresence>
-          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => { setSelectedDoctorId(null); setSelectedFacilityId(null); }} t={t} lang={lang} currency={currency} currentUser={user} activeProfile={activeProfile} openChatWithUser={openChatWithUser} />}
+          {selectedDoctorId && <DoctorProfileModal doctorId={selectedDoctorId} facilityId={selectedFacilityId || undefined} onClose={() => { setSelectedDoctorId(null); setSelectedFacilityId(null); }} t={t} lang={lang} currency={currency} currentUser={user} openChatWithUser={openChatWithUser} />}
         </AnimatePresence>
       </div>
 
