@@ -37,7 +37,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, body, t }: { isOpen: 
 };
 
 // 🟢 مكون السجل الطبي والوصفة الطبية (تم تطويره ليعرض السجل الطبي الشامل الجديد)
-const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patientName, lang, user, facility }: any) => {
+const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appointmentId, patientName, familyMemberName, lang, user, facility }: any) => {
   const [activeTab, setActiveTab] = useState<'ehr' | 'prescription'>('prescription');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -97,10 +97,11 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
   };
 
   useEffect(() => {
-    if (isOpen && patientId) {
+    const targetId = familyMemberId || patientId;
+    if (isOpen && targetId) {
       setLoading(true);
       setAttachments([]);
-      api.get(`/api/medical-records/${patientId}`).then(res => {
+      api.get(`/api/medical-records/${targetId}`).then(res => {
         if (res && res.id) {
           setEhr(res);
           try {
@@ -110,7 +111,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
         }
       }).catch(() => { }).finally(() => setLoading(false));
     }
-  }, [isOpen, patientId]);
+  }, [isOpen, patientId, familyMemberId]);
 
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,7 +172,8 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
     if (medicines.length === 0 || !medicines[0].name.trim()) return toast.error(lang === 'ar' ? 'يجب إضافة دواء واحد على الأقل' : 'Add at least one medicine');
     setSubmitting(true);
     try {
-      const res = await api.post('/api/prescriptions', { patient_id: patientId, appointment_id: appointmentId, diagnosis, medicines, notes });
+      const targetId = familyMemberId || patientId;
+      const res = await api.post('/api/prescriptions', { patient_id: targetId, appointment_id: appointmentId, diagnosis, medicines, notes });
       toast.success(lang === 'ar' ? 'تم إصدار الوصفة الطبية بنجاح' : 'Prescription issued successfully');
       
       const px = res.prescription?.[0];
@@ -186,8 +188,11 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, appointmentId, patient
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-50 dark:bg-slate-950 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="bg-white dark:bg-slate-900 p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center z-10 shadow-sm">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><User className="text-blue-600 dark:text-blue-400" /> {patientName}</h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">#{patientId} {lang === 'ar' ? 'الملف الطبي للمريض' : 'Patient Medical File'}</span>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <User className="text-blue-600 dark:text-blue-400" /> 
+              {familyMemberName ? `${familyMemberName} (${lang === 'ar' ? 'عن طريق' : 'via'} ${patientName})` : patientName}
+            </h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">#{familyMemberId || patientId} {lang === 'ar' ? 'الملف الطبي للمريض' : 'Patient Medical File'}</span>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-500 hover:text-red-500 rounded-full transition-colors"><X size={20} /></button>
         </div>
@@ -609,7 +614,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
 
-  const [patientRecordModal, setPatientRecordModal] = useState<{ isOpen: boolean, patientId: number, appointmentId: number, patientName: string }>({ isOpen: false, patientId: 0, appointmentId: 0, patientName: '' });
+  const [patientRecordModal, setPatientRecordModal] = useState<{ isOpen: boolean, patientId: number, familyMemberId?: number, appointmentId: number, patientName: string, familyMemberName?: string }>({ isOpen: false, patientId: 0, appointmentId: 0, patientName: '' });
 
   // 🟢 حالات السجل الطبي السابق (التشخيصات السابقة)
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -1021,6 +1026,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
 
           {user.role === 'patient' && (
             <>
+              <button onClick={() => setActiveTab('appointments')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'appointments' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                <Calendar size={18} /> {lang === 'ar' ? 'مواعيدي' : 'My Appointments'}
+              </button>
               <button onClick={() => setActiveTab('patient_orders')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'patient_orders' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                 <FileText size={18} /> {lang === 'ar' ? 'طلباتي' : 'My Orders'}
               </button>
@@ -1249,13 +1257,20 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                               <span className="font-bold text-slate-900 dark:text-white">
                                 {appt.family_member_name ? `${appt.family_member_name} (${lang === 'ar' ? 'عن طريق' : 'via'} ${appt.patient_name})` : appt.patient_name}
                               </span>
-                              <button onClick={() => openPatientHistory(appt.patient_id, appt.patient_name)} title={lang === 'ar' ? 'سجل التشخيصات السابقة' : 'Past Medical History'} className="p-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full transition-colors shrink-0 shadow-sm border border-indigo-100 dark:border-indigo-800">
+                               <button onClick={() => openPatientHistory(appt.family_member_id || appt.patient_id, appt.family_member_name || appt.patient_name)} title={lang === 'ar' ? 'سجل التشخيصات السابقة' : 'Past Medical History'} className="p-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full transition-colors shrink-0 shadow-sm border border-indigo-100 dark:border-indigo-800">
                                 <Activity size={14} />
                               </button>
                             </div>
-                            <button onClick={() => setPatientRecordModal({ isOpen: true, patientId: appt.patient_id, appointmentId: appt.id, patientName: appt.patient_name })} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-md font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1 w-max mt-1.5">
-                              <FileText size={12} /> {lang === 'ar' ? 'السجل والوصفة (روشتة)' : 'EHR & Rx'}
-                            </button>
+                             <button onClick={() => setPatientRecordModal({ 
+                               isOpen: true, 
+                               patientId: appt.patient_id, 
+                               familyMemberId: appt.family_member_id,
+                               appointmentId: appt.id, 
+                               patientName: appt.patient_name,
+                               familyMemberName: appt.family_member_name
+                             })} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-md font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1 w-max mt-1.5">
+                               <FileText size={12} /> {lang === 'ar' ? 'السجل والوصفة (روشتة)' : 'EHR & Rx'}
+                             </button>
                           </td>
                           <td className="px-6 py-4 font-mono text-sm text-slate-600 dark:text-slate-400" dir="ltr">{appt.patient_phone || '---'}</td>
                           <td className="px-6 py-4 text-center">
@@ -1717,7 +1732,18 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         )}
       </AnimatePresence>
 
-      <PatientRecordModal isOpen={patientRecordModal.isOpen} onClose={() => setPatientRecordModal({ ...patientRecordModal, isOpen: false })} patientId={patientRecordModal.patientId} appointmentId={patientRecordModal.appointmentId} patientName={patientRecordModal.patientName} lang={lang} user={user} facility={facilities.find(f => f.doctor_id === user?.id) || facilities[0] || {}} />
+      <PatientRecordModal 
+        isOpen={patientRecordModal.isOpen} 
+        onClose={() => setPatientRecordModal({ ...patientRecordModal, isOpen: false })} 
+        patientId={patientRecordModal.patientId} 
+        familyMemberId={patientRecordModal.familyMemberId}
+        appointmentId={patientRecordModal.appointmentId} 
+        patientName={patientRecordModal.patientName} 
+        familyMemberName={patientRecordModal.familyMemberName}
+        lang={lang} 
+        user={user} 
+        facility={facilities.find(f => f.doctor_id === user?.id) || facilities[0] || {}} 
+      />
 
       <AnimatePresence>
         {showWalletModal && (

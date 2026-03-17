@@ -40,6 +40,8 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
   const [bookingDate, setBookingDate] = useState('');
   const [isBooking, setIsBooking] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [children, setChildren] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | number>('me');
 
   const fetchDoctorData = async () => {
     setLoading(true);
@@ -75,7 +77,17 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
     }
   };
 
-  useEffect(() => { fetchDoctorData(); }, [doctorId]);
+  const fetchChildren = async () => {
+    try {
+      const res = await api.get('/api/users/children');
+      setChildren(res.children || []);
+    } catch (err) { console.error("Error fetching children:", err); }
+  };
+
+  useEffect(() => { 
+    fetchDoctorData(); 
+    if (currentUser) fetchChildren();
+  }, [doctorId]);
   if (!doctorId) return null;
 
   const fee = doctor?.consultation_price || doctor?.facilities?.[0]?.consultation_fee || 0;
@@ -108,7 +120,8 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
       await api.post('/api/appointments/book', {
         doctor_id: doctorId,
         facility_id: primaryFacility.id,
-        appointment_date: bookingDate
+        appointment_date: bookingDate,
+        family_member_id: selectedPatientId === 'me' ? null : selectedPatientId
       });
       toast.success(lang === 'ar' ? 'تم تأكيد حجزك بنجاح! ننتظرك في العيادة.' : 'Booking confirmed! See you at the clinic.');
       setShowBookingForm(false); setBookingDate('');
@@ -287,6 +300,24 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
 
                   {showBookingForm ? (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 p-4 rounded-xl mb-4">
+                      {children.length > 0 && (
+                        <div className="mb-4">
+                          <label className="block text-sm font-bold text-blue-900 dark:text-blue-300 mb-3">{lang === 'ar' ? 'لمن هذا الموعد؟' : 'Who is this appointment for?'}</label>
+                          <div className="space-y-2">
+                             <label className={`flex items-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedPatientId === 'me' ? 'border-blue-600 bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
+                               <input type="radio" name="selectedPatient" value="me" checked={selectedPatientId === 'me'} onChange={() => setSelectedPatientId('me')} className="w-4 h-4 accent-blue-600" />
+                               <span className="text-sm font-bold">{lang === 'ar' ? 'لي شخصياً' : 'For Me'}</span>
+                             </label>
+                             {children.map(child => (
+                               <label key={child.id} className={`flex items-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedPatientId === child.id ? 'border-blue-600 bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
+                                 <input type="radio" name="selectedPatient" value={child.id} checked={selectedPatientId === child.id} onChange={() => setSelectedPatientId(child.id)} className="w-4 h-4 accent-blue-600" />
+                                 <span className="text-sm font-bold">{lang === 'ar' ? `طفلي: ${child.name}` : `Child: ${child.name}`}</span>
+                               </label>
+                             ))}
+                          </div>
+                        </div>
+                      )}
+
                       <label className="block text-sm font-bold text-blue-900 dark:text-blue-300 mb-2">{lang === 'ar' ? 'اختر تاريخ الحجز:' : 'Select Date:'}</label>
                       {/* 🚨 إضافة id و name لحقل التاريخ 🚨 */}
                       <input

@@ -11,6 +11,7 @@ interface Appointment {
   facility_name: string;
   appointment_date: string;
   status: string;
+  family_member_name?: string;
 }
 
 export const PatientAppointments = ({ lang }: { lang: 'ar' | 'en' }) => {
@@ -137,7 +138,13 @@ export const PatientAppointments = ({ lang }: { lang: 'ar' | 'en' }) => {
                       <h4 className="font-black text-slate-900 dark:text-white text-lg group-hover:text-blue-600 transition-colors uppercase">
                         {app.doctor_name}
                       </h4>
-                      <p className="text-xs font-bold text-blue-500 dark:text-blue-400 flex items-center gap-1">
+                      {app.family_member_name && (
+                        <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md w-fit">
+                          <User size={12} />
+                          {lang === 'ar' ? `لهذا المريض: ${app.family_member_name}` : `For: ${app.family_member_name}`}
+                        </p>
+                      )}
+                      <p className="text-xs font-bold text-blue-500 dark:text-blue-400 flex items-center gap-1 mt-1">
                         <Stethoscope size={14} />
                         {app.doctor_specialty}
                       </p>
