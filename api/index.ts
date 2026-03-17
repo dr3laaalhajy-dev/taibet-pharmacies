@@ -91,7 +91,6 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch (e) { }
-    try { await pool.query(`ALTER TABLE appointments ADD COLUMN family_member_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN booked_by INTEGER REFERENCES users(id) ON DELETE SET NULL;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch (e) { }
@@ -632,46 +631,34 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
   const loggedInUserId = req.user.id;
   
   // Logic: 
-  // 1. Extract what the frontend sent (patient_id or family_member_id)
+  // 1. Extract what the frontend sent (the user_id of the actual patient)
   const incomingPatientId = req.body.patient_id || req.body.family_member_id;
 
-  // 2. Strictly format the variables for the database
-  let patientId = req.user.id; // The account owner
-  let familyMemberId = null; // MUST BE EXPLICITLY null, NOT undefined
-
-  if (incomingPatientId && incomingPatientId !== 'me' && incomingPatientId !== 'null') {
-    // Booking for a child
-    familyMemberId = (typeof incomingPatientId === 'string' ? parseInt(incomingPatientId) : incomingPatientId);
-  }
+  // 2. Format the variables
+  const patientId = (incomingPatientId && incomingPatientId !== 'me' && incomingPatientId !== 'null') 
+    ? (typeof incomingPatientId === 'string' ? parseInt(incomingPatientId) : incomingPatientId)
+    : loggedInUserId;
 
   try {
-    // Security check for family member
-    if (familyMemberId) {
-      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [familyMemberId, loggedInUserId]);
+    // Security check for family member (if the patient is not the logged-in user, they must be his/her child)
+    if (patientId !== loggedInUserId) {
+      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [patientId, loggedInUserId]);
       if (childCheck.rows.length === 0) return res.status(403).json({ error: 'غير مخول بالحجز لهذا المستخدم' });
     }
 
     // Duplicate Check: Check for this specific combination
-    let existing;
-    if (familyMemberId) {
-      existing = await pool.query(
-        'SELECT id FROM appointments WHERE doctor_id = $1 AND appointment_date = $2 AND patient_id = $3 AND family_member_id = $4',
-        [doctor_id, appointment_date, patientId, familyMemberId]
-      );
-    } else {
-      existing = await pool.query(
-        'SELECT id FROM appointments WHERE doctor_id = $1 AND appointment_date = $2 AND patient_id = $3 AND family_member_id IS NULL',
-        [doctor_id, appointment_date, patientId]
-      );
-    }
+    const existing = await pool.query(
+      'SELECT id FROM appointments WHERE doctor_id = $1 AND appointment_date = $2 AND patient_id = $3',
+      [doctor_id, appointment_date, patientId]
+    );
 
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: req.lang === 'ar' ? 'لديك حجز مسبق لهذا الشخص عند هذا الطبيب في نفس اليوم.' : 'This person already has an appointment with this doctor on the same day.' });
     }
 
     await pool.query(
-      'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id) VALUES ($1, $2, $3, $4, $5)',
-      [patientId, doctor_id, facility_id, appointment_date, familyMemberId]
+      'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, booked_by) VALUES ($1, $2, $3, $4, $5)',
+      [patientId, doctor_id, facility_id, appointment_date, loggedInUserId]
     );
     res.json({ success: true });
   } catch (err: any) {
@@ -682,10 +669,9 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => {
   try {
     const q = `
-      SELECT a.*, p.name as patient_name, p.phone as patient_phone, c.name as family_member_name
+      SELECT a.*, p.name as patient_name, p.phone as patient_phone
       FROM appointments a 
       JOIN users p ON a.patient_id = p.id 
-      LEFT JOIN users c ON a.family_member_id = c.id
       WHERE a.doctor_id = $1 AND a.appointment_date = $2 
       ORDER BY a.created_at ASC
     `;
@@ -695,13 +681,12 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
 app.get('/api/appointments/me', authenticateToken, async (req: any, res: any) => {
   try {
     const q = `
-      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name, c.name as family_member_name
+      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name, p.name as patient_name
       FROM appointments a
       JOIN users d ON a.doctor_id = d.id
       JOIN pharmacies f ON a.facility_id = f.id
-      LEFT JOIN users p ON a.patient_id = p.id
-      LEFT JOIN users c ON a.family_member_id = c.id
-      WHERE a.patient_id = $1
+      JOIN users p ON a.patient_id = p.id
+      WHERE a.patient_id = $1 OR a.booked_by = $1
       ORDER BY a.appointment_date DESC, a.id DESC
     `;
     const result = await pool.query(q, [req.user.id]);
