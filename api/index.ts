@@ -437,6 +437,35 @@ app.get('/api/users/children', authenticateToken, async (req: any, res: any) => 
   }
 });
 
+// 1.5. مسار جلب تفاصيل طفل محدد مع التحقق من الهوية (Security Check)
+app.get('/api/users/child/:childId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const childId = parseInt(req.params.childId);
+    const parentId = parseInt(req.user.id);
+    
+    if (isNaN(childId) || isNaN(parentId)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+
+    const query = `
+      SELECT u.id, u.name, u.email, m.age, m.dob, m.gender
+      FROM users u
+      LEFT JOIN medical_records m ON u.id = m.patient_id
+      WHERE u.id = $1 AND u.parent_id = $2
+    `;
+    const result = await pool.query(query, [childId, parentId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied or child not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error("Child Details API Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 1. مسار جلب البيانات (هذا ما كان ينقص الطبيب والمريض لكي يقرأوا البيانات)
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
@@ -631,6 +660,23 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
     res.json((await pool.query(q, [req.user.id, req.query.date])).rows);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
+app.get('/api/appointments/me', authenticateToken, async (req: any, res: any) => {
+  try {
+    const q = `
+      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name
+      FROM appointments a
+      JOIN users d ON a.doctor_id = d.id
+      JOIN pharmacies f ON a.facility_id = f.id
+      WHERE a.patient_id = $1
+      ORDER BY a.appointment_date DESC, a.id DESC
+    `;
+    const result = await pool.query(q, [req.user.id]);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/appointments/:id/status', authenticateToken, async (req: any, res: any) => { const { status } = req.body; try { await pool.query('UPDATE appointments SET status = $1 WHERE id = $2', [status, req.params.id]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/public/doctors/:id/review', authenticateToken, async (req: any, res: any) => { const { rating, comment } = req.body; try { await pool.query(`INSERT INTO doctor_reviews (doctor_id, patient_id, rating, comment) VALUES ($1, $2, $3, $4) ON CONFLICT (doctor_id, patient_id) DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, created_at = CURRENT_TIMESTAMP`, [req.params.id, req.user.id, rating, comment || null]); res.json({ success: true }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/settings', async (req: any, res: any) => { try { res.json((await pool.query("SELECT value FROM settings WHERE key = 'footer'")).rows[0]?.value || {}); } catch (err: any) { res.status(500).json({ error: err.message }); } });

@@ -17,7 +17,9 @@ import { ServicesManager } from './ServicesManager';
 import { WalletRequestsManager } from './WalletRequestsManager';
 import { requestForToken, onMessageListener } from '../firebase';
 import { PatientOrdersManager } from './PatientOrdersManager';
+import { PatientAppointments } from './PatientAppointments';
 
+import { ChildProfile } from './ChildProfile';
 import { PhoneContactInput } from './PhoneContactInput';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -474,7 +476,7 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 // 🟢 مكون إدارة أفراد العائلة (للآباء)
-const FamilyManager = ({ lang }: { lang: 'ar' | 'en' }) => {
+const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfile: (child: any) => void }) => {
   const [children, setChildren] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -561,11 +563,11 @@ const FamilyManager = ({ lang }: { lang: 'ar' | 'en' }) => {
                 </div>
                 
                 <button 
-                  onClick={() => toast(lang === 'ar' ? 'الملف الطبي الكامل قادم قريباً!' : 'Full Medical Record coming soon!', { icon: '🏥' })}
+                  onClick={() => onViewProfile(child)}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md shadow-blue-100 dark:shadow-none flex items-center justify-center gap-2"
                 >
                   <Stethoscope size={18} />
-                  {lang === 'ar' ? 'الملف الطبي' : 'Medical Record'}
+                  {lang === 'ar' ? 'عرض الملف الطبي' : 'View Medical Profile'}
                 </button>
               </div>
             </div>
@@ -578,6 +580,7 @@ const FamilyManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser, currency }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void, currency: 'old' | 'new' }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr' | 'family'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
+  const [selectedChild, setSelectedChild] = useState<any | null>(null);
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -1179,6 +1182,11 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           </div>
         )}
 
+        {/* 1.5. مواعيد المرضى */}
+        {activeTab === 'appointments' && user.role === 'patient' && (
+          <PatientAppointments lang={lang} />
+        )}
+
         {/* 1. المواعيد */}
         {activeTab === 'appointments' && (user.role === 'doctor' || user.role === 'dentist') && (
           <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
@@ -1321,7 +1329,21 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         )}
 
         {/* 3. Family Management */}
-        {activeTab === 'family' && <FamilyManager lang={lang} />}
+        {activeTab === 'family' && (
+          selectedChild ? (
+            <ChildProfile 
+              child={selectedChild} 
+              onBack={() => setSelectedChild(null)} 
+              lang={lang} 
+              t={t} 
+            />
+          ) : (
+            <FamilyManager 
+              lang={lang} 
+              onViewProfile={(child) => setSelectedChild(child)} 
+            />
+          )
+        )}
 
         {/* 3. إدارة المنشآت */}
         {activeTab === 'facilities' && user.role !== 'patient' && (
