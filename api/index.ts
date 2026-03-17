@@ -628,33 +628,44 @@ app.get('/api/public/facilities', async (req: any, res: any) => { try { res.json
 app.get('/api/public/doctors', async (req: any, res: any) => { try { res.json((await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.role IN ('doctor', 'dentist') AND u.is_active = true AND u.show_in_directory = true GROUP BY u.id`)).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.get('/api/public/doctors/:id', async (req: any, res: any) => { try { const doctor = (await pool.query(`SELECT u.id, u.name, u.email, u.role, u.phone, u.notes, u.specialty, u.consultation_price, u.about, u.faqs, u.profile_picture, u.daily_limit, COALESCE(AVG(r.rating), 0) as average_rating, COUNT(r.id) as reviews_count FROM users u LEFT JOIN doctor_reviews r ON u.id = r.doctor_id WHERE u.id = $1 GROUP BY u.id`, [req.params.id])).rows[0]; if (!doctor) return res.status(404).json({ error: 'User not found' }); const facilities = (await pool.query('SELECT id, name, type, address, phone, specialty, services, consultation_fee, waiting_time, working_hours, whatsapp_phone, image_url FROM pharmacies WHERE doctor_id = $1', [doctor.id])).rows; res.json({ ...doctor, facilities }); } catch (err: any) { res.status(500).json({ error: err.message }); } });
 app.post('/api/appointments/book', authenticateToken, async (req: any, res: any) => {
-  const { doctor_id, facility_id, appointment_date, family_member_id, patient_id: patientIdFromBody } = req.body;
+  const { doctor_id, facility_id, appointment_date, family_member_id: selectedId } = req.body;
   const loggedInUserId = req.user.id;
   
-  // Use patient_id from body if provided, otherwise fallback to family_member_id or loggedInUserId
-  const targetPatientId = patientIdFromBody || family_member_id || loggedInUserId;
+  // Logic: 
+  // 'me' -> patient_id = parent, family_member_id = NULL
+  // child_id -> patient_id = parent, family_member_id = child_id
+  const isMe = !selectedId || selectedId === 'me';
+  const familyMemberId = isMe ? null : parseInt(selectedId);
+  const patientId = loggedInUserId;
 
   try {
-    // Security: If the target patient is NOT the logged-in user, verify they are a child of the logged-in user
-    if (targetPatientId !== loggedInUserId) {
-      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [targetPatientId, loggedInUserId]);
+    // Security check for family member
+    if (familyMemberId) {
+      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [familyMemberId, loggedInUserId]);
       if (childCheck.rows.length === 0) return res.status(403).json({ error: 'غير مخول بالحجز لهذا المستخدم' });
     }
 
-    // Correct Duplicate Check: Check if THIS SPECIFIC PATIENT already has an appointment with THIS DOCTOR on THIS DAY
-    const existing = await pool.query(
-      'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id = $2 AND appointment_date = $3',
-      [targetPatientId, doctor_id, appointment_date]
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: req.lang === 'ar' ? 'هذا المريض لديه حجز مسبق عند هذا الطبيب في نفس اليوم.' : 'This patient already has an appointment with this doctor on the same day.' });
+    // Duplicate Check: Check for this specific combination
+    let existing;
+    if (familyMemberId) {
+      existing = await pool.query(
+        'SELECT id FROM appointments WHERE doctor_id = $1 AND appointment_date = $2 AND patient_id = $3 AND family_member_id = $4',
+        [doctor_id, appointment_date, patientId, familyMemberId]
+      );
+    } else {
+      existing = await pool.query(
+        'SELECT id FROM appointments WHERE doctor_id = $1 AND appointment_date = $2 AND patient_id = $3 AND family_member_id IS NULL',
+        [doctor_id, appointment_date, patientId]
+      );
     }
 
-    // Insert correctly: patient_id is the person being seen
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: req.lang === 'ar' ? 'لديك حجز مسبق لهذا الشخص عند هذا الطبيب في نفس اليوم.' : 'This person already has an appointment with this doctor on the same day.' });
+    }
+
     await pool.query(
       'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id) VALUES ($1, $2, $3, $4, $5)',
-      [targetPatientId, doctor_id, facility_id, appointment_date, targetPatientId === loggedInUserId ? null : targetPatientId]
+      [patientId, doctor_id, facility_id, appointment_date, familyMemberId]
     );
     res.json({ success: true });
   } catch (err: any) {
@@ -665,10 +676,10 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => {
   try {
     const q = `
-      SELECT a.*, p.name as patient_name, p.phone as patient_phone, 
-             CASE WHEN a.family_member_id IS NOT NULL THEN p.name ELSE NULL END as family_member_name
+      SELECT a.*, p.name as patient_name, p.phone as patient_phone, c.name as family_member_name
       FROM appointments a 
       JOIN users p ON a.patient_id = p.id 
+      LEFT JOIN users c ON a.family_member_id = c.id
       WHERE a.doctor_id = $1 AND a.appointment_date = $2 
       ORDER BY a.created_at ASC
     `;
@@ -678,13 +689,13 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
 app.get('/api/appointments/me', authenticateToken, async (req: any, res: any) => {
   try {
     const q = `
-      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name,
-             CASE WHEN a.patient_id != $1 THEN p.name ELSE NULL END as family_member_name
+      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name, c.name as family_member_name
       FROM appointments a
       JOIN users d ON a.doctor_id = d.id
       JOIN pharmacies f ON a.facility_id = f.id
-      JOIN users p ON a.patient_id = p.id
-      WHERE a.patient_id = $1 OR p.parent_id = $1
+      LEFT JOIN users p ON a.patient_id = p.id
+      LEFT JOIN users c ON a.family_member_id = c.id
+      WHERE a.patient_id = $1
       ORDER BY a.appointment_date DESC, a.id DESC
     `;
     const result = await pool.query(q, [req.user.id]);
