@@ -376,7 +376,20 @@ export const translations = {
     allProducts: "عرض جميع المنتجات",
     quantityLabel: "كمية",
     outOfStock: "نفذت",
-    noProductsFound: "لا توجد منتجات."
+    noProductsFound: "لا توجد منتجات.",
+    // Doctor Dashboard
+    totalPatients: "إجمالي المرضى",
+    todayAppointments: "مواعيد اليوم",
+    allAppointments: "إجمالي المواعيد",
+    todaysSchedule: "جدول اليوم",
+    scheduled: "مجدول",
+    dashboardOverview: "نظرة عامة على لوحة المعلومات",
+    patientName: "اسم المريض",
+    time: "الوقت",
+    status: "الحالة",
+    noAppointmentsToday: "لا توجد مواعيد مجدولة لليوم.",
+    addToMyPatients: "إضافة إلى سجلات مرضاي",
+    added: "تمت الإضافة"
   },
   en: {
     appName: "Taibet El-Imam Pharmacies",
@@ -754,6 +767,19 @@ export const translations = {
     allProducts: "All Products",
     quantityLabel: "Qty",
     outOfStock: "Out of Stock",
-    noProductsFound: "No products found."
+    noProductsFound: "No products found.",
+    // Doctor Dashboard
+    totalPatients: "Total Patients",
+    todayAppointments: "Today's Appointments",
+    allAppointments: "Total Appointments",
+    todaysSchedule: "Today's Schedule",
+    scheduled: "Scheduled",
+    dashboardOverview: "Dashboard Overview",
+    patientName: "Patient Name",
+    time: "Time",
+    status: "Status",
+    noAppointmentsToday: "No appointments scheduled for today.",
+    addToMyPatients: "Add to My Patients",
+    added: "Added"
   }
 };

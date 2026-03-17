@@ -12,6 +12,7 @@ interface Patient {
   profile_picture?: string;
   age?: number;
   dob?: string;
+  date_of_birth?: string;
   gender?: string;
   blood_type?: string;
   chronic_diseases?: string;
@@ -45,9 +46,34 @@ export const PatientsManager: React.FC<PatientsManagerProps> = ({
   const [filter, setFilter] = useState<'all' | 'chronic' | 'emergency'>('all');
 
   const filteredPatients = patients.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.phone.includes(searchTerm)
+    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.phone.includes(searchTerm)) &&
+    (filter === 'all' || (filter === 'chronic' && p.chronic_diseases) || (filter === 'emergency' && p.allergies))
   );
+
+  const calculateAge = (dob: string | undefined, fallbackAge: number | undefined) => {
+    if (!dob) return fallbackAge ? `${fallbackAge} ${t.yrs}` : '---';
+    
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return fallbackAge ? `${fallbackAge} ${t.yrs}` : '---';
+
+    const today = new Date();
+    let ageYears = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      ageYears--;
+    }
+
+    if (ageYears >= 1) {
+      return `${ageYears} ${t.yrs}`;
+    } else {
+      const diffTime = today.getTime() - birthDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) return t.newborn || 'حديث الولادة';
+      return `${diffDays} ${t.daysCount || 'يوم'}`;
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
@@ -155,7 +181,7 @@ export const PatientsManager: React.FC<PatientsManagerProps> = ({
               <div className="grid grid-cols-2 gap-2 mb-6 relative z-10">
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
                   <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t.age}</p>
-                  <p className="text-sm font-black text-slate-700 dark:text-slate-300">{patient.dob ? `${new Date().getFullYear() - new Date(patient.dob).getFullYear()} ${t.yearsSuffix}` : '---'}</p>
+                  <p className="text-sm font-black text-slate-700 dark:text-slate-300">{calculateAge(patient.dob || patient.date_of_birth, patient.age)}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
                   <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t.blood}</p>

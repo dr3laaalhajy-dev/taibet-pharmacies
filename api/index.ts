@@ -101,6 +101,7 @@ const initDB = async () => {
 
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_hidden_patients (doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY (doctor_id, patient_id));`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS doctor_patients (doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS regular_medications TEXT;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS vaccinations TEXT;`); } catch (e) { }
@@ -661,16 +662,63 @@ app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) =>
     const query = `
       SELECT DISTINCT ON (u.id) 
         u.id, u.name, u.phone, u.email, u.profile_picture,
-        m.age, m.dob, m.gender, m.blood_type, m.chronic_diseases, m.allergies
+        m.age, m.dob AS date_of_birth, m.dob, m.gender, m.blood_type, m.chronic_diseases, m.allergies
       FROM users u
-      JOIN appointments a ON (a.patient_id = u.id)
       LEFT JOIN medical_records m ON (u.id = m.patient_id)
-      WHERE a.doctor_id = $1
+      WHERE (
+        u.id IN (SELECT patient_id FROM appointments WHERE doctor_id = $1)
+        OR 
+        u.id IN (SELECT patient_id FROM doctor_patients WHERE doctor_id = $1)
+      )
       AND u.id NOT IN (SELECT patient_id FROM doctor_hidden_patients WHERE doctor_id = $1)
-      ORDER BY u.id, a.created_at DESC
+      ORDER BY u.id
     `;
     const result = await pool.query(query, [doctorId]);
     res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/doctor/dashboard-stats', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
+  const doctorId = req.user.id;
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const totalPatients = await pool.query(`
+      SELECT COUNT(DISTINCT patient_id) FROM (
+        SELECT patient_id FROM appointments WHERE doctor_id = $1
+        UNION
+        SELECT patient_id FROM doctor_patients WHERE doctor_id = $1
+      ) as all_p
+      WHERE patient_id NOT IN (SELECT patient_id FROM doctor_hidden_patients WHERE doctor_id = $1)
+    `, [doctorId]);
+    const todayAppointments = await pool.query('SELECT COUNT(*) FROM appointments WHERE doctor_id = $1 AND appointment_date = $2', [doctorId, today]);
+    const totalAppointments = await pool.query('SELECT COUNT(*) FROM appointments WHERE doctor_id = $1', [doctorId]);
+    
+    res.json({
+      totalPatients: parseInt(totalPatients.rows[0].count),
+      todayAppointments: parseInt(todayAppointments.rows[0].count),
+      totalAppointments: parseInt(totalAppointments.rows[0].count)
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/doctor/patients/add-from-appointment', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
+  const { patientId } = req.body;
+  const doctorId = req.user.id;
+
+  if (!patientId) return res.status(400).json({ error: 'Patient ID is required' });
+
+  try {
+    // 1. Link patient to doctor
+    await pool.query('INSERT INTO doctor_patients (doctor_id, patient_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [doctorId, patientId]);
+    
+    // 2. Ensure medical record exists
+    await pool.query('INSERT INTO medical_records (patient_id) VALUES ($1) ON CONFLICT DO NOTHING', [patientId]);
+    
+    res.json({ success: true, message: 'Patient added to records' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

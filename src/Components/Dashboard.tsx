@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import { SuccessModal } from './SuccessModal';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse, PieChart, Mic, Image as ImageIcon, Printer } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, HeartPulse, PieChart, Mic, Image as ImageIcon, Printer, UserPlus, Check } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { PrescriptionPrintTemplate } from './PrescriptionPrintTemplate';
 import { PatientMedicalRecord } from './PatientMedicalRecord';
@@ -22,6 +22,7 @@ import { PatientsManager } from './PatientsManager.tsx';
 import { AddOfflinePatientModal } from './AddOfflinePatientModal';
 import { ChildProfile } from './ChildProfile';
 import { PhoneContactInput } from './PhoneContactInput';
+import { DoctorOverviewDashboard } from './DoctorOverviewDashboard';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -105,14 +106,17 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
       api.get(`/api/medical-records/${targetId}`).then(res => {
         if (res && res.id) {
           setEhr(res);
-          try {
-            const parsed = typeof res.attachments === 'string' ? JSON.parse(res.attachments) : res.attachments;
-            if (Array.isArray(parsed)) setAttachments(parsed);
-          } catch (e) { }
-        }
-      }).catch(() => { }).finally(() => setLoading(false));
-    }
-  }, [isOpen, patientId, familyMemberId]);
+            try {
+              const parsed = typeof res.attachments === 'string' ? JSON.parse(res.attachments) : res.attachments;
+              if (Array.isArray(parsed)) setAttachments(parsed);
+            } catch (e) {
+              console.error("Error parsing attachments:", e);
+              setAttachments([]);
+            }
+          }
+        }).catch(() => { }).finally(() => setLoading(false));
+      }
+    }, [isOpen, patientId, familyMemberId]);
 
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -243,23 +247,23 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
                       <p className="text-xs text-slate-400 mb-1">{t.age}</p>
                       {/* 🟢 تم التحديث لاستدعاء دالة العمر الذكية */}
                       <h4 className="font-black text-slate-800 dark:text-white text-lg">
-                        {calculateAge(ehr.dob, ehr.age)}
+                        {calculateAge(ehr?.dob, ehr?.age)}
                       </h4>
-                    </div>                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t.gender}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{ehr.gender || '---'}</h4></div>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t.bloodType}</p><h4 className="font-black text-red-600 dark:text-red-400 text-xl" dir="ltr">{ehr.blood_type || '---'}</h4></div>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t.maritalStatus}</p><h4 className="font-bold text-slate-800 dark:text-white text-md">{ehr.marital_status || '---'} {ehr.children_count > 0 ? `(${ehr.children_count} ${t.children})` : ''}</h4></div>
+                    </div>                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t?.gender || '---'}</p><h4 className="font-black text-slate-800 dark:text-white text-lg">{ehr?.gender || '---'}</h4></div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t?.bloodType || '---'}</p><h4 className="font-black text-red-600 dark:text-red-400 text-xl" dir="ltr">{ehr?.blood_type || '---'}</h4></div>
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center"><p className="text-xs text-slate-400 mb-1">{t?.maritalStatus || '---'}</p><h4 className="font-bold text-slate-800 dark:text-white text-md">{ehr?.marital_status || '---'} {ehr?.children_count > 0 ? `(${ehr?.children_count} ${t?.children || ''})` : ''}</h4></div>
                   </div>
 
                   <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t.pastMedicalHistory}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.past_medical_history || t.none}</p></div>
-                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t.pastSurgeries}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.past_surgeries || t.none}</p></div>
-                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t.allergies}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr.allergies || t.none}</p></div>
-                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t.familyHistory}</h4><p className="text-sm font-medium text-slate-800 dark:text-slate-300">{ehr.family_history || t.none}</p></div>
+                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t?.pastMedicalHistory || '---'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr?.past_medical_history || t?.none || '---'}</p></div>
+                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t?.pastSurgeries || '---'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr?.past_surgeries || t?.none || '---'}</p></div>
+                    <div><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t?.allergies || '---'}</h4><p className="text-base font-bold text-slate-800 dark:text-slate-200">{ehr?.allergies || t?.none || '---'}</p></div>
+                    <div className="md:col-span-2"><h4 className="text-xs font-bold text-slate-400 mb-1 uppercase">{t?.familyHistory || '---'}</h4><p className="text-sm font-medium text-slate-800 dark:text-slate-300">{ehr?.family_history || t?.none || '---'}</p></div>
 
                     {ehr.special_habits && (
                       <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-xs font-bold text-slate-400 mb-2 uppercase">{t.specialHabits}</h4>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{ehr.special_habits}</p>
+                        <h4 className="text-xs font-bold text-slate-400 mb-2 uppercase">{t?.specialHabits || '---'}</h4>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{ehr?.special_habits}</p>
                       </div>
                     )}
                   </div>
@@ -273,13 +277,13 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
                             const wh = typeof ehr.menstrual_history === 'string' ? JSON.parse(ehr.menstrual_history) : ehr.menstrual_history;
                             return (
                               <>
-                                <div><span className="block text-xs text-pink-500/70 mb-1">{t.cycleRegularity}</span><span className="font-bold dark:text-white">{wh.cycle}</span></div>
-                                <div><span className="block text-xs text-pink-500/70 mb-1">{t.lastPeriodDate}</span><span className="font-bold dark:text-white">{wh.LMP || '---'}</span></div>
-                                <div><span className="block text-xs text-pink-500/70 mb-1">{t.bleedingDuration}</span><span className="font-bold dark:text-white">{wh.flow_duration ? wh.flow_duration + ' ' + t.daysSuffix : '---'}</span></div>
-                                <div><span className="block text-xs text-pink-500/70 mb-1">{t.pregnanciesCount}</span><span className="font-bold dark:text-white">{wh.gravida || 0}</span></div>
-                              </>
-                            );
-                          } catch (e) { return <p>{t.dataError}</p>; }
+                                  <div><span className="block text-xs text-pink-500/70 mb-1">{t?.cycleRegularity || '---'}</span><span className="font-bold dark:text-white">{wh.cycle}</span></div>
+                                  <div><span className="block text-xs text-pink-500/70 mb-1">{t?.lastPeriodDate || '---'}</span><span className="font-bold dark:text-white">{wh.LMP || '---'}</span></div>
+                                  <div><span className="block text-xs text-pink-500/70 mb-1">{t?.bleedingDuration || '---'}</span><span className="font-bold dark:text-white">{wh.flow_duration ? wh.flow_duration + ' ' + (t?.daysSuffix || '') : '---'}</span></div>
+                                  <div><span className="block text-xs text-pink-500/70 mb-1">{t?.pregnanciesCount || '---'}</span><span className="font-bold dark:text-white">{wh.gravida || 0}</span></div>
+                                </>
+                              );
+                            } catch (e) { return <p>{t?.dataError || 'Error'}</p>; }
                         })()}
                       </div>
                     </div>
@@ -287,7 +291,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
 
                   {ehr.medication_list && Array.isArray(ehr.medication_list) && ehr.medication_list.length > 0 && (
                     <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-5 rounded-2xl mt-6">
-                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3">{t.currentMeds}</h4>
+                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3">{t?.currentMeds || '---'}</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {ehr.medication_list.map((med: any, idx: number) => (
                           <div key={idx} className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm flex justify-between items-center border border-blue-50 dark:border-slate-700">
@@ -301,7 +305,7 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
 
                   {attachments && attachments.length > 0 && (
                     <div className="bg-slate-50 dark:bg-slate-900/10 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl mt-6">
-                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2"><ImageIcon size={16} /> {t.medicalAttachments}</h4>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2"><ImageIcon size={16} /> {t?.medicalAttachments || '---'}</h4>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {attachments.map((url, idx) => (
                           <a key={idx} href={url} target="_blank" rel="noreferrer" className="block relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:opacity-80 transition-opacity bg-white">
@@ -314,12 +318,12 @@ const PatientRecordModal = ({ isOpen, onClose, patientId, familyMemberId, appoin
 
                   <div className="mt-6 flex justify-between items-center bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl">
                     <div>
-                      <h4 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5"><UploadCloud size={16} /> {t.addNewAttachment}</h4>
-                      <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">{t.uploadNotice}</p>
+                      <h4 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5"><UploadCloud size={16} /> {t?.addNewAttachment || '---'}</h4>
+                      <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">{t?.uploadNotice || '---'}</p>
                     </div>
                     <label className="cursor-pointer bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
                       {uploadingAttachment ? <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></span> : <Plus size={16} />}
-                      {t.upload}
+                      {t?.upload || 'Upload'}
                       <input type="file" accept="image/*" className="hidden" onChange={handleAttachmentUpload} disabled={uploadingAttachment} />
                     </label>
                   </div>
@@ -620,7 +624,7 @@ const FamilyManager = ({ lang, onViewProfile, onRefresh }: { lang: 'ar' | 'en', 
 };
 
 export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithUser, currency }: { user: UserType, onLogout: () => void, onGoToPublic: () => void, lang: 'ar' | 'en', t: any, openChatWithUser?: (id: number) => void, currency: 'old' | 'new' }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr' | 'family' | 'patients'>(user.role === 'customer_service' ? 'support' : (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities')));
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'facilities' | 'products' | 'orders' | 'services' | 'users' | 'profile' | 'settings' | 'wallet_requests' | 'super_settings' | 'doctor_profile' | 'appointments' | 'support' | 'customer_reviews' | 'patient_orders' | 'ehr' | 'family' | 'patients'>(user.role === 'customer_service' ? 'support' : (user.role === 'doctor' || user.role === 'dentist' ? 'overview' : (user.role === 'admin' || user.role === 'pharmacist' ? 'analytics' : (user.role === 'patient' ? 'patient_orders' : 'facilities'))));
   const [selectedChild, setSelectedChild] = useState<any | null>(null);
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loadingSupport, setLoadingSupport] = useState(false);
@@ -644,6 +648,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
 
   const [targetDoctorId, setTargetDoctorId] = useState<number | null>(user.role === 'doctor' || user.role === 'dentist' ? user.id : null);
   const [doctorSearch, setDoctorSearch] = useState('');
+  const [addedPatients, setAddedPatients] = useState<number[]>([]);
+  const handleQuickAddPatient = async (patientId: number) => {
+    try {
+      await api.post('/api/doctor/patients/add-from-appointment', { patientId });
+      setAddedPatients(prev => [...prev, patientId]);
+      toast.success(t.added || 'تمت الإضافة');
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, lang));
+    }
+  };
   const [doctorForm, setDoctorForm] = useState({ specialty: '', consultation_price: 0, about: '', faqs: [] as any[], show_in_directory: true, daily_limit: 20 });
 
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -1088,6 +1102,9 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         <nav className="flex-none md:flex-1 p-3 md:p-4 flex flex-row md:flex-col gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-hide mt-2">
           {(user.role === 'doctor' || user.role === 'dentist') && (
             <>
+              <button onClick={() => setActiveTab('overview')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'overview' ? 'bg-indigo-600 text-white ring-2 ring-indigo-200 dark:ring-indigo-900' : 'text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
+                <LayoutDashboard size={18} /> {t.dashboardOverview}
+              </button>
               <button onClick={() => setActiveTab('appointments')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 py-2.5 md:py-3 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'appointments' ? 'bg-indigo-600 text-white ring-2 ring-indigo-200 dark:ring-indigo-900' : 'text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
                 <Calendar size={18} /> {lang === 'ar' ? 'إدارة مواعيد العيادة' : 'Appointments'}
               </button>
@@ -1159,6 +1176,12 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
 
       {/* 🟢 محتوى الصفحة الرئيسي (بدون تجميد الحركات) */}
       <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-8 w-full relative">
+        {/* 0. Overview (Doctor/Dentist) */}
+        {activeTab === 'overview' && (user.role === 'doctor' || user.role === 'dentist') && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <DoctorOverviewDashboard lang={lang} t={t} />
+          </div>
+        )}
 
         {/* -1. Analytics */}
         {activeTab === 'analytics' && (user.role === 'admin' || user.role === 'pharmacist' || user.role === 'doctor' || user.role === 'dentist' || isSuperAdmin) && (
@@ -1395,6 +1418,16 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
                                   <button onClick={() => handleAppointmentStatus(appt.id, 'waiting')} className="px-3 py-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500 dark:hover:bg-orange-600 hover:text-white rounded-lg text-xs font-bold transition-colors">{lang === 'ar' ? 'وصل (للانتظار)' : 'Waiting'}</button>
                                   <button onClick={() => setRescheduleModal({ isOpen: true, appointmentId: appt.id, currentDate: appt.appointment_date })} className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg transition-colors" title={lang === 'ar' ? 'إعادة جدولة' : 'Reschedule'}><Calendar size={16} /></button>
                                   <button onClick={() => handleAppointmentStatus(appt.id, 'cancelled')} className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title={lang === 'ar' ? 'إلغاء' : 'Cancel'}><X size={16} /></button>
+                                  {(user.role === 'doctor' || user.role === 'dentist') && (
+                                    <button 
+                                      onClick={() => handleQuickAddPatient(appt.patient_id)} 
+                                      disabled={addedPatients.includes(appt.patient_id)}
+                                      className={`p-1.5 rounded-lg transition-all ${addedPatients.includes(appt.patient_id) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
+                                      title={addedPatients.includes(appt.patient_id) ? t.added : t.addToMyPatients}
+                                    >
+                                      {addedPatients.includes(appt.patient_id) ? <Check size={16} /> : <UserPlus size={16} />}
+                                    </button>
+                                  )}
                                 </>
                               )}
                               {appt.status === 'waiting' && (
@@ -1936,6 +1969,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         lang={lang}
         user={user}
         facility={facilities.find(f => f.doctor_id === user?.id) || facilities[0] || {}}
+        t={t}
       />
 
       <AnimatePresence>
