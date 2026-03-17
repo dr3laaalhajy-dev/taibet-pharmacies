@@ -467,6 +467,29 @@ app.get('/api/users/child/:childId', authenticateToken, async (req: any, res: an
   }
 });
 
+// 1.6. مسار حذف طفل (Family Member deletion)
+app.delete('/api/users/child/:childId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const childId = parseInt(req.params.childId);
+    const parentId = parseInt(req.user.id);
+
+    if (isNaN(childId) || isNaN(parentId)) {
+      return res.status(400).json({ error: 'Invalid ID' });
+    }
+
+    // التحقق من الملكية أولاً
+    const check = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [childId, parentId]);
+    if (check.rows.length === 0) {
+      return res.status(403).json({ error: 'غير مخول بحذف هذا الحساب أو الحساب غير موجود' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [childId]);
+    res.json({ success: true, message: 'تم حذف فرد العائلة بنجاح' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 1. مسار جلب البيانات (هذا ما كان ينقص الطبيب والمريض لكي يقرأوا البيانات)
 app.get('/api/medical-records/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
@@ -603,7 +626,31 @@ app.post('/api/prescriptions', authenticateToken, async (req: any, res: any) => 
     res.json({ success: true, prescription: result.rows });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
-app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { try { res.json((await pool.query(`SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty FROM prescriptions p JOIN users d ON p.doctor_id = d.id WHERE p.patient_id = $1 ORDER BY p.created_at DESC`, [req.params.patientId])).rows); } catch (err: any) { res.status(500).json({ error: err.message }); } });
+app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: any, res: any) => { 
+  const pId = parseInt(req.params.patientId);
+  const loggedInUserId = parseInt(req.user.id);
+
+  try { 
+    // Security check: must be the patient themselves OR their parent
+    if (pId !== loggedInUserId) {
+      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [pId, loggedInUserId]);
+      if (childCheck.rows.length === 0 && req.user.role !== 'doctor' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const query = `
+      SELECT p.*, d.name as doctor_name, d.specialty as doctor_specialty 
+      FROM prescriptions p 
+      JOIN users d ON p.doctor_id = d.id 
+      WHERE p.patient_id = $1 
+      ORDER BY p.created_at DESC
+    `;
+    res.json((await pool.query(query, [pId])).rows); 
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } 
+});
 app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
     const result = await pool.query(`
@@ -690,6 +737,36 @@ app.get('/api/appointments/me', authenticateToken, async (req: any, res: any) =>
       ORDER BY a.appointment_date DESC, a.id DESC
     `;
     const result = await pool.query(q, [req.user.id]);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// New endpoint to fetch appointments for a specific patient ID (child)
+app.get('/api/appointments/patient/:patientId', authenticateToken, async (req: any, res: any) => {
+  const pId = parseInt(req.params.patientId);
+  const loggedInUserId = parseInt(req.user.id);
+
+  try {
+    // Security check: must be the patient themselves OR their parent
+    if (pId !== loggedInUserId) {
+      const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [pId, loggedInUserId]);
+      if (childCheck.rows.length === 0 && req.user.role !== 'doctor' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const q = `
+      SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name, p.name as patient_name
+      FROM appointments a
+      JOIN users d ON a.doctor_id = d.id
+      JOIN pharmacies f ON a.facility_id = f.id
+      JOIN users p ON a.patient_id = p.id
+      WHERE a.patient_id = $1
+      ORDER BY a.appointment_date DESC, a.id DESC
+    `;
+    const result = await pool.query(q, [pId]);
     res.json(result.rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

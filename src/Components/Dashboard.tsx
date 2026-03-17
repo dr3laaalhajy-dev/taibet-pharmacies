@@ -481,13 +481,15 @@ const SupportReviewsManager = ({ lang }: { lang: 'ar' | 'en' }) => {
 };
 
 // 🟢 مكون إدارة أفراد العائلة (للآباء)
-const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfile: (child: any) => void }) => {
+const FamilyManager = ({ lang, onViewProfile, onRefresh }: { lang: 'ar' | 'en', onViewProfile: (child: any) => void, onRefresh: () => void }) => {
   const [children, setChildren] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const fetchChildren = async () => {
     try {
       console.log("[DEBUG] Fetching children data...");
+      setLoading(true);
       const data = await api.get('/api/users/children');
       console.log("✅ CHILDREN DATA ARRIVED:", data);
       
@@ -506,7 +508,17 @@ const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfi
     fetchChildren();
   }, []);
 
-  if (loading) return <div className="p-10 text-center animate-pulse font-bold text-slate-500">{lang === 'ar' ? 'جاري تحميل أفراد العائلة...' : 'Loading family members...'}</div>;
+  const handleDeleteChild = async (childId: number) => {
+    try {
+      await api.delete(`/api/users/child/${childId}`);
+      toast.success(lang === 'ar' ? 'تم حذف فرد العائلة بنجاح' : 'Family member removed successfully');
+      fetchChildren();
+    } catch (err: any) {
+      toast.error(lang === 'ar' ? 'فشل الحذف' : 'Failed to delete');
+    }
+  };
+
+  if (loading && children.length === 0) return <div className="p-10 text-center animate-pulse font-bold text-slate-500">{lang === 'ar' ? 'جاري تحميل أفراد العائلة...' : 'Loading family members...'}</div>;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
@@ -521,7 +533,6 @@ const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfi
         </div>
         <button 
           onClick={() => {
-            setLoading(true);
             fetchChildren();
           }}
           className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl hover:bg-slate-200 transition-all"
@@ -544,6 +555,18 @@ const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfi
               key={child.id}
               className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden"
             >
+              {/* Delete Icon Overlay */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingId(child.id);
+                }}
+                className="absolute top-4 left-4 p-2 bg-red-50 text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white z-20"
+                title={lang === 'ar' ? 'حذف' : 'Delete'}
+              >
+                <Trash2 size={16} />
+              </button>
+
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold text-2xl overflow-hidden shadow-inner">
                   {child.name[0]}
@@ -555,7 +578,7 @@ const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfi
                        {child.age ? `${child.age} ${lang === 'ar' ? 'سنة' : 'Yrs'}` : (lang === 'ar' ? 'غير محدد' : 'N/A')}
                     </span>
                     <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md font-bold">
-                      {child.gender || (lang === 'ar' ? 'غير محدد' : 'N/A')}
+                       {child.gender || (lang === 'ar' ? 'غير محدد' : 'N/A')}
                     </span>
                   </div>
                 </div>
@@ -579,6 +602,18 @@ const FamilyManager = ({ lang, onViewProfile }: { lang: 'ar' | 'en', onViewProfi
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal 
+        isOpen={deletingId !== null}
+        onClose={() => setDeletingId(null)}
+        onConfirm={() => {
+          if (deletingId) handleDeleteChild(deletingId);
+        }}
+        title={lang === 'ar' ? 'حذف فرد من العائلة؟' : 'Remove Family Member?'}
+        body={lang === 'ar' ? 'هل أنت متأكد من رغبتك في حذف هذا الحساب؟ لا يمكن التراجع عن هذا الإجراء.' : 'Are you sure you want to remove this family member? This action cannot be undone.'}
+        t={{ cancel: lang === 'ar' ? 'إلغاء' : 'Cancel', deleteBtn: lang === 'ar' ? 'حذف نهائي' : 'Delete Permanently' }}
+      />
     </div>
   );
 };
@@ -1356,6 +1391,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
             <FamilyManager 
               lang={lang} 
               onViewProfile={(child) => setSelectedChild(child)} 
+              onRefresh={loadData}
             />
           )
         )}
