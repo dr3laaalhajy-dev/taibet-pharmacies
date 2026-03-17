@@ -100,6 +100,7 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_user1_id_user2_id_key;`); } catch (e) { }
 
     await pool.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS doctor_hidden_patients (doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, PRIMARY KEY (doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS medical_records ( id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE, blood_type VARCHAR(10), allergies TEXT, chronic_diseases TEXT, past_surgeries TEXT, notes TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );`);
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS regular_medications TEXT;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS vaccinations TEXT;`); } catch (e) { }
@@ -651,6 +652,100 @@ app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: 
     res.status(500).json({ error: err.message }); 
   } 
 });
+
+// 🟢 قسم إدارة المرضى للطبيب (Patient Management System)
+app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  try {
+    const doctorId = req.user.id;
+    const query = `
+      SELECT DISTINCT ON (u.id) 
+        u.id, u.name, u.phone, u.email, u.profile_picture,
+        m.age, m.dob, m.gender, m.blood_type, m.chronic_diseases, m.allergies
+      FROM users u
+      JOIN appointments a ON (a.patient_id = u.id)
+      LEFT JOIN medical_records m ON (u.id = m.patient_id)
+      WHERE a.doctor_id = $1
+      AND u.id NOT IN (SELECT patient_id FROM doctor_hidden_patients WHERE doctor_id = $1)
+      ORDER BY u.id, a.created_at DESC
+    `;
+    const result = await pool.query(query, [doctorId]);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/doctor/patients/:patientId', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { patientId } = req.params;
+  const doctorId = req.user.id;
+
+  try {
+    const patientRes = await pool.query('SELECT email FROM users WHERE id = $1', [patientId]);
+    if (patientRes.rows.length === 0) return res.status(404).json({ error: 'المريض غير موجود' });
+
+    const patient = patientRes.rows[0];
+    const isOffline = patient.email.startsWith('offline_');
+
+    if (isOffline) {
+      // Check if this patient is linked to ANY other doctor
+      const otherDoctors = await pool.query(
+        'SELECT id FROM appointments WHERE patient_id = $1 AND doctor_id != $2 LIMIT 1',
+        [patientId, doctorId]
+      );
+
+      if (otherDoctors.rows.length === 0) {
+        // Linked ONLY to this doctor or no others, safe to delete completely
+        await pool.query('DELETE FROM users WHERE id = $1', [patientId]);
+        return res.json({ success: true, deleted: true });
+      }
+    }
+
+    // For app users or offline patients linked to multiple doctors:
+    // Hide the relation for THIS specific doctor
+    await pool.query(
+      'INSERT INTO doctor_hidden_patients (doctor_id, patient_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [doctorId, patientId]
+    );
+    res.json({ success: true, hidden: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/doctor/offline-patient', authenticateToken, async (req: any, res: any) => {
+  if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+  const { name, phone, dob, gender, notes } = req.body;
+  const doctorId = req.user.id;
+
+  try {
+    const dummyEmail = `offline_${Date.now()}@taiba.offline.sy`;
+    const dummyPassword = await bcrypt.hash(Math.random().toString(36), 10);
+
+    const userRes = await pool.query(
+      'INSERT INTO users (name, phone, email, password, role, is_active, notes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [name, phone, dummyEmail, dummyPassword, 'patient', true, notes]
+    );
+    const patientId = userRes.rows[0].id;
+
+    await pool.query(
+      'INSERT INTO medical_records (patient_id, dob, gender) VALUES ($1, $2, $3)',
+      [patientId, dob || null, gender || '']
+    );
+
+    // ربط مبدئي لضمان ظهوره في قائمة المرضى
+    await pool.query(
+      'INSERT INTO appointments (patient_id, doctor_id, appointment_date, status) VALUES ($1, $2, CURRENT_DATE, $3)',
+      [patientId, doctorId, 'completed']
+    );
+
+    res.json({ success: true, patientId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/doctors/patient-history/:patientId', authenticateToken, async (req: any, res: any) => {
   try {
     const result = await pool.query(`
@@ -688,7 +783,8 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
 
   try {
     // Security check for family member (if the patient is not the logged-in user, they must be his/her child)
-    if (patientId !== loggedInUserId) {
+    // Doctors can book for any patient
+    if (patientId !== loggedInUserId && req.user.role !== 'doctor') {
       const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [patientId, loggedInUserId]);
       if (childCheck.rows.length === 0) return res.status(403).json({ error: 'غير مخول بالحجز لهذا المستخدم' });
     }
@@ -749,7 +845,7 @@ app.get('/api/appointments/patient/:patientId', authenticateToken, async (req: a
   const loggedInUserId = parseInt(req.user.id);
 
   try {
-    // Security check: must be the patient themselves OR their parent
+    // Security check: must be the patient themselves OR their parent OR the doctor who treated them
     if (pId !== loggedInUserId) {
       const childCheck = await pool.query('SELECT id FROM users WHERE id = $1 AND parent_id = $2', [pId, loggedInUserId]);
       if (childCheck.rows.length === 0 && req.user.role !== 'doctor' && req.user.role !== 'admin') {
@@ -761,13 +857,28 @@ app.get('/api/appointments/patient/:patientId', authenticateToken, async (req: a
       SELECT a.*, d.name as doctor_name, d.specialty as doctor_specialty, f.name as facility_name, p.name as patient_name
       FROM appointments a
       JOIN users d ON a.doctor_id = d.id
-      JOIN pharmacies f ON a.facility_id = f.id
+      LEFT JOIN pharmacies f ON a.facility_id = f.id
       JOIN users p ON a.patient_id = p.id
       WHERE a.patient_id = $1
       ORDER BY a.appointment_date DESC, a.id DESC
     `;
     const result = await pool.query(q, [pId]);
     res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/appointments/:id/reschedule', authenticateToken, async (req: any, res: any) => {
+  const { appointment_date } = req.body;
+  const appointmentId = req.params.id;
+  try {
+    const check = await pool.query('SELECT doctor_id FROM appointments WHERE id = $1', [appointmentId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'الحجز غير موجود' });
+    if (check.rows[0].doctor_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
+
+    await pool.query('UPDATE appointments SET appointment_date = $1 WHERE id = $2', [appointment_date, appointmentId]);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

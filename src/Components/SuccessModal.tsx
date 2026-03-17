@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Check } from 'lucide-react';
 
-export const SuccessModal = ({ isOpen, onClose, title, message }) => {
+export const SuccessModal = ({ isOpen, onClose, title, message, t }: { isOpen: boolean, onClose: () => void, title: string, message?: string, t: any }) => {
   if (!isOpen) return null; // إذا كانت الحالة "مغلقة"، لا تعرض شيئاً
 
   return (
@@ -36,7 +36,7 @@ export const SuccessModal = ({ isOpen, onClose, title, message }) => {
         {/* زر حسناً */}
         <div className="flex justify-center">
           <button onClick={onClose} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-10 rounded-full shadow-md transition-all">
-            حسناً
+            {t?.ok || 'حسناً'}
           </button>
         </div>
 

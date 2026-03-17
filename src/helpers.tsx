@@ -20,24 +20,17 @@ export const LocationPicker = ({ onLocationSelect, initialPosition }: any) => { 
 
 export const RecenterMap = ({ position }: any) => { const m = useMap(); useEffect(() => { m.setView(position, m.getZoom()); }, [position, m]); return null; };
 
-export const getErrorMessage = (error: any, lang: string = 'ar') => {
+export const getErrorMessage = (error: any, lang: string = 'ar', t?: any) => {
   if (error?.error === 'rate_limit_exceeded' && error?.retryAfterSeconds) {
     const totalSeconds = error.retryAfterSeconds;
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     
-    if (lang === 'ar') {
-      let msg = 'تم تجاوز الحد المسموح، يرجى المحاولة بعد ';
-      if (minutes > 0) msg += `${minutes} دقيقة `;
-      if (minutes > 0 && seconds > 0) msg += 'و ';
-      if (seconds > 0) msg += `${seconds} ثانية`;
-      return msg;
-    } else {
-      let msg = 'Rate limit exceeded, please try again in ';
-      if (minutes > 0) msg += `${minutes}m `;
-      if (seconds > 0) msg += `${seconds}s`;
-      return msg;
-    }
+    let msg = t?.rateLimitMsg || (lang === 'ar' ? 'تم تجاوز الحد المسموح، يرجى المحاولة بعد ' : 'Rate limit exceeded, please try again after ');
+    if (minutes > 0) msg += `${minutes} ${t?.minute || (lang === 'ar' ? 'دقيقة' : 'm')} `;
+    if (minutes > 0 && seconds > 0) msg += (t?.and || (lang === 'ar' ? 'و' : 'and')) + ' ';
+    if (seconds > 0) msg += `${seconds} ${t?.second || (lang === 'ar' ? 'ثانية' : 's')}`;
+    return msg;
   }
-  return error?.error || error?.message || (lang === 'ar' ? 'حدث خطأ ما' : 'An error occurred');
+  return error?.error || error?.message || t?.genericError || (lang === 'ar' ? 'حدث خطأ ما' : 'Something went wrong');
 };
