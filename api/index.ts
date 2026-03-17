@@ -92,6 +92,7 @@ const initDB = async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN attachments JSONB DEFAULT '[]';`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN family_member_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_family_member_id_fkey;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE appointments ADD COLUMN booked_by INTEGER REFERENCES users(id) ON DELETE SET NULL;`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, user1_id INTEGER REFERENCES users(id) ON DELETE CASCADE, user2_id INTEGER REFERENCES users(id) ON DELETE CASCADE, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user1_id, user2_id));`);
     try { await pool.query(`ALTER TABLE conversations ADD COLUMN status VARCHAR(50) DEFAULT 'active';`); } catch (e) { }
@@ -634,8 +635,8 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
   // Logic: 
   // 'me' -> patient_id = parent, family_member_id = NULL
   // child_id -> patient_id = parent, family_member_id = child_id
-  const isMe = !selectedId || selectedId === 'me';
-  const familyMemberId = isMe ? null : parseInt(selectedId);
+  const isMe = !selectedId || selectedId === 'me' || selectedId === 'null';
+  const familyMemberId = isMe ? null : (typeof selectedId === 'string' ? parseInt(selectedId) : selectedId);
   const patientId = loggedInUserId;
 
   try {
