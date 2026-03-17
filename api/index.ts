@@ -86,6 +86,7 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 20;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE users ADD COLUMN loyalty_points INTEGER DEFAULT 0;`); } catch (e) { }
     try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`); } catch (e) { }
+    try { await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users(parent_id);`); } catch (e) { }
     await pool.query(`CREATE TABLE IF NOT EXISTS doctor_reviews (id SERIAL PRIMARY KEY, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5), comment TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(doctor_id, patient_id));`);
     await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
     await pool.query(`CREATE TABLE IF NOT EXISTS appointments (id SERIAL PRIMARY KEY, patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE, doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE, facility_id INTEGER REFERENCES pharmacies(id) ON DELETE CASCADE, appointment_date DATE NOT NULL, status VARCHAR(50) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`);
@@ -106,6 +107,9 @@ const initDB = async () => {
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS alcohol_status VARCHAR(50);`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS marital_status VARCHAR(50);`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS occupation VARCHAR(255);`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS age INTEGER;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS dob DATE;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS gender VARCHAR(50);`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]';`); } catch (e) { }
     try { await pool.query(`ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS xray_urls JSONB DEFAULT '[]';`); } catch (e) { }
     try { await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS prescription_image_url TEXT;`); } catch (e) { }
@@ -191,16 +195,38 @@ app.post('/api/auth/register-child', async (req: any, res: any) => {
     const hashedChildPassword = await bcrypt.hash(dummyRawPassword, 10);
 
     const query = `
-      INSERT INTO users (name, email, password, role, parent_id, is_active, wallet_balance)
-      VALUES ($1, $2, $3, 'patient', $4, true, 0)
+      INSERT INTO users (
+        name, 
+        email, 
+        password, 
+        role, 
+        parent_id, 
+        is_active, 
+        wallet_balance
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, name, email
     `;
-    const result = await pool.query(query, [childData.name, childEmail, hashedChildPassword, parent.id]);
+    
+    console.log(`[DEBUG] Registering child: ${childData.name}, parent_id: ${parent.id}`);
+    
+    const values = [
+      childData.name,
+      childEmail,
+      hashedChildPassword,
+      'patient',
+      parent.id,
+      true,
+      0
+    ];
+
+    const result = await pool.query(query, values);
+    const newChild = result.rows[0];
     
     // سنقوم بإنشاء سجل طبي مبدئي للطفل لاحتواء العمر والجنس
     await pool.query(
-      'INSERT INTO medical_records (patient_id, full_name, age, gender) VALUES ($1, $2, $3, $4)',
-      [result.rows[0].id, childData.name, childData.age || null, childData.gender || '']
+      'INSERT INTO medical_records (patient_id, age, gender) VALUES ($1, $2, $3)',
+      [newChild.id, childData.age || null, childData.gender || '']
     );
 
     res.json({ success: true, message: 'تم إنشاء حساب الطفل وربطه بنجاح', child: result.rows[0] });
@@ -390,18 +416,24 @@ app.post('/api/chat/messages', authenticateToken, async (req: any, res: any) => 
 // 1. مسار جلب الأبناء المرتبطين بالحساب (Family Members)
 app.get('/api/users/children', authenticateToken, async (req: any, res: any) => {
   try {
-    const parentId = req.user.id;
+    const parentId = parseInt(req.user.id);
+    if (isNaN(parentId)) {
+      console.error("[DEBUG] Invalid parentId in req.user:", req.user.id);
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     const query = `
       SELECT u.id, u.name, u.email, m.age, m.dob, m.gender
       FROM users u
       LEFT JOIN medical_records m ON u.id = m.patient_id
       WHERE u.parent_id = $1
-      ORDER BY u.created_at ASC
+      ORDER BY u.id ASC
     `;
     const result = await pool.query(query, [parentId]);
-    res.json(result.rows);
+    // نرسل النتائج ككائن يحتوي على مصفوفة لضمان التوافق مع توقعات الفرونت إند
+    res.json({ children: result.rows || [] });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Family API Error (Full):", err);
+    res.status(200).json({ children: [] });
   }
 });
 

@@ -8,6 +8,7 @@ import { api } from '../api-client';
 import { checkIsOpenNow, formatTime12h, getDistanceKm } from '../helpers';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import { uploadImageToImgBB } from '../api-client';
+import WhyChooseUs from './WhyChooseUs';
 
 const CurrencyToggle = ({ currency, setCurrency, lang }: { currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, lang: string }) => (
   <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm rounded-full p-1 flex items-center border border-slate-200 dark:border-slate-700 w-fit transition-colors">
@@ -104,9 +105,9 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
 
     setIsBooking(true);
     try {
-      await api.post('/api/appointments/book', { 
-        doctor_id: doctorId, 
-        facility_id: primaryFacility.id, 
+      await api.post('/api/appointments/book', {
+        doctor_id: doctorId,
+        facility_id: primaryFacility.id,
         appointment_date: bookingDate
       });
       toast.success(lang === 'ar' ? 'تم تأكيد حجزك بنجاح! ننتظرك في العيادة.' : 'Booking confirmed! See you at the clinic.');
@@ -460,13 +461,13 @@ const PublicShopView = ({ onBack, facilities, lang, user, refreshUser, currency,
     if (paymentMethod === 'wallet' && parseFloat(user.wallet_balance || '0') < cartTotal) { toast.error(lang === 'ar' ? 'رصيد المحفظة غير كافٍ!' : 'Insufficient balance.'); return; }
 
     try {
-      const res = await api.post('/api/public/orders', { 
-        pharmacy_id: selectedPharmacyId, 
-        customer_name: user.name, 
-        customer_phone: user.phone || 'بدون رقم', 
-        delivery_address: defaultAddress || 'بدون عنوان', 
-        items: cart, 
-        total_price: cartTotal.toString(), 
+      const res = await api.post('/api/public/orders', {
+        pharmacy_id: selectedPharmacyId,
+        customer_name: user.name,
+        customer_phone: user.phone || 'بدون رقم',
+        delivery_address: defaultAddress || 'بدون عنوان',
+        items: cart,
+        total_price: cartTotal.toString(),
         payment_method: paymentMethod
       });
       setLastOrderShortCode(res.short_code || null);
@@ -737,16 +738,16 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
     setIsAiTyping(true);
     try {
       // 🟢 إرسال تاريخ المحادثة للخادم لضمان سياق المحادثة
-      const res = await api.post('/api/ai/triage', { 
+      const res = await api.post('/api/ai/triage', {
         message: userMsg,
         history: messages.slice(1) // إرسال كل الرسائل باستثناء رسالة الترحيب الأولى
       });
       if (res && res.reply) {
         if (res.isEmergency) {
           // 🚨 عرض تنبيه طوارئ بطريقة واضحة
-          setMessages(prev => [...prev, { 
-            role: 'ai', 
-            content: '🚨 ' + (lang === 'ar' 
+          setMessages(prev => [...prev, {
+            role: 'ai',
+            content: '🚨 ' + (lang === 'ar'
               ? 'تحذير طوارئ! هذه حالة تستوجب إسعافاً فورياً. توجه لأقرب طوارئ أو اتصل بالإسعاف فوراً!'
               : 'EMERGENCY! This requires immediate medical attention. Go to the nearest ER or call an ambulance NOW!')
           }]);
@@ -902,6 +903,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
             )}
 
+            <WhyChooseUs />
+
             {/* 🟢 عنوان قسم الإحصائيات */}
             <div className="text-center mb-10 mt-20">
               <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-3">
@@ -937,6 +940,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                 <AnimatedCounter target={stats.patients || 0} label={lang === 'ar' ? 'مريض مسجل' : 'Registered Patients'} icon={Users} delay={800} />
               </div>
             </div>
+
+
           </motion.div>
         )}
 
@@ -1114,7 +1119,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
       {/* الفوتر */}
       <footer className="w-full bg-[#0c5bc6] dark:bg-slate-950 text-white pt-12 pb-10 mt-auto border-t-[5px] border-blue-400 dark:border-slate-800 transition-colors">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 text-center lg:text-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-y-12 gap-x-8 text-center lg:text-start">
 
             {(footerData?.appName || footerData?.aboutLink || footerData?.teamLink || footerData?.careersLink) && (
               <div className="flex flex-col items-center lg:items-start">
@@ -1144,15 +1149,22 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
             )}
 
+
             <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 dark:border-slate-800 lg:border-0 pt-8 lg:pt-0">
-              {(footerData?.libraryLink || footerData?.contactLink || footerData?.termsLink || footerData?.privacyLink) && (
+              <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'روابط هامة' : 'Important Links'}</h3>
+              <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
+                <li><button onClick={() => openLegal('privacy')} className="hover:text-white transition-colors">{lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}</button></li>
+                <li><button onClick={() => openLegal('terms')} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</button></li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 dark:border-slate-800 lg:border-0 pt-8 lg:pt-0">
+              {(footerData?.libraryLink || footerData?.contactLink) && (
                 <>
                   <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
                   <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
                     {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
                     {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
-                    <li><button onClick={() => openLegal('terms')} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</button></li>
-                    <li><button onClick={() => openLegal('privacy')} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتفاقية الخصوصية' : 'Privacy Policy'}</button></li>
                   </ul>
                 </>
               )}
@@ -1207,13 +1219,12 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                   const isEmergencyMsg = m.role === 'ai' && m.content.startsWith('🚨');
                   return (
                     <div key={i} className={`flex ${m.role === 'user' ? (lang === 'ar' ? 'justify-end' : 'justify-start') : (lang === 'ar' ? 'justify-start' : 'justify-end')} w-full`}>
-                      <div className={`max-w-[90%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                        isEmergencyMsg 
-                          ? 'bg-red-600 text-white font-bold border-2 border-red-400 animate-pulse rounded-xl w-full text-center'
-                          : m.role === 'user' 
-                            ? 'bg-blue-600 text-white rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm' 
-                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm font-medium'
-                      }`}>
+                      <div className={`max-w-[90%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${isEmergencyMsg
+                        ? 'bg-red-600 text-white font-bold border-2 border-red-400 animate-pulse rounded-xl w-full text-center'
+                        : m.role === 'user'
+                          ? 'bg-blue-600 text-white rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm rtl:rounded-tl-2xl rtl:rounded-tr-sm font-medium'
+                        }`}>
                         {m.content}
                       </div>
                     </div>

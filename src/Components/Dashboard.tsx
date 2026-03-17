@@ -478,24 +478,50 @@ const FamilyManager = ({ lang }: { lang: 'ar' | 'en' }) => {
   const [children, setChildren] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchChildren = async () => {
+    try {
+      console.log("[DEBUG] Fetching children data...");
+      const data = await api.get('/api/users/children');
+      console.log("✅ CHILDREN DATA ARRIVED:", data);
+      
+      const arr = Array.isArray(data) ? data : (data?.children || []);
+      setChildren(arr);
+    } catch (err: any) {
+      console.error("❌ FAILED TO FETCH CHILDREN:", err);
+      toast.error(lang === 'ar' ? 'فشل تحميل بيانات العائلة' : 'Failed to load family data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api.get('/api/users/children')
-      .then(setChildren)
-      .catch(() => toast.error(lang === 'ar' ? 'فشل تحميل بيانات العائلة' : 'Failed to load family data'))
-      .finally(() => setLoading(false));
+    console.log("[DEBUG] FamilyManager mounted");
+    fetchChildren();
   }, []);
 
   if (loading) return <div className="p-10 text-center animate-pulse font-bold text-slate-500">{lang === 'ar' ? 'جاري تحميل أفراد العائلة...' : 'Loading family members...'}</div>;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-500">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center">
-          <Users size={28} />
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center">
+            <Users size={28} />
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+            {lang === 'ar' ? 'أفراد العائلة المرتبطون' : 'Linked Family Members'}
+          </h2>
         </div>
-        <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-          {lang === 'ar' ? 'أفراد العائلة المرتبطون' : 'Linked Family Members'}
-        </h2>
+        <button 
+          onClick={() => {
+            setLoading(true);
+            fetchChildren();
+          }}
+          className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl hover:bg-slate-200 transition-all"
+          title={lang === 'ar' ? 'تحديث' : 'Refresh'}
+        >
+          <Activity size={20} className={loading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {children.length === 0 ? (

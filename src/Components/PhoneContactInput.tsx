@@ -123,7 +123,7 @@ export const PhoneContactInput: React.FC<PhoneContactInputProps> = ({ value, onC
       {/* Main Phone Input */}
       <div>
         {label && <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{label}</label>}
-        <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-sm">
+        <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-visible focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-sm">
           <CountrySelector selected={phoneCode} onSelect={(c) => { setPhoneCode(c); updateParent(c, phoneNumber, whatsappCode, whatsappNumber, value.hasSeparateWhatsapp); }} lang={lang} />
           <div className="flex-1 flex items-center px-3 gap-2">
             <Phone size={18} className="text-slate-400 shrink-0" />
@@ -170,13 +170,13 @@ export const PhoneContactInput: React.FC<PhoneContactInputProps> = ({ value, onC
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
+            className="overflow-visible"
           >
             <div className="pt-2">
               <label className="block text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-2">
                 {lang === 'ar' ? 'رقم الواتساب' : 'WhatsApp Number'}
               </label>
-              <div className="flex bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-900/30 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all shadow-sm">
+              <div className="flex bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-900/30 rounded-xl overflow-visible focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all shadow-sm">
                 <CountrySelector selected={whatsappCode} onSelect={(c) => { setWhatsappCode(c); updateParent(phoneCode, phoneNumber, c, whatsappNumber, true); }} lang={lang} />
                 <div className="flex-1 flex items-center px-3 gap-2">
                   <MessageCircle size={18} className="text-emerald-500 shrink-0" />

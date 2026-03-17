@@ -10,39 +10,52 @@ export const LegalModal = ({ isOpen, onClose, type, lang }: { isOpen: boolean, o
       title: lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy',
       text: (
         <div className="space-y-6 text-slate-700 dark:text-slate-300 leading-relaxed" dir="rtl">
-          <p className="font-bold text-lg text-blue-600">سياسة الخصوصية لتطبيق وموقع طيبة هيلث (Taiba Health)</p>
+          <p className="font-bold text-lg text-blue-600">📄 سياسة الخصوصية لتطبيق وموقع "طيبة هيلث" (Taiba Health)</p>
           <p className="text-xs text-slate-500">تاريخ الإصدار: مارس 2026</p>
-          <p>مرحباً بك في طيبة هيلث. نحن نلتزم التزاماً كاملاً بحماية خصوصيتك وبياناتك الطبية والشخصية.</p>
+          <p>مرحباً بك في "طيبة هيلث". نحن نلتزم التزاماً كاملاً بحماية خصوصيتك وبياناتك الطبية والشخصية. توضح هذه السياسة كيفية جمعنا للمعلومات واستخدامها وحمايتها عند استخدامك لتطبيقنا وموقعنا الإلكتروني.</p>
 
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">المعلومات التي نجمعها:</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">1. المعلومات التي نجمعها:</h4>
             <ul className="list-disc pr-6 space-y-2">
-              <li><span className="font-bold">بيانات الحساب الأساسية:</span> عند التسجيل، نقوم بجمع معلومات مثل الاسم، رقم الهاتف، والبريد الإلكتروني.</li>
-              <li><span className="font-bold">البيانات الطبية (للمرضى):</span> تشمل الوصفات الطبية والأدوية. يتم التعامل معها بسرية تامة.</li>
-              <li><span className="font-bold">صلاحيات الجهاز:</span> يطلب التطبيق الوصول لكاميرا الهاتف فقط لغرض مسح رموز QR. لا نقوم بحفظ أي صور.</li>
+              <li><span className="font-bold">بيانات الحساب الأساسية:</span> عند التسجيل (سواء كطبيب، مريض، أو صيدلي)، نقوم بجمع معلومات مثل الاسم، رقم الهاتف، والبريد الإلكتروني.</li>
+              <li><span className="font-bold">البيانات الطبية (للمرضى):</span> تشمل الوصفات الطبية (الروشتات) التي يصدرها الطبيب، والأدوية التي يتم صرفها من قِبل الصيدلي. يتم التعامل مع هذه البيانات بسرية طبية تامة.</li>
+              <li><span className="font-bold">صلاحيات الجهاز (الكاميرا):</span> يطلب التطبيق الوصول إلى كاميرا الهاتف (للمرضى والصيادلة) فقط لغرض مسح رموز الاستجابة السريعة (QR Codes) لتسهيل قراءة وصرف الوصفات الطبية. نحن لا نقوم بالتقاط، أو تسجيل، أو حفظ أي صور أو مقاطع فيديو على خوادمنا.</li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">كيف نستخدم معلوماتك؟</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">2. كيف نستخدم معلوماتك؟</h4>
             <ul className="list-disc pr-6 space-y-2">
-              <li>لتقديم الخدمات الطبية.</li>
-              <li>لإنشاء رموز QR وأكواد نصية.</li>
-              <li>لتحسين تجربة المستخدم.</li>
+              <li>لتقديم الخدمات الطبية وتسهيل التواصل بين الطبيب، المريض، والصيدلية.</li>
+              <li>لإنشاء رموز (QR Codes) وأكواد نصية قصيرة لحماية الوصفات الطبية وضمان دقة صرف الأدوية.</li>
+              <li>لتحسين تجربة المستخدم داخل التطبيق وإصلاح أي أخطاء تقنية.</li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">مشاركة وحماية البيانات:</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">3. مشاركة وحماية البيانات:</h4>
             <ul className="list-disc pr-6 space-y-2">
-              <li><span className="font-bold">مشاركة محدودة:</span> لا نبيع بياناتك. تشارك الوصفة فقط بين المريض والطبيب والصيدلي.</li>
-              <li><span className="font-bold">الأمان:</span> نستخدم معايير تشفير متقدمة.</li>
-              <li><span className="font-bold">حقوق المستخدم:</span> يحق للمستخدم تعديل أو حذف بياناته بالتواصل معنا.</li>
+              <li><span className="font-bold">مشاركة محدودة:</span> لا نقوم ببيع أو تأجير بياناتك لأي طرف ثالث. تتم مشاركة بيانات الوصفة الطبية فقط بين المريض، والطبيب المعالج، والصيدلي الذي يقوم بمسح كود الوصفة لصرفها.</li>
+              <li><span className="font-bold">الأمان:</span> نستخدم معايير أمان وتشفير متقدمة في قواعد بياناتنا لحماية معلوماتك من الوصول غير المصرح به.</li>
             </ul>
-
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800"></div>
-            <p className="font-bold text-slate-900 dark:text-white">التواصل الدعم: <span className="text-blue-600 underline font-mono">alaa_alhajy@taiba-health.com</span></p>
           </div>
+
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-blue-500 underline-offset-4">4. حقوق المستخدم:</h4>
+            <p> يحق للمستخدم في أي وقت تعديل بياناته الشخصية من خلال إعدادات التطبيق، أو طلب حذف حسابه وبياناته بالكامل عبر التواصل معنا.</p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+            <p className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              التواصل الدعم: لأي استفسارات قانونية أو تقنية تتعلق بشروط الاستخدام، يُرجى مراسلتنا على:
+            </p>
+            <p className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              Dr. Alaa Alhajy Founder & CEO | Taiba Health
+            </p>
+            <span className="text-blue-600 underline font-mono">alaa_alhajy@taiba-health.com</span> ✉️
+          </div>
+
+
         </div>
       )
     },
@@ -50,30 +63,64 @@ export const LegalModal = ({ isOpen, onClose, type, lang }: { isOpen: boolean, o
       title: lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use',
       text: (
         <div className="space-y-6 text-slate-700 dark:text-slate-300 leading-relaxed" dir="rtl">
-          <p className="font-bold text-lg text-indigo-600">اتفاقية شروط الاستخدام لتطبيق وموقع طيبة هيلث (Taiba Health)</p>
+          <p className="font-bold text-lg text-indigo-600">📄 اتفاقية شروط الاستخدام لتطبيق وموقع "طيبة هيلث" (Taiba Health)</p>
           <p className="text-xs text-slate-500">تاريخ الإصدار: مارس 2026</p>
 
-          <p><span className="font-bold">طبيعة الخدمة:</span> منصة لتسهيل إدارة الوصفات الطبية إلكترونياً. ليس مزوداً للرعاية المباشرة.</p>
+          <p>مرحباً بك في "طيبة هيلث". باستخدامك لتطبيقنا وموقعنا الإلكتروني، فإنك توافق صراحةً على الالتزام بالشروط والأحكام التالية. إذا كنت لا توافق على أي جزء من هذه الشروط، يُرجى التوقف عن استخدام المنصة فوراً.</p>
 
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">مسؤوليات المستخدمين:</h4>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">1. طبيعة الخدمة:</h4>
+            <p>"طيبة هيلث" هي منصة تقنية تهدف إلى تسهيل إدارة الوصفات الطبية (الروشتات) إلكترونياً بين الأطباء، المرضى، والصيادلة عبر رموز الاستجابة السريعة (QR Codes) والأكواد النصية القصيرة. التطبيق ليس مزوداً للرعاية الصحية المباشرة، ولا يحل محل الاستشارة الطبية الطارئة.</p>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">2. مسؤوليات المستخدمين:</h4>
             <ul className="list-disc pr-6 space-y-2">
-              <li><span className="font-bold">الأطباء:</span> مسؤولون عن صحة الوصفات والتشخيص.</li>
-              <li><span className="font-bold">الصيادلة:</span> مسؤولون عن التحقق من هوية المريض وصرف الأدوية المطابقة.</li>
-              <li><span className="font-bold">المرضى:</span> مسؤولون عن سرية كود الوصفة.</li>
+              <li><span className="font-bold">الأطباء:</span> أنت مسؤول مسؤولية كاملة عن صحة ودقة الوصفات الطبية التي تصدرها عبر التطبيق، وعن تشخيص حالة المريض وتحديد الجرعات المناسبة.</li>
+              <li><span className="font-bold">الصيادلة:</span> أنت مسؤول عن التحقق من هوية المريض والوصفة الطبية (عبر مسح الـ QR أو إدخال الكود القصير) وصرف الأدوية المطابقة تماماً لما دونه الطبيب، والالتزام بقوانين صرف الأدوية في بلدك.</li>
+              <li><span className="font-bold">المرضى:</span> أنت مسؤول عن الحفاظ على سرية الكود الخاص بوصفتك الطبية (QR أو الكود النصي) وعدم مشاركته إلا مع الصيدلي المعتمد لصرف الدواء.</li>
             </ul>
           </div>
 
-          <p><span className="font-bold">إخلاء المسؤولية الطبية:</span> المنصة لا تتحمل مسؤولية الأخطاء الطبية أو مضاعفات الأدوية.</p>
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">3. إخلاء المسؤولية الطبية (Medical Disclaimer):</h4>
+            <p>تطبيق "طيبة هيلث" ومطوروه لا يتحملون أي مسؤولية قانونية أو طبية ناتجة عن:</p>
+            <ul className="list-disc pr-6 space-y-2">
+              <li>أخطاء في التشخيص الطبي أو كتابة الأدوية من قِبل الطبيب.</li>
+              <li>أخطاء في صرف الأدوية من قِبل الصيدلي.</li>
+              <li>أي مضاعفات صحية يتعرض لها المريض نتيجة استخدام الأدوية الموصوفة. يقع العبء الطبي والقانوني بالكامل على عاتق الممارسين الصحيين (الأطباء والصيادلة) المستخدمين للمنصة.</li>
+            </ul>
+          </div>
 
-          <p><span className="font-bold">الاستخدام غير المشروع:</span> يُمنع إصدار وصفات وهمية، أو صرف أدوية خاضعة للرقابة دون التزام بالقانون، أو اختراق التطبيق.</p>
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">4. الاستخدام غير المشروع:</h4>
+            <p>يُمنع منعاً باتاً استخدام المنصة لـ:</p>
+            <ul className="list-disc pr-6 space-y-2">
+              <li>إصدار وصفات طبية وهمية أو مزورة.</li>
+              <li>صرف أدوية خاضعة للرقابة الصارمة (مثل المخدرات الطبية) دون الالتزام بالقوانين المحلية المنظمة لذلك.</li>
+              <li>محاولة اختراق التطبيق أو التلاعب بقاعدة البيانات والأكواد الخاصة بالمرضى.</li>
+            </ul>
+          </div>
 
-          <p><span className="font-bold">حقوق الملكية الفكرية:</span> جميع الحقوق محفوظة لإدارة التطبيق.</p>
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">5. حقوق الملكية الفكرية:</h4>
+            <p>جميع حقوق الملكية الفكرية الخاصة بتصميم التطبيق، الأكواد البرمجية، العلامة التجارية "طيبة هيلث"، والشعارات هي ملكية حصرية لإدارة التطبيق ولا يجوز نسخها أو إعادة استخدامها دون إذن كتابي.</p>
+          </div>
 
-          <p><span className="font-bold">إنهاء الاستخدام:</span> نحتفظ بالحق في حظر أي مستخدم ينتهك الشروط.</p>
+          <div>
+            <h4 className="font-bold text-slate-900 dark:text-white mb-2 underline decoration-indigo-500 underline-offset-4">6. إنهاء الاستخدام:</h4>
+            <p>نحتفظ بالحق في إيقاف أو حظر حساب أي مستخدم (طبيب، صيدلي، أو مريض) يثبت انتهاكه لهذه الشروط أو استخدامه للتطبيق في أغراض غير قانونية، وذلك دون سابق إنذار.</p>
+          </div>
 
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-            <p className="font-bold text-slate-900 dark:text-white">التواصل الدعم: <span className="text-blue-600 underline font-mono">alaa_alhajy@taiba-health.com</span></p>
+            <p className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              التواصل الدعم: لأي استفسارات قانونية أو تقنية تتعلق بشروط الاستخدام، يُرجى مراسلتنا على:
+            </p>
+            <p className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              Dr. Alaa Alhajy Founder & CEO | Taiba Health
+            </p>
+            <span className="text-blue-600 underline font-mono">alaa_alhajy@taiba-health.com</span> ✉️
+
           </div>
         </div>
       )
