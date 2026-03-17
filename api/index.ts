@@ -651,10 +651,10 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
       return res.status(400).json({ error: req.lang === 'ar' ? 'هذا المريض لديه حجز مسبق عند هذا الطبيب في نفس اليوم.' : 'This patient already has an appointment with this doctor on the same day.' });
     }
 
-    // Insert correctly: patient_id is the person being seen, booked_by is the parent
+    // Insert correctly: patient_id is the person being seen
     await pool.query(
-      'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id, booked_by) VALUES ($1, $2, $3, $4, $5, $6)',
-      [targetPatientId, doctor_id, facility_id, appointment_date, targetPatientId === loggedInUserId ? null : targetPatientId, loggedInUserId]
+      'INSERT INTO appointments (patient_id, doctor_id, facility_id, appointment_date, family_member_id) VALUES ($1, $2, $3, $4, $5)',
+      [targetPatientId, doctor_id, facility_id, appointment_date, targetPatientId === loggedInUserId ? null : targetPatientId]
     );
     res.json({ success: true });
   } catch (err: any) {
@@ -666,11 +666,9 @@ app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any
   try {
     const q = `
       SELECT a.*, p.name as patient_name, p.phone as patient_phone, 
-             CASE WHEN a.family_member_id IS NOT NULL THEN p.name ELSE NULL END as family_member_name,
-             u.name as booked_by_name
+             CASE WHEN a.family_member_id IS NOT NULL THEN p.name ELSE NULL END as family_member_name
       FROM appointments a 
       JOIN users p ON a.patient_id = p.id 
-      LEFT JOIN users u ON a.booked_by = u.id
       WHERE a.doctor_id = $1 AND a.appointment_date = $2 
       ORDER BY a.created_at ASC
     `;
@@ -686,7 +684,7 @@ app.get('/api/appointments/me', authenticateToken, async (req: any, res: any) =>
       JOIN users d ON a.doctor_id = d.id
       JOIN pharmacies f ON a.facility_id = f.id
       JOIN users p ON a.patient_id = p.id
-      WHERE a.booked_by = $1 OR a.patient_id = $1
+      WHERE a.patient_id = $1 OR p.parent_id = $1
       ORDER BY a.appointment_date DESC, a.id DESC
     `;
     const result = await pool.query(q, [req.user.id]);
