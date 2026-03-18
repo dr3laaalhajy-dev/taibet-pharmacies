@@ -110,12 +110,12 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
             domain={domain}
             roomName={roomName}
             configOverwrite={{
-              startWithAudioMuted: false,
-              startWithVideoMuted: false,
+              prejoinPageEnabled: false, // Skip the lobby/prejoin screen
+              startWithAudioMuted: false, // Auto-start mic
+              startWithVideoMuted: false, // Auto-start camera
               disableModeratorIndicator: true,
               startScreenSharing: false,
               enableEmailInStats: false,
-              prejoinPageEnabled: true,
               disableDeepLinking: true,
               toolbarButtons: ['microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup', 'profile', 'chat', 'recording', 'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand', 'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts', 'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone', 'security', 'e2ee'],
             }}
