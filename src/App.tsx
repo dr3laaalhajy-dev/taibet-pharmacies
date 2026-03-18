@@ -13,6 +13,8 @@ import { PublicView } from './Components/PublicView';
 import { Auth } from './Components/Auth';
 import { Dashboard } from './Components/Dashboard';
 import { Chat } from './Components/Chat';
+import { PhoneContactInput } from './Components/PhoneContactInput';
+import { ActiveCallBanner } from './Components/ActiveCallBanner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { requestForToken } from './firebase';
@@ -346,16 +348,22 @@ export default function App() {
       interval = setInterval(async () => {
         try {
           const res = await api.get(`/api/video-calls/status/${activeCallRequest.requestId}`);
-          if (res.status === 'accepted') {
+          if (res.status === 'in_progress') {
             setActiveCallRequest(null);
             setIsCallPending(false);
-            setConsultationAppt({ id: activeCallRequest.requestId, doctor_id: res.doctor_id }); // Minimal appt object
+            setConsultationAppt({ 
+              id: activeCallRequest.requestId, 
+              doctor_id: res.doctor_id,
+              patient_id: res.patient_id,
+              status: res.status,
+              room_id: res.room_id
+            });
             setView('virtual-clinic');
             toast.success(lang === 'ar' ? 'تم قبول المكالمة! جاري الاتصال...' : 'Call accepted! Connecting...');
-          } else if (res.status === 'rejected') {
+          } else if (res.status === 'declined') {
             setActiveCallRequest(null);
             setIsCallPending(false);
-            toast.error(lang === 'ar' ? 'عذراً، الطبيب غير متاح الآن.' : 'Sorry, the doctor is busy right now.');
+            toast.error(lang === 'ar' ? 'عذراً، الطبيب غير متاح حالياً.' : 'Sorry, the doctor is currently unavailable.');
           } else if (res.status === 'expired') {
             setActiveCallRequest(null);
             setIsCallPending(false);
@@ -1232,6 +1240,15 @@ export default function App() {
         <MessageCircle size={28} className="group-hover:animate-pulse" />
         <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
       </button>
+
+      {user && (
+        <ActiveCallBanner 
+          lang={lang}
+          user={user}
+          currentView={view}
+          onRejoin={(appt) => { setConsultationAppt(appt); setView('virtual-clinic'); }}
+        />
+      )}
 
       <SpeedInsights />
     </div>

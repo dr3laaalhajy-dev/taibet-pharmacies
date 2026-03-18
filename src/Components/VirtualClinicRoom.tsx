@@ -31,6 +31,29 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
     }).catch(console.error);
   }, [user]);
 
+  // 🟢 Synchronized Hangup Polling
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/api/video-calls/status/${appointment.id}`);
+        if (['ended', 'completed', 'cancelled', 'declined'].includes(res.status)) {
+          clearInterval(interval);
+          onClose(); // Force exit
+        }
+      } catch (e) {
+        console.error("Hangup Polling Error:", e);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [appointment.id, onClose]);
+
+  const handleEndCall = async () => {
+    try {
+      await api.put(`/api/video-calls/${appointment.id}/end`, {});
+    } catch (e) {}
+    onClose();
+  };
+
   const domain = "vpaas24.jitsi.net";
   const tenant = "vpaas-magic-cookie-437f8471b48d4fb983aa45a55d491176";
   const roomName = `${tenant}/appointment-${appointment.id}`;
@@ -72,7 +95,7 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
           <div className="w-px h-6 bg-slate-800 mx-1"></div>
 
           <button 
-            onClick={onClose}
+            onClick={handleEndCall}
             className="p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all flex items-center gap-2 font-bold text-xs"
           >
             <X size={18} />
@@ -83,33 +106,28 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
-        <div className="flex-1 transition-all duration-300 ease-in-out">
+        <div className="w-full h-[calc(100vh-64px)] transition-all duration-300 ease-in-out">
           <JitsiMeeting
             domain={domain}
             roomName={roomName}
             configOverwrite={{
-              startWithAudioMuted: true,
+              startWithAudioMuted: false,
+              startWithVideoMuted: false,
               disableModeratorIndicator: true,
               startScreenSharing: false,
               enableEmailInStats: false,
               prejoinPageEnabled: false,
               disableDeepLinking: true,
+              toolbarButtons: ['microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup', 'profile', 'chat', 'recording', 'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand', 'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts', 'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone', 'security', 'e2ee'],
             }}
             interfaceConfigOverwrite={{
               DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-              TOOLBAR_BUTTONS: [
-                'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-                'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
-                'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
-                'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
-                'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone',
-                'e2ee'
-              ],
             }}
             userInfo={{
               displayName: user.name,
               email: user.email || '',
             }}
+            onReadyToClose={handleEndCall}
             getIFrameRef={(iframeRef) => {
               iframeRef.style.height = '100%';
               iframeRef.style.width = '100%';

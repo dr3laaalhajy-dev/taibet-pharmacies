@@ -1347,11 +1347,43 @@ app.post('/api/video-calls/respond', authenticateToken, async (req: any, res: an
       const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
       roomId = 'taiba-call-' + Array.from({length: 12}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
     }
+    const finalStatus = status === 'accepted' ? 'in_progress' : 'declined';
     await pool.query(
       "UPDATE video_call_requests SET status = $1, room_id = $2 WHERE id = $3 AND doctor_id = $4 AND status = 'ringing'",
-      [status, roomId, requestId, req.user.id]
+      [finalStatus, roomId, requestId, req.user.id]
     );
     res.json({ success: true, room_id: roomId });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 End Video Call
+app.put('/api/video-calls/:id/end', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      "UPDATE video_call_requests SET status = 'ended' WHERE id = $1 AND (patient_id = $2 OR doctor_id = $2)",
+      [id, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Get Current Active Call (For Rejoin Banner)
+app.get('/api/video-calls/current-active', authenticateToken, async (req: any, res: any) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.id, v.room_id, v.doctor_id, v.patient_id, 
+              d.name as doctor_name, p.name as patient_name
+       FROM video_call_requests v
+       JOIN users d ON v.doctor_id = d.id
+       JOIN users p ON v.patient_id = p.id
+       WHERE (v.patient_id = $1 OR v.doctor_id = $1) 
+         AND v.status = 'in_progress' 
+         AND v.created_at > NOW() - INTERVAL '1 hour'
+       LIMIT 1`,
+      [req.user.id]
+    );
+    res.json(result.rows[0] || null);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1359,7 +1391,7 @@ app.post('/api/video-calls/respond', authenticateToken, async (req: any, res: an
 app.get('/api/video-calls/status/:requestId', authenticateToken, async (req: any, res: any) => {
   try {
     const result = await pool.query(
-      'SELECT status, room_id FROM video_call_requests WHERE id = $1 AND patient_id = $2',
+      'SELECT status, room_id, doctor_id, patient_id FROM video_call_requests WHERE id = $1 AND (patient_id = $2 OR doctor_id = $2)',
       [req.params.requestId, req.user.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NotFound' });
