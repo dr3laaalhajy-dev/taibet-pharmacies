@@ -54,9 +54,8 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
     onClose();
   };
 
-  const domain = "vpaas24.jitsi.net";
-  const tenant = "vpaas-magic-cookie-437f8471b48d4fb983aa45a55d491176";
-  const roomName = `${tenant}/appointment-${appointment.id}`;
+  const domain = "meet.jit.si";
+  const roomName = `taiba-consultation-${appointment.id}`;
 
   const patientId = appointment.patient_id;
   const familyMemberId = appointment.family_member_id;
@@ -116,7 +115,7 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
               disableModeratorIndicator: true,
               startScreenSharing: false,
               enableEmailInStats: false,
-              prejoinPageEnabled: false,
+              prejoinPageEnabled: true,
               disableDeepLinking: true,
               toolbarButtons: ['microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup', 'profile', 'chat', 'recording', 'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand', 'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts', 'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone', 'security', 'e2ee'],
             }}
@@ -128,9 +127,12 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
               email: user.email || '',
             }}
             onReadyToClose={handleEndCall}
-            getIFrameRef={(iframeRef) => {
+            getIFrameRef={(iframeRef: any) => {
               iframeRef.style.height = '100%';
               iframeRef.style.width = '100%';
+              // Aggressively force permissions for production (HTTPS)
+              iframeRef.allow = 'camera; microphone; fullscreen; display-capture; autoplay';
+              iframeRef.setAttribute('allow', 'camera; microphone; fullscreen; display-capture; autoplay');
             }}
           />
         </div>

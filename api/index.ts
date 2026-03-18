@@ -48,7 +48,10 @@ const generateShortCode = async (pool: pg.Pool, table: string): Promise<string> 
 };
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(helmet({ 
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false, // Jitsi often fails with standard CSP
+}));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
