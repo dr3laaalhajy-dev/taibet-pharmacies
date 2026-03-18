@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users, MessageSquare, FileText, ShieldAlert, Brain, Send, X } from 'lucide-react';
+import { Plus, Trash2, MapPin, Phone, User, Activity, Search, Clock, MessageCircle, CheckCircle, Stethoscope, BriefcaseMedical, ShoppingCart, Store, Package, ShoppingBag, ArrowRight, Minus, XCircle, Smile, Star, Calendar, Users, MessageSquare, FileText, ShieldAlert, Brain, Send, X, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Facility, Product, CartItem, UserType, DAYS_OF_WEEK_AR, DAYS_OF_WEEK_EN, SPECIALTIES } from '../types';
@@ -156,7 +156,7 @@ const DoctorProfileModal = ({ doctorId, facilityId, onClose, t, lang, currency, 
                       <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">
                         {lang === 'ar' ? 'دكتور' : 'Dr.'} {doctor?.name ? doctor.name : (doctor?.id || 'غير محدد')}
                       </h2>
-                      <p className="text-blue-600 dark:text-blue-400 font-bold mb-3">{doctor.specialty ? (t[doctor.specialty] || doctor.specialty) : (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
+                      <p className="text-blue-600 dark:text-blue-400 font-bold mb-3">{doctor.specialty || primaryFacility?.specialty || (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
                     </div>
                     <button onClick={handleOpenChat} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-sm">
                       <MessageSquare size={16} /> <span className="hidden sm:inline">{lang === 'ar' ? 'تواصل معي' : 'Chat'}</span>
@@ -438,7 +438,7 @@ const DoctorsDirectoryView = ({ onBack, lang, t, filterRole, currency, setCurren
                   {doctor.profile_picture ? <img src={doctor.profile_picture} className="w-full h-full object-cover" /> : <User size={40} className="opacity-40" />}
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doctor?.name?.trim() ? doctor.name : doctor.id}</h3>
-                <p className={`text-sm font-bold mb-4 ${filterRole === 'dentist' ? 'text-indigo-600 dark:text-indigo-400' : 'text-blue-600 dark:text-blue-400'}`}>{doctor.specialty ? (t[doctor.specialty] || doctor.specialty) : (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
+                <p className={`text-sm font-bold mb-4 ${filterRole === 'dentist' ? 'text-indigo-600 dark:text-indigo-400' : 'text-blue-600 dark:text-blue-400'}`}>{doctor.specialty || (doctor.role === 'dentist' ? (lang === 'ar' ? 'طبيب أسنان' : 'Dentist') : t.doctor)}</p>
 
                 <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex justify-between items-center mb-4">
@@ -731,9 +731,9 @@ const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: num
   );
 };
 
-import { OnlineConsultationSection } from './OnlineConsultationSection';
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser, openLegal, onCallInitiated }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void, openLegal: (type: 'privacy' | 'terms') => void, onCallInitiated?: (doctorId: number, doctorName: string) => void }) => {
+
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser, openLegal, onCallInitiated, onOpenOnlineConsultations }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void, openLegal: (type: 'privacy' | 'terms') => void, onCallInitiated?: (doctorId: number, doctorName: string) => void, onOpenOnlineConsultations?: () => void }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -844,13 +844,13 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
 
   // 🟢 شاشة التحميل الافتتاحية (Splash Screen)
   if (isInitialLoading) return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-slate-950 flex flex-col items-center justify-center transition-colors">
+    <div className="fixed inset-0 z- bg-white dark:bg-slate-950 flex flex-col items-center justify-center transition-colors">
       <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1, rotate: [0, -10, 10, 0] }} transition={{ duration: 0.8 }} className="relative mb-6">
         <div className="absolute inset-0 bg-blue-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
         <img src="/logo.png" alt="Logo" className="w-32 h-32 md:w-40 md:h-40 object-contain relative z-10 drop-shadow-2xl" />
       </motion.div>
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-        {t.appName}
+        {lang === 'ar' ? 'طيبة الإمام الصحية' : 'Taibet Health'}
       </motion.h1>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-8 flex gap-2">
         <span className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
@@ -875,28 +875,37 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
         {/* الهيدر الرئيسي متاح دائماً */}
         <header className="mb-12 text-center">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="inline-block px-5 py-2 mb-6 text-sm font-bold tracking-widest text-emerald-700 dark:text-emerald-400 uppercase bg-emerald-50 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800 shadow-sm">
-            {t.communityHealth}
+            {lang === 'ar' ? 'خدمات الصحة المجتمعية' : 'Community Health Services'}
           </motion.div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 leading-tight">
-            {t.welcomeTitle}
+            {lang === 'ar' ? <>أهلاً بكم في <span className="text-blue-600 dark:text-blue-500">طيبة الإمام</span> الصحية</> : <>Welcome to <span className="text-blue-600 dark:text-blue-500">Taibet El-Imam</span> Health</>}
           </h1>
           <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium leading-relaxed mb-10">
-            {t.welcomeSubtitle}
+            {lang === 'ar' ? 'اكتشف أفضل الخدمات الطبية في مدينتك، احجز موعدك، أو اطلب أدويتك من الصيدلية الأقرب إليك.' : 'Discover the best medical services in your city.'}
           </p>
 
           {/* الأزرار الثلاثة الرئيسية */}
           <div className="flex justify-center gap-4 flex-wrap max-w-3xl mx-auto">
             <button onClick={() => setActiveTab('pharmacy')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'pharmacy' ? 'bg-emerald-500 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-slate-200 dark:border-slate-700'}`}>
               <PharmacyIcon size={28} className={activeTab === 'pharmacy' ? 'text-white' : 'text-emerald-500'} />
-              {t.pharmaciesTab}
+              {lang === 'ar' ? 'الصيدليات' : 'Pharmacies'}
             </button>
             <button onClick={() => setActiveTab('clinic')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'clinic' ? 'bg-blue-600 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200 dark:border-slate-700'}`}>
               <Stethoscope size={28} className={activeTab === 'clinic' ? 'text-white' : 'text-blue-600'} />
-              {t.clinicsTab}
+              {lang === 'ar' ? 'العيادات الطبية' : 'Clinics'}
             </button>
             <button onClick={() => setActiveTab('dental_clinic')} className={`flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 ${activeTab === 'dental_clinic' ? 'bg-indigo-500 text-white scale-105' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-slate-200 dark:border-slate-700'}`}>
               <ToothIcon size={28} className={activeTab === 'dental_clinic' ? 'text-white' : 'text-indigo-500'} />
-              {t.dentalClinicsTab}
+              {lang === 'ar' ? 'عيادات الأسنان' : 'Dental Clinics'}
+            </button>
+            <button
+              onClick={() => {
+                if (onOpenOnlineConsultations) onOpenOnlineConsultations();
+              }}
+              className="flex-1 min-w-[150px] px-6 py-5 rounded-3xl font-black transition-all shadow-lg flex flex-col items-center gap-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/20 border border-slate-200 dark:border-slate-700 group hover:border-red-200 dark:hover:border-red-900/50"
+            >
+              <Video size={28} className="text-red-500 group-hover:scale-110 transition-transform" />
+              <span>{lang === 'ar' ? 'استشارة أونلاين' : 'Online Consult 📹'}</span>
             </button>
           </div>
         </header>
@@ -909,8 +918,8 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
             {topDoctors.length > 0 && (
               <div className="mb-12 border-t border-slate-100 dark:border-slate-800 pt-12">
                 <div className="text-center mb-10">
-                  <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center justify-center gap-2"><Star className="text-yellow-400 fill-yellow-400" /> {t.topDoctorsTitle} <Star className="text-yellow-400 fill-yellow-400" /></h2>
-                  <p className="text-slate-500">{t.topDoctorsSubtitle}</p>
+                  <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center justify-center gap-2"><Star className="text-yellow-400 fill-yellow-400" /> {lang === 'ar' ? 'أشهر أطباء موقعنا' : 'Our Top Rated Doctors'} <Star className="text-yellow-400 fill-yellow-400" /></h2>
+                  <p className="text-slate-500">{lang === 'ar' ? 'تم اختيارهم بناءً على التقييمات وعدد الحجوزات الفعلية' : 'Ranked based on real reviews and bookings.'}</p>
                 </div>
 
                 {/* حاوية مرنة للتحكم بالعرض مع ميزة السحب للموبايل وبداية من اليمين للكمبيوتر */}
@@ -924,7 +933,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                         {doc.profile_picture ? <img src={doc.profile_picture} className="w-full h-full object-cover" /> : <User size={28} className="opacity-40" />}
                       </div>
                       <h3 className="font-bold text-slate-900 dark:text-white text-sm mb-1 line-clamp-1">{lang === 'ar' ? 'د.' : 'Dr.'} {doc?.name?.trim() ? doc.name : doc.id}</h3>
-                      <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-3">{doc.specialty ? (t[doc.specialty] || doc.specialty) : (doc.role === 'dentist' ? (lang === 'ar' ? 'أسنان' : 'Dentist') : t.doctor)}</p>
+                      <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-3">{doc.specialty || (doc.role === 'dentist' ? (lang === 'ar' ? 'أسنان' : 'Dentist') : 'طبيب')}</p>
 
                       <div className="flex items-center justify-center gap-1 text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 py-1 rounded-lg mt-auto">
                         <Star size={12} className="fill-current" />
@@ -936,16 +945,16 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
             )}
 
-            <WhyChooseUs lang={lang} t={t} />
+            <WhyChooseUs />
 
             {/* 🟢 عنوان قسم الإحصائيات */}
             <div className="text-center mb-10 mt-20">
               <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-3">
                 <Activity size={32} className="text-blue-600 hidden sm:block" />
-                {t.platformStatsTitle}
+                {lang === 'ar' ? 'إحصائيات المنصة' : 'Platform Statistics'}
               </h2>
               <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium max-w-xl mx-auto">
-                {t.platformStatsSubtitle}
+                {lang === 'ar' ? 'أرقام تعكس ثقتكم المستمرة، ونسعى دائماً لتقديم أفضل رعاية صحية في طيبة الإمام.' : 'Numbers that reflect your continuous trust in our medical services.'}
               </p>
             </div>
 
@@ -954,23 +963,23 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               <div className="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto pb-4 ...">
                 <AnimatedCounter
                   target={facilities.filter(f => f.type === 'clinic').length}
-                  label={t.clincCount}
+                  label={lang === 'ar' ? 'عيادة طبية' : 'Clinics'}
                   icon={ClinicIcon} delay={0}
                 />
                 <AnimatedCounter
                   target={facilities.filter(f => f.type === 'dental_clinic').length}
-                  label={t.dentalCount}
+                  label={lang === 'ar' ? 'عيادة أسنان' : 'Dental Clinics'}
                   icon={ToothIcon} delay={200}
                 />
                 <AnimatedCounter
                   target={facilities.filter(f => f.type === 'pharmacy').length}
-                  label={t.pharmacyCount}
+                  label={lang === 'ar' ? 'صيدلية' : 'Pharmacies'}
                   icon={PharmacyIcon} delay={400} // 👈 هنا ستظهر حبة الدواء الأنيقة
                 />
 
 
-                <AnimatedCounter target={stats.bookings || 0} label={t.bookingsCount} icon={Calendar} delay={600} />
-                <AnimatedCounter target={stats.patients || 0} label={t.patientsCount} icon={Users} delay={800} />
+                <AnimatedCounter target={stats.bookings || 0} label={lang === 'ar' ? 'حجز ناجح' : 'Successful Bookings'} icon={Calendar} delay={600} />
+                <AnimatedCounter target={stats.patients || 0} label={lang === 'ar' ? 'مريض مسجل' : 'Registered Patients'} icon={Users} delay={800} />
               </div>
             </div>
 
@@ -985,12 +994,12 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
             {/* شريط البحث والعودة */}
             <div className="flex flex-col md:flex-row justify-between gap-4 mb-8">
               <button onClick={() => setActiveTab('home')} className="flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-3 rounded-2xl font-bold hover:bg-slate-200 transition-colors w-full md:w-auto">
-                <ArrowRight size={18} /> {t.backToHome}
+                <ArrowRight size={18} /> {lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
               </button>
 
               <div className="flex-1 relative group">
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder={t.searchPlaceholderMain} className="w-full pr-12 pl-4 py-3 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-blue-600 outline-none transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                <input type="text" placeholder={lang === 'ar' ? 'ابحث بالاسم أو العنوان...' : 'Search name or address...'} className="w-full pr-12 pl-4 py-3 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-blue-600 outline-none transition-colors dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
               </div>
 
               <div className="flex justify-center md:justify-end">
@@ -1019,36 +1028,26 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
 
             <div className="flex flex-col gap-12 md:gap-16 mb-16">
 
-              {/* 🟢 قسم الاستشارات المرئية النشطة الآن */}
-              {user?.role === 'patient' && onCallInitiated && (
-                <OnlineConsultationSection
-                  lang={lang}
-                  t={t}
-                  currentUser={user}
-                  onCallInitiated={onCallInitiated}
-                />
-              )}
-
               {/* قسم المناوبين الآن */}
               <div className="w-full">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? t.pharmaciesOnCall : (activeTab === 'clinic' ? t.clinicsOnCall : t.dentistsOnCall)}</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><div className={`w-3 h-3 rounded-full animate-pulse ${activeTab === 'clinic' ? 'bg-blue-600' : 'bg-emerald-500'}`} /> {activeTab === 'pharmacy' ? (lang === 'ar' ? 'صيدليات مناوبة الآن' : 'Pharmacies On Call Now') : (activeTab === 'clinic' ? (lang === 'ar' ? 'عيادات مناوبة الآن' : 'Clinics Open Now') : (lang === 'ar' ? 'عيادات أسنان مناوبة الآن' : 'Dental Clinics Open Now'))}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {paginatedOpen.length > 0 ? paginatedOpen.map(f => (
                     <div key={`open-${f.id}`} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-emerald-100 dark:border-slate-800 shadow-sm relative overflow-hidden group hover:shadow-md transition-all flex flex-col h-full">
-                      <div className="absolute top-4 left-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{t.openNow}</div>
+                      <div className="absolute top-4 left-4 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full animate-pulse">{lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}</div>
                       <div className="flex items-center gap-4 mb-4 mt-2">
                         {f.image_url ? <img src={f.image_url} alt={f.name} className="w-14 h-14 object-cover rounded-xl shrink-0 shadow-sm border border-slate-100 dark:border-slate-700" /> : <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${activeTab === 'clinic' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'}`}>{f.type === 'clinic' ? <Stethoscope size={24} /> : (f.type === 'dental_clinic' ? <ToothIcon size={24} /> : <Activity size={24} />)}</div>}
-                        <div><h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 block mt-0.5">{t[f.specialty] || f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
+                        <div><h3 className="text-xl font-bold text-slate-900 dark:text-white line-clamp-1">{f.name}</h3>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 block mt-0.5">{f.specialty}</span>}{f.pharmacist_name && <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1"><User size={12} /> {f.pharmacist_name}</span>}{f.distance !== null && <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1.5 block">{lang === 'ar' ? `تبعد عنك: ${f.distance} كم` : `${f.distance} km away`} 📍</span>}</div>
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2 mb-4"><MapPin size={16} className="shrink-0" /> <span className="truncate">{f.address}</span></p>
 
                       <div className="mt-auto">
-                         {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
+                        {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
                           <div className="flex items-center justify-center gap-2 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 p-2.5 rounded-xl text-sm font-bold mb-3 border border-orange-100 dark:border-orange-800">
                             <Users size={16} />
-                            {t.waitingNow}
+                            {lang === 'ar' ? 'في الانتظار حالياً:' : 'Waiting Now:'}
                             <span className="bg-orange-600 text-white px-2 py-0.5 rounded-md mx-1">{f.waiting_patients || 0}</span>
-                            {t.waitingPatients}
+                            {lang === 'ar' ? 'مرضى' : 'patients'}
                           </div>
                         )}
 
@@ -1056,27 +1055,27 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                           {f.doctor_id && (f.type === 'clinic' || f.type === 'dental_clinic') && (
                             <button onClick={() => { setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id); }} className="flex-1 bg-blue-600 text-white border border-blue-600 text-center py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">{lang === 'ar' ? 'احجز موعدك' : 'Book Appt'}</button>
                           )}
-                          <a href={`tel:${f.phone}`} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-center py-3 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {t.callPharmacy}</a>
+                          <a href={`tel:${f.phone}`} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-center py-3 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"><Phone size={14} /> {lang === 'ar' ? 'اتصال' : 'Call'}</a>
                         </div>
                       </div>
                     </div>
-                  )) : (<div className="col-span-full text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-slate-500"><Clock className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={48} /><p className="text-slate-500 font-medium">{t.noFacilitiesOpen}</p></div>)}
+                  )) : (<div className="col-span-full text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-slate-500"><Clock className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={48} /><p className="text-slate-500 font-medium">{lang === 'ar' ? 'لا يوجد مناوبات في هذا الوقت.' : 'No facilities open at this time.'}</p></div>)}
                 </div>
-                {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{t.previous}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{t.next}</button></div>)}
+                {totalOpenPages > 1 && (<div className="flex justify-center items-center gap-4 mt-8"><button disabled={openNowPage === 1} onClick={() => setOpenNowPage(prev => prev - 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'السابق' : 'Prev'}</button><span className="font-bold text-slate-500 text-sm" dir="ltr">{openNowPage} / {totalOpenPages}</span><button disabled={openNowPage === totalOpenPages} onClick={() => setOpenNowPage(prev => prev + 1)} className="px-6 py-2.5 rounded-xl font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">{lang === 'ar' ? 'التالي' : 'Next'}</button></div>)}
               </div>
 
               {/* الجدول الأسبوعي */}
               <div className="w-full">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><Calendar className="text-slate-400 dark:text-slate-500" /> {t.weeklySchedule}</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-3"><Calendar className="text-slate-400 dark:text-slate-500" /> {lang === 'ar' ? 'الجدول الأسبوعي للدوام' : 'Weekly Schedule'}</h2>
                 <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden w-full">
                   <div className="overflow-x-auto w-full">
-                    <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50 dark:bg-slate-800/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{activeTab === 'pharmacy' ? t.directoryPharmacy : t.directoryClinic}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'text-slate-400 dark:text-slate-500'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">{t.actions}</th></tr></thead>
+                    <table className="w-full text-right min-w-[800px]"><thead className="bg-slate-50/50 dark:bg-slate-800/50"><tr><th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{activeTab === 'pharmacy' ? (lang === 'ar' ? 'الصيدلية' : 'Pharmacy') : (activeTab === 'clinic' ? (lang === 'ar' ? 'العيادة' : 'Clinic') : (lang === 'ar' ? 'العيادة' : 'Dental Clinic'))}</th>{(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, idx) => (<th key={idx} className={`px-2 py-4 text-[10px] font-bold text-center uppercase tracking-widest ${new Date().getDay() === idx ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'text-slate-400 dark:text-slate-500'}`}>{day}</th>))}<th className="px-6 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">{lang === 'ar' ? 'التفاصيل' : 'Details'}</th></tr></thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {paginatedFacilities.map((f, idx) => {
                           const isOpenNow = f.isOpenNow;
                           return (
                             <motion.tr key={`schedule-${f.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.05 }} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-                              <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 dark:text-slate-200 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{t[f.specialty] || f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10} /> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{t.openNow}</span> : <span className="px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-full">{t.closedNow}</span>}</div></div></td>
+                              <td className="px-6 py-4"><div className="flex flex-col"><span className="font-bold text-slate-900 dark:text-slate-200 text-base">{f.name}</span>{(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && <span className="text-[10px] font-bold text-blue-500 mt-0.5">{f.specialty}</span>}<span className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={10} /> {f.address}</span><div className="mt-2">{isOpenNow ? <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مفتوح الآن' : 'Open'}</span> : <span className="px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-full">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>}</div></div></td>
                               {(lang === 'en' ? DAYS_OF_WEEK_EN : DAYS_OF_WEEK_AR).map((day, dIdx) => { const daySchedule = f.working_hours && f.working_hours[dIdx.toString()]; const isToday = new Date().getDay() === dIdx; return <td key={dIdx} className={`px-2 py-4 text-center border-x border-slate-50/50 dark:border-slate-800/50 ${isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>{daySchedule?.isOpen ? <div className="flex flex-col items-center justify-center"><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.start, lang)}</span><span className="text-[8px] text-slate-400 my-0.5">-</span><span className={`text-[10px] font-mono font-bold ${isToday ? 'text-blue-700 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`} dir="ltr">{formatTime12h(daySchedule.end, lang)}</span></div> : <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold">{lang === 'ar' ? 'عطلة' : 'Off'}</span>}</td>; })}
                               <td className="px-6 py-4 text-center">{f.doctor_id ? <button onClick={() => { setSelectedDoctorId(f.doctor_id!); setSelectedFacilityId(f.id); }} className="px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-1 mx-auto">{lang === 'ar' ? 'عرض الملف' : 'Profile'}</button> : <span className="text-slate-300 dark:text-slate-600 text-xs">---</span>}</td>
                             </motion.tr>
@@ -1096,7 +1095,9 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
           <div className="w-full bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative z-0">
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
               <MapPin className="text-blue-500" size={28} />
-              {activeTab === 'pharmacy' ? t.pharmaciesOnMap : (activeTab === 'clinic' ? t.clinicsOnMap : t.dentistsOnMap)}
+              {lang === 'ar'
+                ? 'مواقع ' + (activeTab === 'pharmacy' ? 'الصيدليات' : activeTab === 'clinic' ? 'العيادات الطبية' : 'عيادات الأسنان') + ' على الخريطة'
+                : 'Locations on Map'}
             </h2>
             <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 relative z-0">
               <MapContainer
@@ -1119,18 +1120,18 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                         <div className="text-center min-w-[150px] p-1">
                           <strong className="block mb-1 text-sm text-slate-800">{f.name}</strong>
                           {(f.type === 'clinic' || f.type === 'dental_clinic') && f.specialty && (
-                            <span className="text-[11px] font-bold text-blue-600 block mb-2">{t[f.specialty] || f.specialty}</span>
+                            <span className="text-[11px] font-bold text-blue-600 block mb-2">{f.specialty}</span>
                           )}
 
                           {/* 🟢 الإضافة الجديدة: حالة الدوام (مفتوح / مغلق) */}
                           <div className="mb-2">
                             {f.isOpenNow ? (
                               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
-                                {t.openNow}
+                                {lang === 'ar' ? 'مفتوح الآن' : 'Open Now'}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full">
-                                {t.closedNow}
+                                {lang === 'ar' ? 'مغلق' : 'Closed'}
                               </span>
                             )}
                           </div>
@@ -1139,7 +1140,7 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
                           <span className="text-xs text-slate-500 block mb-3 line-clamp-2">{f.address}</span>
                           <div className="flex gap-2 justify-center">
                             <a href={`tel:${f.phone}`} className="bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold no-underline hover:bg-emerald-600 transition-colors w-full">
-                              {t.callPharmacy}
+                              {lang === 'ar' ? 'اتصال' : 'Call'}
                             </a>
                           </div>
                         </div>
@@ -1160,26 +1161,10 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
       {/* الفوتر */}
       <footer className="w-full bg-[#0c5bc6] dark:bg-slate-950 text-white pt-12 pb-10 mt-auto border-t-[5px] border-blue-400 dark:border-slate-800 transition-colors">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex flex-wrap justify-between gap-y-12 gap-x-8 text-center lg:text-start">
-
-            <div className="flex flex-col items-center lg:items-start pt-8 sm:pt-0 flex-1 min-w-[200px]">
-              <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
-              <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400">
-                <li><button onClick={() => { setShowDoctors('doctor'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص الطبي' : 'Medical Specialty'}</button></li>
-                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white transition-colors">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
-              </ul>
-            </div>
-
-            <div className="flex flex-col items-center lg:items-start pt-8 lg:pt-0 flex-1 min-w-[200px]">
-              <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'روابط هامة' : 'Important Links'}</h3>
-              <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
-                <li><button onClick={() => openLegal('privacy')} className="hover:text-white transition-colors">{lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}</button></li>
-                <li><button onClick={() => openLegal('terms')} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</button></li>
-              </ul>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-y-12 gap-x-8 text-center lg:text-start">
 
             {(footerData?.appName || footerData?.aboutLink || footerData?.teamLink || footerData?.careersLink) && (
-              <div className="flex flex-col items-center lg:items-start flex-1 min-w-[200px]">
+              <div className="flex flex-col items-center lg:items-start">
                 {footerData?.appName && <h3 className="text-3xl font-extrabold mb-5 font-mono tracking-wider">{footerData.appName}</h3>}
                 <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400">
                   {footerData?.aboutLink && <li><a href={footerData.aboutLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'من نحن' : 'About Us'}</a></li>}
@@ -1189,8 +1174,16 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
             )}
 
+            <div className="flex flex-col items-center lg:items-start sm:border-r border-blue-500/30 dark:border-slate-800 lg:border-0 sm:pr-8 pt-8 sm:pt-0">
+              <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'ابحث عن طريق' : 'Search By'}</h3>
+              <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400">
+                <li><button onClick={() => { setShowDoctors('doctor'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition-colors">{lang === 'ar' ? 'التخصص الطبي' : 'Medical Specialty'}</button></li>
+                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white transition-colors">{lang === 'ar' ? 'المنطقة' : 'Area'}</button></li>
+              </ul>
+            </div>
+
             {footerData?.doctorJoinLink && (
-              <div className="flex flex-col items-center lg:items-start pt-8 sm:pt-0 flex-1 min-w-[200px]">
+              <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 dark:border-slate-800 sm:border-0 pt-8 sm:pt-0">
                 <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'هل أنت طبيب ؟' : 'Are you a doctor?'}</h3>
                 <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400">
                   <li><a href={footerData.doctorJoinLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'انضم إلى أطبائنا' : 'Join our doctors'}</a></li>
@@ -1198,17 +1191,26 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
               </div>
             )}
 
-            {(footerData?.libraryLink || footerData?.contactLink) && (
-              <div className="flex flex-col items-center lg:items-start pt-8 lg:pt-0 flex-1 min-w-[200px]">
-                <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
-                <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
-                  {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
-                  {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
-                </ul>
-              </div>
-            )}
 
-            <div className="flex flex-col items-center lg:items-start pt-8 lg:pt-0 flex-1 min-w-full lg:min-w-[300px] lg:max-w-md">
+            <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 dark:border-slate-800 lg:border-0 pt-8 lg:pt-0">
+              <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'روابط هامة' : 'Important Links'}</h3>
+              <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
+                <li><button onClick={() => openLegal('privacy')} className="hover:text-white transition-colors">{lang === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}</button></li>
+                <li><button onClick={() => openLegal('terms')} className="hover:text-white transition-colors">{lang === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</button></li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col items-center lg:items-start border-t border-blue-500/30 dark:border-slate-800 lg:border-0 pt-8 lg:pt-0">
+              {(footerData?.libraryLink || footerData?.contactLink) && (
+                <>
+                  <h3 className="text-xl font-bold mb-5 text-blue-50 dark:text-slate-200">{lang === 'ar' ? 'تحتاج للمساعدة ؟' : 'Need Help?'}</h3>
+                  <ul className="space-y-3 font-medium text-blue-100 dark:text-slate-400 mb-8 text-center lg:text-start w-full">
+                    {footerData?.libraryLink && <li><a href={footerData.libraryLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'مكتبة طبية' : 'Medical Library'}</a></li>}
+                    {footerData?.contactLink && <li><a href={footerData.contactLink} className="hover:text-white transition-colors">{lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</a></li>}
+                  </ul>
+                </>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-4 mb-8 w-full justify-center lg:justify-start">
                 <a
                   href="/taiba-health-v4.apk"

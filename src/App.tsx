@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart, ChevronDown, ArrowRight, PhoneCall, Video } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart, ChevronDown, ArrowRight, PhoneCall, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -199,7 +199,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang, t }: any) => {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b dark:border-slate-800 p-6">
           <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold flex items-center gap-2 dark:text-white"><Heart className="text-emerald-500" /> {t.medicalRecordTitle}</h2><button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200"><X size={20} className="dark:text-slate-300" /></button></div>
-          <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-xl flex items-center gap-3 text-sm font-bold"><ShieldAlert size={24} className="shrink-0" /><p>{t.privacyNotice}</p></div>
+          <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-xl flex items-center gap-3 text-sm font-bold"><p>{t.privacyNotice}</p></div>
         </div>
 
         <form onSubmit={handleSave} className="p-6 md:p-8 space-y-8" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -304,7 +304,7 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang, t }: any) => {
 
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
-  const [view, setView] = useState<'public' | 'login' | 'dashboard' | 'virtual-clinic'>('public');
+  const [view, setView] = useState<'public' | 'login' | 'dashboard' | 'virtual-clinic' | 'online-consultations'>('public');
   const [consultationAppt, setConsultationAppt] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
@@ -737,26 +737,13 @@ export default function App() {
 
 
 
-      {/* 🟢 التنبيه العلوي للمرضى الذين لم يكملوا السجل الطبي */}
-      {view !== 'dashboard' && user?.role === 'patient' && !hasMedicalRecord && (
-        <div className="bg-yellow-500 text-slate-900 px-4 py-3 text-center font-bold text-sm flex justify-center items-center gap-2 z-30 sticky top-[72px] shadow-md">
-          <ShieldAlert size={18} />
-          <span>{lang === 'ar' ? 'يرجى استكمال سجلك الطبي لمرة واحدة لتسهيل تشخيصك من قبل أطبائنا.' : 'Please complete your medical record to help our doctors.'}</span>
-          <button
-            onClick={() => setShowMedicalRecordFormModal(true)}
-            className="bg-slate-900 text-yellow-400 px-4 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-xs whitespace-nowrap"
-          >
-            {lang === 'ar' ? 'إنشاء السجل الآن' : 'Create Record'}
-          </button>
-        </div>
-      )}
-
       <main className="flex-1">
         {view === 'public' && (
           <PublicView
             user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
             openLegal={openLegal}
             onCallInitiated={handleCallInitiated}
+            onOpenOnlineConsultations={() => setView('online-consultations')}
           />
         )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} openLegal={openLegal} />}
@@ -769,6 +756,45 @@ export default function App() {
             t={t}
             onClose={() => setView('dashboard')}
           />
+        )}
+        {view === 'online-consultations' && (
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
+            {/* 🟢 Header for Dedicated Page */}
+            <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-40 border-b border-slate-200 dark:border-slate-800">
+              <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+                <button 
+                  onClick={() => setView('public')}
+                  className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors font-bold group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
+                    <ArrowRight className={lang === 'ar' ? '' : 'rotate-180'} size={20} />
+                  </div>
+                  <span>{t.backToHome}</span>
+                </button>
+                
+                <div className="text-center flex flex-col items-center">
+                   <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                     <Video className="text-red-500 animate-pulse" size={24} />
+                     {t.onlineConsultTitle}
+                   </h1>
+                   <p className="text-xs text-slate-500 font-medium">
+                     {t.onlineConsultSubtitle}
+                   </p>
+                </div>
+                
+                <div className="w-10 md:w-32"></div> {/* Visual balance */}
+              </div>
+            </div>
+
+            <div className="container mx-auto px-4 mt-12">
+              <OnlineConsultationSection 
+                lang={lang} 
+                t={t} 
+                currentUser={user} 
+                onCallInitiated={handleCallInitiated}
+              />
+            </div>
+          </div>
         )}
 
         <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} t={t} />

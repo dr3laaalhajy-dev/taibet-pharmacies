@@ -112,6 +112,8 @@ export const translations = {
     patientsCount: "مريض مسجل",
     backToHome: "العودة للرئيسية",
     searchPlaceholderMain: "ابحث بالاسم أو العنوان...",
+    onlineConsultTitle: "استشارة مرئية فورية",
+    onlineConsultSubtitle: "أطباء متاحون الآن للرد على استفساراتك",
     // Why Choose Us
     whyTaibaTitle: "لماذا طيبة هيلث؟",
     step1Title: "خدمة 24 ساعة",
@@ -504,6 +506,8 @@ export const translations = {
     patientsCount: "Registered Patients",
     backToHome: "Back to Home",
     searchPlaceholderMain: "Search by name or address...",
+    onlineConsultTitle: "Instant Video Consult",
+    onlineConsultSubtitle: "Doctors available now for your queries",
     // Why Choose Us
     whyTaibaTitle: "Why Taiba Health?",
     step1Title: "24/7 Service",
