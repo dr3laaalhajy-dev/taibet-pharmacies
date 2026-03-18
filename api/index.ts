@@ -1316,7 +1316,7 @@ app.post('/api/video-calls/request', authenticateToken, async (req: any, res: an
     if (!checkDoctor.rows[0]?.is_online) return res.status(400).json({ error: 'DoctorIsOffline' });
 
     const result = await pool.query(
-      'INSERT INTO video_call_requests (patient_id, doctor_id) VALUES ($1, $2) RETURNING id',
+      "INSERT INTO video_call_requests (patient_id, doctor_id, status) VALUES ($1, $2, 'ringing') RETURNING id",
       [patient_id, doctor_id]
     );
     res.json({ success: true, requestId: result.rows[0].id });
@@ -1331,7 +1331,7 @@ app.get('/api/video-calls/active-requests', authenticateToken, async (req: any, 
       SELECT v.id, v.patient_id, p.name as patient_name, v.created_at 
       FROM video_call_requests v
       JOIN users p ON v.patient_id = p.id
-      WHERE v.doctor_id = $1 AND v.status = 'pending' AND v.created_at > NOW() - INTERVAL '1 minute'
+      WHERE v.doctor_id = $1 AND v.status = 'ringing' AND v.created_at > NOW() - INTERVAL '1 minute'
     `;
     const result = await pool.query(query, [doctorId]);
     res.json(result.rows);
@@ -1348,7 +1348,7 @@ app.post('/api/video-calls/respond', authenticateToken, async (req: any, res: an
       roomId = 'taiba-call-' + Array.from({length: 12}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
     }
     await pool.query(
-      'UPDATE video_call_requests SET status = $1, room_id = $2 WHERE id = $3 AND doctor_id = $4',
+      "UPDATE video_call_requests SET status = $1, room_id = $2 WHERE id = $3 AND doctor_id = $4 AND status = 'ringing'",
       [status, roomId, requestId, req.user.id]
     );
     res.json({ success: true, room_id: roomId });
@@ -1416,7 +1416,7 @@ app.put('/api/doctor/consultation-status', authenticateToken, async (req: any, r
 setInterval(async () => {
     try {
         await pool.query("UPDATE users SET is_online = false WHERE last_seen < NOW() - INTERVAL '90 seconds' AND is_online = true");
-        await pool.query("UPDATE video_call_requests SET status = 'expired' WHERE status = 'pending' AND created_at < NOW() - INTERVAL '1 minute'");
+        await pool.query("UPDATE video_call_requests SET status = 'expired' WHERE status = 'ringing' AND created_at < NOW() - INTERVAL '1 minute'");
     } catch (e) { }
 }, 45000);
 

@@ -25,6 +25,7 @@ import { PhoneContactInput } from './PhoneContactInput';
 import { DoctorOverviewDashboard } from './DoctorOverviewDashboard';
 import { PatientClinicalActions } from './PatientClinicalActions';
 import { MedicineAutocomplete } from './MedicineAutocomplete';
+import { IncomingCallAlert } from './IncomingCallAlert';
 
 const SAFE_DAYS_AR = DAYS_OF_WEEK_AR || ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const SAFE_DAYS_EN = DAYS_OF_WEEK_EN || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -301,6 +302,8 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [isConsultationEnabled, setIsConsultationEnabled] = useState(user.is_online_consultation_enabled || false);
   const [isTogglingConsultation, setIsTogglingConsultation] = useState(false);
+
+
 
   useEffect(() => {
     if (user.role === 'doctor' || user.role === 'dentist') {
@@ -641,7 +644,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
   // 🟢 Real-Time Handshake (Incoming Call Listener)
   const [incomingCall, setIncomingCall] = useState<any>(null);
   useEffect(() => {
-    if (user.role === 'doctor' || user.role === 'dentist') {
+    if ((user.role === 'doctor' || user.role === 'dentist') && isConsultationEnabled) {
       const checkRequests = async () => {
         try {
           const requests = await api.get('/api/video-calls/active-requests');
@@ -650,20 +653,33 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
           }
         } catch (e) { }
       };
-      const interval = setInterval(checkRequests, 7000); // Check every 7s
+      const interval = setInterval(checkRequests, 3000); // Check every 3s
       return () => clearInterval(interval);
     }
-  }, [user.role, incomingCall]);
+  }, [user.role, isConsultationEnabled, incomingCall]);
 
-  const handleRespondToCall = async (requestId: number, status: 'accepted' | 'declined') => {
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
     try {
-      const res = await api.post('/api/video-calls/respond', { requestId, status });
-      if (status === 'accepted' && res.room_id) {
-        onStartConsultation({ id: 'call-' + requestId, jitsi_room: res.room_id });
+      const res = await api.post('/api/video-calls/respond', { requestId: incomingCall.id, status: 'accepted' });
+      if (res.room_id) {
+        onStartConsultation({ id: 'call-' + incomingCall.id, doctor_id: user.id, jitsi_room: res.room_id });
       }
       setIncomingCall(null);
+      toast.success(lang === 'ar' ? 'تم قبول المكالمة' : 'Call Accepted');
     } catch (err) {
-      toast.error(lang === 'ar' ? 'فشل الرد على المكالمة' : 'Failed to respond to call');
+      toast.error(lang === 'ar' ? 'فشل قبول المكالمة' : 'Failed to accept call');
+    }
+  };
+
+  const handleDeclineCall = async () => {
+    if (!incomingCall) return;
+    try {
+      await api.post('/api/video-calls/respond', { requestId: incomingCall.id, status: 'declined' });
+      setIncomingCall(null);
+      toast(lang === 'ar' ? 'تم رفض المكالمة' : 'Call Declined');
+    } catch (err) {
+      setIncomingCall(null);
     }
   };
 
@@ -1998,6 +2014,14 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
         title={successModalData.title}
         message={successModalData.message}
         t={t}
+      />
+
+      <IncomingCallAlert
+        isOpen={!!incomingCall}
+        patientName={incomingCall?.patient_name || ''}
+        onAccept={handleAcceptCall}
+        onDecline={handleDeclineCall}
+        lang={lang}
       />
     </div>
   );
