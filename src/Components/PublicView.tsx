@@ -731,7 +731,9 @@ const AnimatedCounter = ({ target, label, icon: Icon, delay = 0 }: { target: num
   );
 };
 
-export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser, openLegal }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void, openLegal: (type: 'privacy' | 'terms') => void }) => {
+import { OnlineConsultationSection } from './OnlineConsultationSection';
+
+export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, defaultAddress, footerData, openChatWithUser, openLegal, onCallInitiated }: { user: UserType | null, refreshUser: () => void, lang: string, t: any, currency: 'old' | 'new', setCurrency: (c: 'old' | 'new') => void, defaultAddress: string, footerData?: any, openChatWithUser?: (id: number) => void, openLegal: (type: 'privacy' | 'terms') => void, onCallInitiated?: (doctorId: number, doctorName: string) => void }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1016,6 +1018,16 @@ export const PublicView = ({ user, refreshUser, lang, t, currency, setCurrency, 
             </div>
 
             <div className="flex flex-col gap-12 md:gap-16 mb-16">
+
+              {/* 🟢 قسم الاستشارات المرئية النشطة الآن */}
+              {user?.role === 'patient' && onCallInitiated && (
+                <OnlineConsultationSection
+                  lang={lang}
+                  t={t}
+                  currentUser={user}
+                  onCallInitiated={onCallInitiated}
+                />
+              )}
 
               {/* قسم المناوبين الآن */}
               <div className="w-full">

@@ -25,6 +25,9 @@ export interface UserType {
   about?: string;
   faqs?: FAQ[];
   daily_limit?: number;
+  show_in_directory?: boolean;
+  is_online?: boolean;
+  is_online_consultation_enabled?: boolean;
 }
 
 export interface WorkingHours {

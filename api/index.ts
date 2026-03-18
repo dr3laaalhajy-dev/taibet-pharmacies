@@ -133,6 +133,22 @@ const initDB = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // 🟢 Real-Time Handshake Tables
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT false;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP;`); } catch (e) { }
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online_consultation_enabled BOOLEAN DEFAULT false;`); } catch (e) { }
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS video_call_requests (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        doctor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        room_id VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, expired
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   } catch (e) { }
 };
 initDB();
@@ -658,7 +674,7 @@ app.get('/api/prescriptions/patient/:patientId', authenticateToken, async (req: 
 app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
   try {
-    const doctorId = req.user.id;
+    const doctorId = parseInt(req.user.id);
     const query = `
       SELECT DISTINCT ON (u.id) 
         u.id, u.name, u.phone, u.email, u.profile_picture,
@@ -671,7 +687,7 @@ app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) =>
         u.id IN (SELECT patient_id FROM doctor_patients WHERE doctor_id = $1)
       )
       AND u.id NOT IN (SELECT patient_id FROM doctor_hidden_patients WHERE doctor_id = $1)
-      ORDER BY u.id
+      ORDER BY u.id, u.name
     `;
     const result = await pool.query(query, [doctorId]);
     res.json(result.rows);
@@ -707,7 +723,7 @@ app.get('/api/doctor/dashboard-stats', authenticateToken, async (req: any, res: 
 app.post('/api/doctor/patients/add-from-appointment', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
   const { patientId } = req.body;
-  const doctorId = req.user.id;
+  const doctorId = parseInt(req.user.id);
 
   if (!patientId) return res.status(400).json({ error: 'Patient ID is required' });
 
@@ -764,8 +780,8 @@ app.delete('/api/doctor/patients/:patientId', authenticateToken, async (req: any
 
 app.post('/api/doctor/offline-patient', authenticateToken, async (req: any, res: any) => {
   if (req.user.role !== 'doctor' && req.user.role !== 'dentist' && req.user.role !== 'admin') return res.status(403).json({ error: 'ممنوع' });
-  const { name, phone, dob, gender, notes } = req.body;
-  const doctorId = req.user.id;
+  const { name, phone, dob, gender, notes, chronic_diseases, allergies, blood_type } = req.body;
+  const doctorId = parseInt(req.user.id);
 
   try {
     const dummyEmail = `offline_${Date.now()}@taiba.offline.sy`;
@@ -778,8 +794,8 @@ app.post('/api/doctor/offline-patient', authenticateToken, async (req: any, res:
     const patientId = userRes.rows[0].id;
 
     await pool.query(
-      'INSERT INTO medical_records (patient_id, dob, gender) VALUES ($1, $2, $3)',
-      [patientId, dob || null, gender || '']
+      'INSERT INTO medical_records (patient_id, dob, gender, chronic_diseases, allergies, blood_type) VALUES ($1, $2, $3, $4, $5, $6)',
+      [patientId, dob || null, gender || '', chronic_diseases || '', allergies || '', blood_type || '']
     );
 
     // ربط مبدئي لضمان ظهوره في قائمة المرضى
@@ -860,7 +876,8 @@ app.post('/api/appointments/book', authenticateToken, async (req: any, res: any)
 app.get('/api/appointments/doctor', authenticateToken, async (req: any, res: any) => {
   try {
     const q = `
-      SELECT a.*, p.name as patient_name, p.phone as patient_phone
+      SELECT a.*, p.name as patient_name, p.phone as patient_phone,
+             EXISTS (SELECT 1 FROM doctor_patients dp WHERE dp.doctor_id = a.doctor_id AND dp.patient_id = a.patient_id) as is_added_to_records
       FROM appointments a 
       JOIN users p ON a.patient_id = p.id 
       WHERE a.doctor_id = $1 AND a.appointment_date = $2 
@@ -1281,7 +1298,129 @@ app.post('/api/ai/triage', async (req: any, res: any) => {
   }
 });
 
-if (process.env.NODE_ENV !== 'production') {
+// 🟢 Presence (Heartbeat) Endpoint
+app.put('/api/doctor/presence', authenticateToken, async (req: any, res: any) => {
+  try {
+    const doctorId = req.user.id;
+    await pool.query('UPDATE users SET is_online = true, last_seen = CURRENT_TIMESTAMP WHERE id = $1', [doctorId]);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Video Call Request (Patient -> Doctor)
+app.post('/api/video-calls/request', authenticateToken, async (req: any, res: any) => {
+  const { doctor_id } = req.body;
+  const patient_id = req.user.id;
+  try {
+    const checkDoctor = await pool.query('SELECT is_online FROM users WHERE id = $1', [doctor_id]);
+    if (!checkDoctor.rows[0]?.is_online) return res.status(400).json({ error: 'DoctorIsOffline' });
+
+    const result = await pool.query(
+      'INSERT INTO video_call_requests (patient_id, doctor_id) VALUES ($1, $2) RETURNING id',
+      [patient_id, doctor_id]
+    );
+    res.json({ success: true, requestId: result.rows[0].id });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Active Call Requests (Doctor Polling)
+app.get('/api/video-calls/active-requests', authenticateToken, async (req: any, res: any) => {
+  try {
+    const doctorId = req.user.id;
+    const query = `
+      SELECT v.id, v.patient_id, p.name as patient_name, v.created_at 
+      FROM video_call_requests v
+      JOIN users p ON v.patient_id = p.id
+      WHERE v.doctor_id = $1 AND v.status = 'pending' AND v.created_at > NOW() - INTERVAL '1 minute'
+    `;
+    const result = await pool.query(query, [doctorId]);
+    res.json(result.rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Respond to Call (Doctor -> Patient)
+app.post('/api/video-calls/respond', authenticateToken, async (req: any, res: any) => {
+  const { requestId, status } = req.body;
+  try {
+    let roomId = null;
+    if (status === 'accepted') {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      roomId = 'taiba-call-' + Array.from({length: 12}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+    }
+    await pool.query(
+      'UPDATE video_call_requests SET status = $1, room_id = $2 WHERE id = $3 AND doctor_id = $4',
+      [status, roomId, requestId, req.user.id]
+    );
+    res.json({ success: true, room_id: roomId });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Call Status Polling (Patient Polling)
+app.get('/api/video-calls/status/:requestId', authenticateToken, async (req: any, res: any) => {
+  try {
+    const result = await pool.query(
+      'SELECT status, room_id FROM video_call_requests WHERE id = $1 AND patient_id = $2',
+      [req.params.requestId, req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NotFound' });
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 🟢 Public: Get Online Doctors for Consultations
+app.get('/api/public/online-doctors', async (req, res) => {
+  try {
+    const query = `
+      SELECT id, name, role, specialty, profile_picture, is_online
+      FROM users
+      WHERE (role = 'doctor' OR role = 'dentist')
+        AND is_online = true
+        AND is_online_consultation_enabled = true
+      ORDER BY last_seen DESC
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch online doctors' });
+  }
+});
+
+// 🟢 Get Current User Profile
+app.get('/api/users/profile', authenticateToken, async (req: any, res: any) => {
+  try {
+    const result = await pool.query('SELECT id, email, name, role, is_online_consultation_enabled, is_online, wallet_balance, profile_picture FROM users WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'UserNotFound' });
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// 🟢 Doctor: Toggle Online Consultation Status
+app.put('/api/doctor/consultation-status', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { enabled, is_online_consultation_enabled } = req.body;
+    const finalEnabled = is_online_consultation_enabled !== undefined ? is_online_consultation_enabled : enabled;
+    
+    if (req.user.role !== 'doctor' && req.user.role !== 'dentist') {
+      return res.status(403).json({ error: 'Only doctors can toggle this status' });
+    }
+    await pool.query('UPDATE users SET is_online_consultation_enabled = $1 WHERE id = $2', [finalEnabled, req.user.id]);
+    res.json({ success: true, is_online_consultation_enabled: finalEnabled });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update consultation status' });
+  }
+});
+
+// 🟢 Automatic Offline Handler (Cron-like cleanup for missing heartbeats)
+setInterval(async () => {
+    try {
+        await pool.query("UPDATE users SET is_online = false WHERE last_seen < NOW() - INTERVAL '90 seconds' AND is_online = true");
+        await pool.query("UPDATE video_call_requests SET status = 'expired' WHERE status = 'pending' AND created_at < NOW() - INTERVAL '1 minute'");
+    } catch (e) { }
+}, 45000);
+
+if (process.env.NODE_ENV !== 'production' || true) {
   app.listen(3000, () => console.log('API Server running on http://localhost:3000'));
 }
 

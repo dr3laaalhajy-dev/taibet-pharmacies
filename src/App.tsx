@@ -2,7 +2,7 @@ import { SuccessModal } from './Components/SuccessModal';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart, ChevronDown, ArrowRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, MapPin, Phone, User, LogOut, Settings, Activity, Layout, UploadCloud, Package, FileText, Smile, Wallet, Banknote, Minus, Store, CheckCircle, Stethoscope, X, ShieldAlert, LayoutDashboard, Search, Clock, Users, AlertCircle, MessageSquare, FileSignature, Star, Sun, Moon, MessageCircle, Bell, Camera, CreditCard, ChevronRight, Heart, ChevronDown, ArrowRight, PhoneCall, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { translations } from './translations';
@@ -19,6 +19,8 @@ import { requestForToken } from './firebase';
 import { Eye, EyeOff } from 'lucide-react';
 import { getErrorMessage } from './helpers';
 import { LegalModal } from './Components/LegalModal';
+import { VirtualClinicRoom } from './Components/VirtualClinicRoom';
+import { OnlineConsultationSection } from './Components/OnlineConsultationSection';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -302,7 +304,8 @@ const MedicalRecordFormModal = ({ user, onClose, onSaved, lang, t }: any) => {
 
 export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
-  const [view, setView] = useState<'public' | 'login' | 'dashboard'>('public');
+  const [view, setView] = useState<'public' | 'login' | 'dashboard' | 'virtual-clinic'>('public');
+  const [consultationAppt, setConsultationAppt] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [footerData, setFooterData] = useState<FooterSettings | null>(null);
@@ -333,6 +336,63 @@ export default function App() {
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
+  const [activeCallRequest, setActiveCallRequest] = useState<{ requestId: number, doctorName: string } | null>(null);
+  const [isCallPending, setIsCallPending] = useState(false);
+
+  // 🟢 مراجعة حالة طلب المكالمة (Polling for Patient)
+  useEffect(() => {
+    let interval: any;
+    if (activeCallRequest) {
+      interval = setInterval(async () => {
+        try {
+          const res = await api.get(`/api/video-calls/status/${activeCallRequest.requestId}`);
+          if (res.status === 'accepted') {
+            setActiveCallRequest(null);
+            setIsCallPending(false);
+            setConsultationAppt({ id: activeCallRequest.requestId, doctor_id: res.doctor_id }); // Minimal appt object
+            setView('virtual-clinic');
+            toast.success(lang === 'ar' ? 'تم قبول المكالمة! جاري الاتصال...' : 'Call accepted! Connecting...');
+          } else if (res.status === 'rejected') {
+            setActiveCallRequest(null);
+            setIsCallPending(false);
+            toast.error(lang === 'ar' ? 'عذراً، الطبيب غير متاح الآن.' : 'Sorry, the doctor is busy right now.');
+          } else if (res.status === 'expired') {
+            setActiveCallRequest(null);
+            setIsCallPending(false);
+            toast.error(lang === 'ar' ? 'لم يتم الرد على الطلب. حاول مجدداً.' : 'No response. Please try again.');
+          }
+        } catch (e) {
+          console.error('Status check failed', e);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [activeCallRequest, lang]);
+
+  const handleCallInitiated = async (doctorId: number, doctorName: string) => {
+    if (!user) {
+      toast.error(lang === 'ar' ? 'يجب تسجيل الدخول لطلب استشارة.' : 'Please login to request a consultation.');
+      setView('login');
+      return;
+    }
+    if (user.role !== 'patient') {
+      toast.error(lang === 'ar' ? 'هذه الميزة متاحة للمرضى فقط.' : 'This feature is for patients only.');
+      return;
+    }
+
+    setIsCallPending(true);
+    try {
+      const res = await api.post('/api/video-calls/request', { doctor_id: doctorId });
+      setActiveCallRequest({ requestId: res.requestId, doctorName });
+    } catch (err: any) {
+      setIsCallPending(false);
+      if (err.error === 'DoctorIsOffline') {
+        toast.error(lang === 'ar' ? 'الطبيب خرج من الوضع النشط فوراً.' : 'Doctor just went offline.');
+      } else {
+        toast.error(lang === 'ar' ? 'فشل إرسال الطلب.' : 'Failed to send request.');
+      }
+    }
+  };
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const [showChatModal, setShowChatModal] = useState(false);
@@ -696,20 +756,67 @@ export default function App() {
           <PublicView
             user={user} refreshUser={refreshUser} lang={lang} t={t} currency={currency} setCurrency={handleCurrencyChange} defaultAddress={defaultAddress} footerData={footerData} openChatWithUser={openChatWithUser}
             openLegal={openLegal}
+            onCallInitiated={handleCallInitiated}
           />
         )}
         {view === 'login' && <Auth onLogin={handleLogin} onBack={() => setView('public')} t={t} lang={lang} openLegal={openLegal} />}
-        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} openChatWithUser={openChatWithUser} lang={lang} t={t} currency={currency} />}
+        {view === 'dashboard' && user && <Dashboard user={user} onLogout={handleLogout} onGoToPublic={() => setView('public')} openChatWithUser={openChatWithUser} lang={lang} t={t} currency={currency} onStartConsultation={(appt) => { setConsultationAppt(appt); setView('virtual-clinic'); }} />}
+        {view === 'virtual-clinic' && user && consultationAppt && (
+          <VirtualClinicRoom
+            appointment={consultationAppt}
+            user={user}
+            lang={lang}
+            t={t}
+            onClose={() => setView('dashboard')}
+          />
+        )}
 
-        <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} />
+        <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title={lang === 'ar' ? "تم بنجاح." : "Success."} message={lang === 'ar' ? "شكراً لك." : "Thank you."} t={t} />
+
+        {/* 🟢 شاشة الانتظار لطلب الاستشارة */}
+        <AnimatePresence>
+          {isCallPending && (
+            <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100 dark:border-slate-700"
+              >
+                <div className="mb-6 relative">
+                  <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                    <PhoneCall className="text-indigo-600 dark:text-indigo-400 w-10 h-10" />
+                  </div>
+                  <div className="absolute inset-0 animate-ping rounded-full border-4 border-indigo-400 opacity-20" />
+                </div>
+                
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                  {lang === 'ar' ? 'جاري طلب الطبيب...' : 'Calling Doctor...'}
+                </h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">
+                  {lang === 'ar' 
+                    ? `يرجى الانتظار بينما يقبل د. ${activeCallRequest?.doctorName || ''} طلبك.` 
+                    : `Please wait while Dr. ${activeCallRequest?.doctorName || ''} accepts your call.`}
+                </p>
+                
+                <button
+                  onClick={() => { setIsCallPending(false); setActiveCallRequest(null); }}
+                  className="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-2xl font-bold hover:bg-red-100 transition-colors"
+                >
+                  {lang === 'ar' ? 'إلغاء الطلب' : 'Cancel Request'}
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {activeLegalModal && (
-            <LegalModal 
-              isOpen={!!activeLegalModal} 
-              type={activeLegalModal} 
-              onClose={() => setActiveLegalModal(null)} 
-              lang={lang} 
+            <LegalModal
+              isOpen={!!activeLegalModal}
+              type={activeLegalModal}
+              onClose={() => setActiveLegalModal(null)}
+              lang={lang}
               t={t}
             />
           )}
