@@ -55,7 +55,7 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
   };
 
   const domain = "meet.jit.si";
-  const roomName = `taiba-consultation-${appointment.id}`;
+  const roomName = 'TaibaHealth-Room-' + appointment.id;
 
   const patientId = appointment.patient_id;
   const familyMemberId = appointment.family_member_id;
@@ -110,14 +110,10 @@ export const VirtualClinicRoom: React.FC<VirtualClinicRoomProps> = ({
             domain={domain}
             roomName={roomName}
             configOverwrite={{
-              prejoinPageEnabled: false, // Skip the lobby/prejoin screen
-              startWithAudioMuted: false, // Auto-start mic
-              startWithVideoMuted: false, // Auto-start camera
-              disableModeratorIndicator: true,
-              startScreenSharing: false,
-              enableEmailInStats: false,
+              prejoinPageEnabled: false, // THIS DISABLES THE LOBBY SCREEN
+              startWithAudioMuted: false,
+              startWithVideoMuted: false,
               disableDeepLinking: true,
-              toolbarButtons: ['microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup', 'profile', 'chat', 'recording', 'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand', 'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts', 'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone', 'security', 'e2ee'],
             }}
             interfaceConfigOverwrite={{
               DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,

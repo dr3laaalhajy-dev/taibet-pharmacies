@@ -663,7 +663,7 @@ export const Dashboard = ({ user, onLogout, onGoToPublic, lang, t, openChatWithU
     try {
       const res = await api.post('/api/video-calls/respond', { requestId: incomingCall.id, status: 'accepted' });
       if (res.room_id) {
-        onStartConsultation({ id: 'call-' + incomingCall.id, doctor_id: user.id, jitsi_room: res.room_id });
+        onStartConsultation({ id: incomingCall.id, doctor_id: user.id, jitsi_room: res.room_id });
       }
       setIncomingCall(null);
       toast.success(lang === 'ar' ? 'تم قبول المكالمة' : 'Call Accepted');
